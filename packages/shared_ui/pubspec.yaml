@@ -1,0 +1,17 @@
+name: shared_ui
+description: "Shared Theme, Colors, widgets, map, utilities for Çekici app"
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  google_maps_flutter: ^2.9.0
+  google_fonts: ^6.2.1
+  shimmer: ^3.0.0
+
+  shared_models:
+    path: ../shared_models

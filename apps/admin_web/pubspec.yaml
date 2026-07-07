@@ -1,0 +1,37 @@
+name: admin_web
+description: "Çekici Admin Web Dashboard"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^2.5.0
+  flutter_riverpod: ^2.5.1
+  go_router: ^14.2.7
+  flutter_dotenv: ^5.1.0
+  connectivity_plus: ^6.0.3
+  fl_chart: ^0.69.0
+
+  # Monorepo packages:
+  shared_models:
+    path: ../../packages/shared_models
+  shared_services:
+    path: ../../packages/shared_services
+  shared_ui:
+    path: ../../packages/shared_ui
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env

@@ -1,0 +1,18 @@
+name: cekici
+
+packages:
+  - apps/*
+  - packages/*
+
+scripts:
+  test:
+    exec: flutter test
+    description: Run all tests in all workspace packages.
+  
+  clean:
+    exec: flutter clean
+    description: Clean all packages.
+
+  get:
+    exec: flutter pub get
+    description: Get dependencies in all packages.
