@@ -23,6 +23,13 @@ class ServiceRequestModel {
   final DateTime? acceptedAt;
   final DateTime? completedAt;
   final String? customerPhone;
+  final String? vehicleType;
+  final String? vehiclePhotoUrl;
+  final List<String> selectedDriverIds;
+  final String? destinationIndustryZone;
+  final String? completionCode;
+  final String? cancellationReason;
+  final DateTime? cancelledAt;
 
   ServiceRequestModel({
     required this.id,
@@ -47,6 +54,13 @@ class ServiceRequestModel {
     this.acceptedAt,
     this.completedAt,
     this.customerPhone,
+    this.vehicleType,
+    this.vehiclePhotoUrl,
+    this.selectedDriverIds = const [],
+    this.destinationIndustryZone,
+    this.completionCode,
+    this.cancellationReason,
+    this.cancelledAt,
   });
 
   factory ServiceRequestModel.fromJson(Map<String, dynamic> json) {
@@ -79,6 +93,18 @@ class ServiceRequestModel {
           ? DateTime.parse(json['completed_at'] as String)
           : null,
       customerPhone: json['customer_phone'] as String?,
+      vehicleType: json['vehicle_type'] as String?,
+      vehiclePhotoUrl: json['vehicle_photo_url'] as String?,
+      selectedDriverIds: (json['selected_driver_ids'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      destinationIndustryZone: json['destination_industry_zone'] as String?,
+      completionCode: json['completion_code'] as String?,
+      cancellationReason: json['cancellation_reason'] as String?,
+      cancelledAt: json['cancelled_at'] != null
+          ? DateTime.parse(json['cancelled_at'] as String)
+          : null,
     );
   }
 
@@ -106,6 +132,13 @@ class ServiceRequestModel {
       'accepted_at': acceptedAt?.toIso8601String(),
       'completed_at': completedAt?.toIso8601String(),
       'customer_phone': customerPhone,
+      'vehicle_type': vehicleType,
+      'vehicle_photo_url': vehiclePhotoUrl,
+      'selected_driver_ids': selectedDriverIds,
+      'destination_industry_zone': destinationIndustryZone,
+      'completion_code': completionCode,
+      'cancellation_reason': cancellationReason,
+      'cancelled_at': cancelledAt?.toIso8601String(),
     };
   }
 
@@ -132,6 +165,13 @@ class ServiceRequestModel {
     DateTime? acceptedAt,
     DateTime? completedAt,
     String? customerPhone,
+    String? vehicleType,
+    String? vehiclePhotoUrl,
+    List<String>? selectedDriverIds,
+    String? destinationIndustryZone,
+    String? completionCode,
+    String? cancellationReason,
+    DateTime? cancelledAt,
   }) {
     return ServiceRequestModel(
       id: id ?? this.id,
@@ -156,6 +196,13 @@ class ServiceRequestModel {
       acceptedAt: acceptedAt ?? this.acceptedAt,
       completedAt: completedAt ?? this.completedAt,
       customerPhone: customerPhone ?? this.customerPhone,
+      vehicleType: vehicleType ?? this.vehicleType,
+      vehiclePhotoUrl: vehiclePhotoUrl ?? this.vehiclePhotoUrl,
+      selectedDriverIds: selectedDriverIds ?? this.selectedDriverIds,
+      destinationIndustryZone: destinationIndustryZone ?? this.destinationIndustryZone,
+      completionCode: completionCode ?? this.completionCode,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
     );
   }
 }

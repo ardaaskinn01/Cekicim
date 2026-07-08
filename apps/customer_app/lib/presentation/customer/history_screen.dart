@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/price_calculator.dart';
 import 'package:shared_models/service_request_model.dart';
+import 'package:shared_models/dispute_model.dart';
+import 'package:shared_services/dispute_repository.dart';
+import 'package:shared_ui/widgets/dispute_dialog.dart';
 import 'package:shared_ui/extensions/request_status_extension.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
+import 'package:go_router/go_router.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -41,6 +45,35 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _reportDispute(ServiceRequestModel req) {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null || req.driverId == null) return;
+
+    showDisputeDialog(
+      context: context,
+      onSubmit: (title, description) async {
+        final dispute = DisputeModel(
+          id: '',
+          requestId: req.id,
+          reporterId: user.id,
+          reportedId: req.driverId!,
+          title: title,
+          description: description,
+          createdAt: DateTime.now(),
+        );
+        await DisputeRepository().createDispute(dispute);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sorun başarıyla bildirildi.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      },
+    );
   }
 
   @override
@@ -103,13 +136,58 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                   ),
                                 ),
                                 const Spacer(),
-                                const RatingWidget(rating: 5.0, isReadOnly: true, size: 16),
-                              ],
-                            ),
-                          ],
+                                  const RatingWidget(rating: 5.0, isReadOnly: true, size: 16),
+                                ],
+                              ),
+                              const Divider(color: AppColors.border, height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: () {
+                                      final plate = req.carPlate;
+                                      final vehicleType = req.vehicleType ?? '';
+                                      final zone = req.destinationIndustryZone ?? '';
+                                      context.push(
+                                        Uri(
+                                          path: '/customer/request',
+                                          queryParameters: {
+                                            'plate': plate,
+                                            'vehicleType': vehicleType,
+                                            'zone': zone,
+                                          },
+                                        ).toString(),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.refresh, size: 16, color: AppColors.primary),
+                                    label: const Text(
+                                      'Yeniden Talep Et',
+                                      style: TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.bold),
+                                    ),
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                  if (req.driverId != null)
+                                    TextButton.icon(
+                                      onPressed: () => _reportDispute(req),
+                                      icon: const Icon(Icons.gavel_rounded, size: 16, color: AppColors.error),
+                                      label: const Text(
+                                        'Sorun Bildir',
+                                        style: TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
+                      );
                   },
                 ),
     );

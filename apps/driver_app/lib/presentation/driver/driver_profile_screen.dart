@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_services/rating_repository.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/driver_model.dart';
+import 'package:shared_ui/price_calculator.dart';
+import '../../providers/request_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -20,6 +23,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
   late TextEditingController _plateController;
+  late TextEditingController _ibanController;
+  late TextEditingController _ibanOwnerController;
   bool _isLoading = false;
 
   @override
@@ -30,6 +35,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     _nameController = TextEditingController(text: driver?.fullName ?? '');
     _phoneController = TextEditingController(text: driver?.phone ?? '');
     _plateController = TextEditingController(text: driver?.vehiclePlate ?? '');
+    _ibanController = TextEditingController(text: driver?.iban ?? '');
+    _ibanOwnerController = TextEditingController(text: driver?.ibanOwnerName ?? '');
   }
 
   @override
@@ -37,6 +44,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _plateController.dispose();
+    _ibanController.dispose();
+    _ibanOwnerController.dispose();
     super.dispose();
   }
 
@@ -52,6 +61,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           fullName: _nameController.text.trim(),
           phone: _phoneController.text.trim(),
           vehiclePlate: _plateController.text.trim(),
+          iban: _ibanController.text.replaceAll(' ', '').toUpperCase(),
+          ibanOwnerName: _ibanOwnerController.text.trim(),
         );
 
         await repo.updateUserProfile(updated);
@@ -108,7 +119,91 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     backgroundColor: AppColors.surface,
                     child: Icon(Icons.person, size: 50, color: AppColors.accent),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 8),
+                  // Driver rating badge
+                  Builder(builder: (ctx) {
+                    final user = ref.watch(currentUserProvider).value;
+                    if (user == null) return const SizedBox.shrink();
+                    return FutureBuilder<double>(
+                      future: RatingRepository().getAverageRating(user.id),
+                      builder: (ctx2, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2));
+                        }
+                        final avg = snap.data ?? 0.0;
+                        return Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
+                                const SizedBox(width: 4),
+                                Text(
+                                  avg == 0.0 ? 'Henüz puan yok' : avg.toStringAsFixed(1),
+                                  style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                                if (avg > 0) ...
+                                  const [
+                                    SizedBox(width: 4),
+                                    Text('/5', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                  ],
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  }),
+                  Builder(builder: (ctx) {
+                    final user = ref.watch(currentUserProvider).value;
+                    if (user == null) return const SizedBox.shrink();
+                    return FutureBuilder<Map<String, double>>(
+                      future: ref.read(requestRepositoryProvider).getDriverEarningsSummary(user.id),
+                      builder: (ctx2, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) return const SizedBox.shrink();
+                        final earnings = snap.data ?? {'today': 0.0, 'week': 0.0};
+                        final todayText = PriceCalculator.formatPrice(earnings['today']!);
+                        final weekText = PriceCalculator.formatPrice(earnings['week']!);
+
+                        return Container(
+                          margin: const EdgeInsets.only(top: 16),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              Column(
+                                children: [
+                                  const Text('Bugün', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text(todayText, style: const TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              Container(width: 1, height: 30, color: AppColors.border),
+                              Column(
+                                children: [
+                                  const Text('Bu Hafta', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                  const SizedBox(height: 4),
+                                  Text(weekText, style: const TextStyle(color: AppColors.accent, fontSize: 16, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  }),
+                  const SizedBox(height: 20),
                   AppTextField(
                     controller: _nameController,
                     label: 'Ad Soyad',
@@ -136,6 +231,33 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     prefixIcon: Icons.numbers_rounded,
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) return 'Plaka gereklidir';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  AppTextField(
+                    controller: _ibanController,
+                    label: 'IBAN (Ödeme Almak İçin)',
+                    prefixIcon: Icons.account_balance,
+                    keyboardType: TextInputType.text,
+                    textCapitalization: TextCapitalization.characters,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'IBAN gereklidir';
+                      final clean = val.replaceAll(' ', '');
+                      if (!clean.startsWith('TR')) return "Türkiye IBAN'ı TR ile başlamalıdır.";
+                      if (clean.length != 26) return 'IBAN 26 karakter olmalıdır (TR + 24 rakam).';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  AppTextField(
+                    controller: _ibanOwnerController,
+                    label: 'IBAN Hesap Sahibi',
+                    prefixIcon: Icons.person_outline,
+                    textCapitalization: TextCapitalization.words,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'Hesap sahibi adı gereklidir';
+                      if (val.trim().split(' ').length < 2) return 'Lütfen en az ad ve soyad girin.';
                       return null;
                     },
                   ),

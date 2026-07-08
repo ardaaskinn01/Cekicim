@@ -8,8 +8,6 @@ class DriverModel extends UserModel {
   final bool isVerified;
   final double? latitude;
   final double? longitude;
-  final double rating;
-  final int totalRatings;
   final int totalServices;
   
   // Verification documents
@@ -26,6 +24,13 @@ class DriverModel extends UserModel {
   final List<String> supportedVehicleTypes;
   final bool isOnboardingCompleted;
 
+  // Payment info
+  final String? iban;
+  final String? ibanOwnerName;
+
+  // Admin verification info
+  final String? rejectionReason;
+
   DriverModel({
     required super.id,
     required super.email,
@@ -34,14 +39,15 @@ class DriverModel extends UserModel {
     required super.role,
     required super.createdAt,
     super.avatarUrl,
+    super.isSuspended = false,
     required this.vehiclePlate,
     this.vehicleType = 'small',
     this.isAvailable = false,
     this.isVerified = false,
     this.latitude,
     this.longitude,
-    this.rating = 0.0,
-    this.totalRatings = 0,
+    super.rating = 0.0,
+    super.totalRatings = 0,
     this.totalServices = 0,
     this.driverLicenseUrl,
     this.srcCertificateUrl,
@@ -53,6 +59,9 @@ class DriverModel extends UserModel {
     this.equipments = const [],
     this.supportedVehicleTypes = const [],
     this.isOnboardingCompleted = false,
+    this.iban,
+    this.ibanOwnerName,
+    this.rejectionReason,
   });
 
   factory DriverModel.fromJson(Map<String, dynamic> json, Map<String, dynamic> driverJson) {
@@ -65,6 +74,7 @@ class DriverModel extends UserModel {
       role: user.role,
       createdAt: user.createdAt,
       avatarUrl: user.avatarUrl,
+      isSuspended: user.isSuspended,
       vehiclePlate: driverJson['vehicle_plate'] as String? ?? '',
       vehicleType: driverJson['vehicle_type'] as String? ?? 'small',
       isAvailable: driverJson['is_available'] as bool? ?? false,
@@ -84,6 +94,9 @@ class DriverModel extends UserModel {
       equipments: (driverJson['equipments'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
       supportedVehicleTypes: (driverJson['supported_vehicle_types'] as List<dynamic>?)?.map((e) => e as String).toList() ?? const [],
       isOnboardingCompleted: driverJson['is_onboarding_completed'] as bool? ?? false,
+      iban: driverJson['iban'] as String?,
+      ibanOwnerName: driverJson['iban_owner_name'] as String?,
+      rejectionReason: driverJson['rejection_reason'] as String?,
     );
   }
 
@@ -109,6 +122,9 @@ class DriverModel extends UserModel {
       'equipments': equipments,
       'supported_vehicle_types': supportedVehicleTypes,
       'is_onboarding_completed': isOnboardingCompleted,
+      'iban': iban,
+      'iban_owner_name': ibanOwnerName,
+      'rejection_reason': rejectionReason,
     };
   }
 
@@ -140,6 +156,10 @@ class DriverModel extends UserModel {
     List<String>? equipments,
     List<String>? supportedVehicleTypes,
     bool? isOnboardingCompleted,
+    String? iban,
+    String? ibanOwnerName,
+    String? rejectionReason,
+    bool? isSuspended,
   }) {
     return DriverModel(
       id: id ?? this.id,
@@ -149,6 +169,7 @@ class DriverModel extends UserModel {
       role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      isSuspended: isSuspended ?? this.isSuspended,
       vehiclePlate: vehiclePlate ?? this.vehiclePlate,
       vehicleType: vehicleType ?? this.vehicleType,
       isAvailable: isAvailable ?? this.isAvailable,
@@ -168,6 +189,9 @@ class DriverModel extends UserModel {
       equipments: equipments ?? this.equipments,
       supportedVehicleTypes: supportedVehicleTypes ?? this.supportedVehicleTypes,
       isOnboardingCompleted: isOnboardingCompleted ?? this.isOnboardingCompleted,
+      iban: iban ?? this.iban,
+      ibanOwnerName: ibanOwnerName ?? this.ibanOwnerName,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
     );
   }
 }

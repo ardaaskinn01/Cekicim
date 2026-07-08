@@ -5,13 +5,13 @@ class PriceCalculator {
     if (distanceKm <= AppConstants.baseKm) {
       return AppConstants.minPrice;
     }
-    if (distanceKm <= 10.0) {
+    if (distanceKm <= 15.0) {
       final extraKm = distanceKm - AppConstants.baseKm;
-      return AppConstants.minPrice + (extraKm * AppConstants.pricePerKm);
+      return AppConstants.minPrice + (extraKm * AppConstants.pricePerKmUpTo15);
     } else {
-      final baseTenKmPrice = AppConstants.minPrice + (9.0 * AppConstants.pricePerKm);
-      final extraOverTen = distanceKm - 10.0;
-      return baseTenKmPrice + (extraOverTen * 100.0);
+      final baseFifteenKmPrice = AppConstants.minPrice + (14.0 * AppConstants.pricePerKmUpTo15);
+      final extraOverFifteen = distanceKm - 15.0;
+      return baseFifteenKmPrice + (extraOverFifteen * AppConstants.pricePerKmAfter15);
     }
   }
 

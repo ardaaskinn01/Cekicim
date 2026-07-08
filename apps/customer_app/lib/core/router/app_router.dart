@@ -17,6 +17,8 @@ import '../../presentation/customer/history_screen.dart';
 import '../../presentation/customer/profile_screen.dart';
 import '../../presentation/customer/tracking_screen.dart';
 import '../../presentation/customer/rating_screen.dart';
+import '../../presentation/customer/chat_screen.dart';
+import '../../presentation/customer/voip_call_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -89,6 +91,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           final driverId = state.pathParameters['driverId'] ?? '';
           final driverName = state.uri.queryParameters['name'] ?? 'Sürücü';
           return CustomerRatingScreen(requestId: requestId, driverId: driverId, driverName: driverName);
+        },
+      ),
+      GoRoute(
+        path: '/customer/chat/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return ChatScreen(requestId: requestId);
+        },
+      ),
+      GoRoute(
+        path: '/customer/call/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return VoIPCallScreen(requestId: requestId);
         },
       ),
     ],

@@ -45,5 +45,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Çekici çağırabilmeniz ve konumunuzu harita üzerinde görebilmeniz için konumunuza erişmemiz gerekiyor.</string>
 </dict>
 </plist>

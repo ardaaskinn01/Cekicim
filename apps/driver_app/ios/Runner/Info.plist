@@ -45,5 +45,15 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Yakındaki çekici taleplerini alabilmeniz ve yol tariflerini görebilmeniz için konumunuza erişmemiz gerekiyor.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Uygulama arka plandayken bile yeni çekici taleplerini alabilmeniz için her zaman konumunuza erişmemiz gerekiyor.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Yakındaki talepleri kaçırmamanız için her zaman konumunuza erişmemiz gerekiyor.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

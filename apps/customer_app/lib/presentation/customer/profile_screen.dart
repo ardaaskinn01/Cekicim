@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_services/rating_repository.dart';
 import 'package:shared_ui/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
@@ -92,6 +93,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(user?.email ?? '', style: const TextStyle(color: AppColors.textSecondary)),
+                const SizedBox(height: 8),
+                // Average rating badge
+                if (user != null)
+                  FutureBuilder<double>(
+                    future: RatingRepository().getAverageRating(user.id),
+                    builder: (ctx, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2));
+                      }
+                      final avg = snap.data ?? 0.0;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, color: Colors.amber, size: 18),
+                            const SizedBox(width: 4),
+                            Text(
+                              avg == 0.0 ? 'Henüz puan yok' : avg.toStringAsFixed(1),
+                              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            if (avg > 0) ...
+                              const [
+                                SizedBox(width: 4),
+                                Text('/5', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                              ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 32),
                 AppTextField(
                   controller: _fullNameController,

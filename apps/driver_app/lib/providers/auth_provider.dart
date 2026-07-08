@@ -4,6 +4,8 @@ import 'package:shared_models/user_model.dart';
 import 'package:shared_services/auth_repository.dart';
 import 'package:shared_services/supabase_service.dart';
 
+import 'package:shared_services/notification_service.dart';
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();
 });
@@ -15,7 +17,11 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   ref.watch(authStateProvider);
   final repo = ref.watch(authRepositoryProvider);
-  return await repo.getCurrentUser();
+  final user = await repo.getCurrentUser();
+  if (user != null) {
+    await NotificationService().setupFCM(user.id);
+  }
+  return user;
 });
 
 class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {

@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/price_calculator.dart';
 import 'package:shared_models/service_request_model.dart';
+import 'package:shared_models/dispute_model.dart';
+import 'package:shared_services/dispute_repository.dart';
+import 'package:shared_ui/widgets/dispute_dialog.dart';
 import 'package:shared_models/user_model.dart';
 import 'package:shared_services/auth_repository.dart';
 import 'package:shared_ui/extensions/request_status_extension.dart';
@@ -17,6 +20,35 @@ class DriverHistoryScreen extends ConsumerStatefulWidget {
 }
 
 class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
+  void _reportDispute(ServiceRequestModel req) {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    showDisputeDialog(
+      context: context,
+      onSubmit: (title, description) async {
+        final dispute = DisputeModel(
+          id: '',
+          requestId: req.id,
+          reporterId: user.id,
+          reportedId: req.customerId,
+          title: title,
+          description: description,
+          createdAt: DateTime.now(),
+        );
+        await DisputeRepository().createDispute(dispute);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sorun başarıyla bildirildi.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
@@ -104,6 +136,24 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                           Text(
                             PriceCalculator.formatPrice(req.price),
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.accent),
+                          ),
+                        ],
+                      ),
+                      const Divider(color: AppColors.border, height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _reportDispute(req),
+                            icon: const Icon(Icons.gavel_rounded, size: 16, color: AppColors.error),
+                            label: const Text(
+                              'Uyuşmazlık / Sorun Bildir',
+                              style: TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
                           ),
                         ],
                       ),

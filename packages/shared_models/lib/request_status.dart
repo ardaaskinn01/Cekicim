@@ -1,5 +1,6 @@
 enum RequestStatus {
   pending,
+  awaitingAcceptance,
   accepted,
   inProgress,
   completed,
@@ -9,6 +10,8 @@ enum RequestStatus {
     switch (this) {
       case RequestStatus.pending:
         return 'Çekici Aranıyor';
+      case RequestStatus.awaitingAcceptance:
+        return 'Sürücü Onayı Bekleniyor';
       case RequestStatus.accepted:
         return 'Sürücü Yolda';
       case RequestStatus.inProgress:
@@ -24,6 +27,8 @@ enum RequestStatus {
     switch (this) {
       case RequestStatus.pending:
         return 'pending';
+      case RequestStatus.awaitingAcceptance:
+        return 'awaiting_acceptance';
       case RequestStatus.accepted:
         return 'accepted';
       case RequestStatus.inProgress:
@@ -37,6 +42,8 @@ enum RequestStatus {
 
   static RequestStatus fromString(String? value) {
     switch (value) {
+      case 'awaiting_acceptance':
+        return RequestStatus.awaitingAcceptance;
       case 'accepted':
         return RequestStatus.accepted;
       case 'in_progress':

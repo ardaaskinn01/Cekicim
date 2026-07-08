@@ -9,6 +9,10 @@ class UserModel {
   final DateTime createdAt;
   final String? avatarUrl;
   final bool isVerified;
+  final double rating;
+  final int totalRatings;
+
+  final bool isSuspended;
 
   UserModel({
     required this.id,
@@ -19,6 +23,9 @@ class UserModel {
     required this.createdAt,
     this.avatarUrl,
     this.isVerified = false,
+    this.rating = 5.0,
+    this.totalRatings = 0,
+    this.isSuspended = false,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -33,6 +40,9 @@ class UserModel {
           : DateTime.now(),
       avatarUrl: json['avatar_url'] as String?,
       isVerified: json['is_verified'] as bool? ?? false,
+      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
+      totalRatings: json['total_ratings'] as int? ?? 0,
+      isSuspended: json['is_suspended'] as bool? ?? false,
     );
   }
 
@@ -46,6 +56,9 @@ class UserModel {
       'created_at': createdAt.toIso8601String(),
       'avatar_url': avatarUrl,
       'is_verified': isVerified,
+      'rating': rating,
+      'total_ratings': totalRatings,
+      'is_suspended': isSuspended,
     };
   }
 
@@ -58,6 +71,9 @@ class UserModel {
     DateTime? createdAt,
     String? avatarUrl,
     bool? isVerified,
+    double? rating,
+    int? totalRatings,
+    bool? isSuspended,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -68,6 +84,9 @@ class UserModel {
       createdAt: createdAt ?? this.createdAt,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       isVerified: isVerified ?? this.isVerified,
+      rating: rating ?? this.rating,
+      totalRatings: totalRatings ?? this.totalRatings,
+      isSuspended: isSuspended ?? this.isSuspended,
     );
   }
 }

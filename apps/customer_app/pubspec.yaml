@@ -38,6 +38,8 @@ dependencies:
   go_router: ^14.2.7
   url_launcher: ^6.3.0
   flutter_dotenv: ^5.1.0
+  agora_rtc_engine: ^6.3.0
+  permission_handler: ^11.3.1
   cached_network_image: ^3.3.1
   lottie: ^3.1.0
   connectivity_plus: ^6.0.3
@@ -50,6 +52,9 @@ dependencies:
     path: ../../packages/shared_services
   shared_ui:
     path: ../../packages/shared_ui
+  image_picker: ^1.2.1
+  firebase_core: ^3.11.0
+  firebase_messaging: ^15.1.0
 
 dev_dependencies:
   flutter_test:

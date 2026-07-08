@@ -5,11 +5,15 @@ import 'package:shared_ui/app_theme.dart';
 import 'package:shared_services/supabase_service.dart';
 import 'package:shared_services/notification_service.dart';
 import 'core/router/app_router.dart';
-
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await SupabaseService.initialize();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   await NotificationService().initialize();
   runApp(const ProviderScope(child: DriverApp()));
 }

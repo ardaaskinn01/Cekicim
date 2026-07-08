@@ -1,9 +1,11 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/user_role.dart';
 import 'package:shared_models/user_model.dart';
 import 'package:shared_models/driver_model.dart';
 import 'supabase_service.dart';
+import 'nvi_service.dart';
 
 class AuthRepository {
   final SupabaseClient _client = SupabaseService.instance.client;
@@ -145,9 +147,35 @@ class AuthRepository {
     return userModel;
   }
 
-  Future<void> verifyCustomerTC(String tcNo) async {
+  Future<void> verifyCustomerTC({
+    required String tcNo,
+    required String firstName,
+    required String lastName,
+    required int birthYear,
+  }) async {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Kullanıcı oturumu bulunamadı.');
+
+    // Girişim şirketleşene kadar resmi NVI SOAP sunucusuna istek atmamak için bypass modu.
+    // Şirket kurulup IP adresi tanımlatıldığında bu değeri 'true' yapabilirsiniz.
+    const bool isProductionOfficial = false; 
+
+    bool isValid = false;
+    if (!isProductionOfficial) {
+      isValid = true;
+      debugPrint('MERNIS (Bypass Mode): T.C. Kimlik doğrulaması tamamen atlandı (Aktif Bypass).');
+    } else {
+      isValid = await NviService().validateTCKimlikNo(
+        tcNo: tcNo,
+        firstName: firstName,
+        lastName: lastName,
+        birthYear: birthYear,
+      );
+    }
+
+    if (!isValid) {
+      throw Exception('Kimlik doğrulama başarısız oldu. Lütfen bilgilerinizi kontrol ediniz.');
+    }
 
     await _client.auth.updateUser(
       UserAttributes(
@@ -157,6 +185,10 @@ class AuthRepository {
         },
       ),
     );
+
+    await _client.from('profiles').update({
+      'is_verified': true,
+    }).eq('id', user.id);
   }
 
   Future<UserModel?> getUserProfile(String userId) async {
@@ -183,5 +215,11 @@ class AuthRepository {
       fileOptions: const FileOptions(upsert: true),
     );
     return _client.storage.from('driver-documents').getPublicUrl(path);
+  }
+
+  Future<void> updateFcmToken(String userId, String token) async {
+    await _client.from('profiles').update({
+      'fcm_token': token,
+    }).eq('id', userId);
   }
 }

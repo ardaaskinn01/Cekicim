@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_models/request_status.dart';
 import 'package:shared_models/driver_model.dart';
 import 'package:shared_models/service_request_model.dart';
+import 'package:shared_models/message_model.dart';
 import 'package:shared_services/request_repository.dart';
 import 'auth_provider.dart';
 
@@ -26,7 +27,7 @@ class RequestNotifier extends StateNotifier<AsyncValue<String?>> {
   Future<String> createRequest(ServiceRequestModel request) async {
     state = const AsyncValue.loading();
     try {
-      final id = await _repository.createRequestAndMatch(request);
+      final id = await _repository.createRequest(request);
       state = AsyncValue.data(id);
       return id;
     } catch (e, st) {
@@ -38,7 +39,7 @@ class RequestNotifier extends StateNotifier<AsyncValue<String?>> {
   Future<void> cancelRequest(String requestId) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.cancelRequest(requestId);
+      await _repository.cancelRequestByDriver(requestId, 'Driver ID', 'Sürücü tarafından iptal edildi'); // Assuming we can get driverId here or in UI
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -50,6 +51,17 @@ class RequestNotifier extends StateNotifier<AsyncValue<String?>> {
     state = const AsyncValue.loading();
     try {
       await _repository.updateRequestStatus(requestId, status);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> acceptRequest(String requestId, String driverId) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.acceptRequest(requestId, driverId);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -72,3 +84,9 @@ final driverLocationProvider = StreamProvider.family<DriverModel, String>((ref, 
   final repo = ref.watch(requestRepositoryProvider);
   return repo.watchDriverLocation(driverId);
 });
+
+final messagesStreamProvider = StreamProvider.family<List<MessageModel>, String>((ref, requestId) {
+  final repo = ref.watch(requestRepositoryProvider);
+  return repo.watchMessages(requestId);
+});
+

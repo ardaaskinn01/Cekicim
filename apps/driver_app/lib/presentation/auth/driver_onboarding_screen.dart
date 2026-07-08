@@ -38,7 +38,6 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
   // Step 3 Equipment Selection
   final Map<String, bool> _equipments = {
     'Kayar Kasa': false,
-    'Ahtapot Vinç': false,
     'Tekerlek Kilidi': false,
     'Takviye Kablosu': false,
     'Aparatlar': false,
@@ -52,6 +51,18 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
     'Motosiklet': false,
     'Ağır Vasıta (Otobüs / Kamyon)': false,
   };
+
+  // Step 4: IBAN
+  final _ibanController = TextEditingController();
+  final _ibanOwnerController = TextEditingController();
+  final _ibanFormKey = GlobalKey<FormState>();
+
+  @override
+  void dispose() {
+    _ibanController.dispose();
+    _ibanOwnerController.dispose();
+    super.dispose();
+  }
 
   final ImagePicker _picker = ImagePicker();
 
@@ -398,6 +409,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         supportedVehicleTypes: selectedVehicleTypes,
         isOnboardingCompleted: true,
         isVerified: false, // verification is pending admin review
+        iban: _ibanController.text.replaceAll(' ', '').toUpperCase(),
+        ibanOwnerName: _ibanOwnerController.text.trim(),
       );
 
       await repo.updateUserProfile(updatedDriver);
@@ -445,6 +458,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   _buildStepIndicator(0, 'Belgeler'),
                   _buildStepIndicator(1, 'Araç Resimleri'),
                   _buildStepIndicator(2, 'Ekipmanlar'),
+                  _buildStepIndicator(3, 'Ödeme'),
                 ],
               ),
             ),
@@ -578,6 +592,122 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                       }),
                     ],
                   ),
+
+                  // Step 4: IBAN
+                  ListView(
+                    padding: const EdgeInsets.all(24.0),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Ödeme bilgileriniz yalnızca eşleşme gerçekleştikten sonra müşteriye gösterilecektir. Platform ücret veya komisyon almamaktadır.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.primary,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      const Text(
+                        'Banka Hesap Bilgileri',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Hizmet bedelini almak için IBAN bilgilerinizi girin. Müşteriler ödemeyi doğrudan banka transferiyle yapacaktır.',
+                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 28),
+                      Form(
+                        key: _ibanFormKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'IBAN Numarası *',
+                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _ibanController,
+                              keyboardType: TextInputType.text,
+                              textCapitalization: TextCapitalization.characters,
+                              style: const TextStyle(color: AppColors.textPrimary, letterSpacing: 1.5, fontWeight: FontWeight.w600),
+                              decoration: InputDecoration(
+                                hintText: 'TR00 0000 0000 0000 0000 0000 00',
+                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), letterSpacing: 1.0),
+                                filled: true,
+                                fillColor: AppColors.cardBackground,
+                                prefixIcon: const Icon(Icons.account_balance, color: AppColors.accent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'IBAN zorunludur.';
+                                final clean = v.replaceAll(' ', '');
+                                if (!clean.startsWith('TR')) return "Türkiye IBAN'ı TR ile başlamalıdır.";
+                                if (clean.length != 26) return 'IBAN 26 karakter olmalıdır (TR + 24 rakam).';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              'Hesap Sahibi Adı Soyadı *',
+                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _ibanOwnerController,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                hintText: 'Örn: Ahmet Yılmaz',
+                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                                filled: true,
+                                fillColor: AppColors.cardBackground,
+                                prefixIcon: const Icon(Icons.person_outline, color: AppColors.accent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Hesap sahibi adı zorunludur.';
+                                if (v.trim().split(' ').length < 2) return 'Lütfen ad ve soyadınızı girin.';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -606,12 +736,14 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   ],
                   Expanded(
                     child: GreenButton(
-                      text: _currentStep == 2 ? 'Başvuruyu Tamamla' : 'Devam Et',
+                      text: _currentStep == 3 ? 'Başvuruyu Tamamla' : 'Devam Et',
                       onPressed: () {
-                        if (_currentStep < 2) {
+                        if (_currentStep < 3) {
                           setState(() => _currentStep++);
                         } else {
-                          _handleSubmit();
+                          if (_ibanFormKey.currentState?.validate() ?? false) {
+                            _handleSubmit();
+                          }
                         }
                       },
                     ),

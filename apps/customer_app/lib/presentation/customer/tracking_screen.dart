@@ -1,13 +1,31 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/request_status.dart';
+import 'package:shared_models/service_request_model.dart';
+import 'package:shared_models/dispute_model.dart';
+import 'package:shared_services/dispute_repository.dart';
+import 'package:shared_ui/widgets/dispute_dialog.dart';
+import 'package:shared_services/routing_service.dart';
 import '../../providers/request_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
+
+class LatLngTween extends Tween<LatLng> {
+  LatLngTween({super.begin, super.end});
+
+  @override
+  LatLng lerp(double t) {
+    final lat = begin!.latitude + (end!.latitude - begin!.latitude) * t;
+    final lng = begin!.longitude + (end!.longitude - begin!.longitude) * t;
+    return LatLng(lat, lng);
+  }
+}
 
 class TrackingScreen extends ConsumerStatefulWidget {
   const TrackingScreen({super.key});
@@ -16,17 +34,184 @@ class TrackingScreen extends ConsumerStatefulWidget {
   ConsumerState<TrackingScreen> createState() => _TrackingScreenState();
 }
 
-class _TrackingScreenState extends ConsumerState<TrackingScreen> {
-  Future<void> _makePhoneCall(String phone) async {
-    final uri = Uri.parse('tel:$phone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
+class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTickerProviderStateMixin {
+  RealtimeChannel? _realtimeChannel;
+  final RoutingService _routingService = RoutingService();
+  
+  // Rota ve ETA durumları
+  List<LatLng> _routePoints = [];
+  String? _etaDuration;
+  String? _etaDistance;
+  DateTime? _lastRouteFetchTime;
+
+  // Animasyon durumları (Konum yumuşatma için)
+  AnimationController? _animationController;
+  Animation<LatLng>? _latLngAnimation;
+  LatLng? _currentDriverLocation;
+  double _driverBearing = 0.0;
+
+  bool _isRealtimeSubscribed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 3), // Konum güncelleme aralığıyla (3sn) senkronize
+      vsync: this,
+    )..addListener(() {
+        if (_latLngAnimation != null) {
+          setState(() {
+            _currentDriverLocation = _latLngAnimation!.value;
+          });
+        }
+      });
+  }
+
+  @override
+  void dispose() {
+    _animationController?.dispose();
+    _unsubscribeRealtime();
+    super.dispose();
+  }
+
+  Future<void> _unsubscribeRealtime() async {
+    if (_realtimeChannel != null) {
+      await Supabase.instance.client.removeChannel(_realtimeChannel!);
+      _realtimeChannel = null;
     }
   }
 
-  Future<void> _cancelRequest(String requestId) async {
+  void _subscribeRealtime(String requestId, LatLng customerLatLng) {
+    if (_isRealtimeSubscribed) return;
+    _isRealtimeSubscribed = true;
+
+    _realtimeChannel = Supabase.instance.client.channel('trip_tracking:$requestId');
+    
+    _realtimeChannel!.onBroadcast(
+      event: 'location_update',
+      callback: (payload) {
+        final double lat = payload['latitude'];
+        final double lng = payload['longitude'];
+        final double bearing = (payload['bearing'] ?? 0.0) + 0.0;
+        _onDriverLocationReceived(LatLng(lat, lng), bearing, customerLatLng);
+      },
+    ).subscribe();
+  }
+
+  void _onDriverLocationReceived(LatLng newLocation, double newBearing, LatLng customerLatLng) {
+    if (!mounted) return;
+
+    if (_currentDriverLocation == null) {
+      _currentDriverLocation = newLocation;
+      _driverBearing = newBearing;
+      setState(() {});
+      _fetchRouteAndETA(newLocation, customerLatLng);
+      return;
+    }
+
+    // Koordinat yumuşatma animasyonunu başlat
+    _latLngAnimation = LatLngTween(
+      begin: _currentDriverLocation,
+      end: newLocation,
+    ).animate(CurvedAnimation(
+      parent: _animationController!,
+      curve: Curves.linear,
+    ));
+
+    _driverBearing = newBearing;
+    _animationController!.reset();
+    _animationController!.forward();
+
+    // Rota ve ETA sorgusunu 20 saniyede bir çalıştır (API limit tasarrufu için)
+    final now = DateTime.now();
+    if (_lastRouteFetchTime == null ||
+        now.difference(_lastRouteFetchTime!).inSeconds >= 20) {
+      _lastRouteFetchTime = now;
+      _fetchRouteAndETA(newLocation, customerLatLng);
+    }
+  }
+
+  Future<void> _fetchRouteAndETA(LatLng driverPos, LatLng customerPos) async {
     try {
-      await ref.read(requestNotifierProvider.notifier).cancelRequest(requestId);
+      final routeCoords = await _routingService.getRoute(
+        originLat: driverPos.latitude,
+        originLng: driverPos.longitude,
+        destLat: customerPos.latitude,
+        destLng: customerPos.longitude,
+      );
+
+      final etaData = await _routingService.getETA(
+        originLat: driverPos.latitude,
+        originLng: driverPos.longitude,
+        destLat: customerPos.latitude,
+        destLng: customerPos.longitude,
+      );
+
+      if (mounted) {
+        setState(() {
+          _routePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
+          if (etaData['success'] == true) {
+            _etaDistance = etaData['distanceText'];
+            _etaDuration = etaData['durationText'];
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint("Rota/ETA çekilirken hata: $e");
+    }
+  }
+
+
+
+  Future<void> _cancelRequest(ServiceRequestModel request) async {
+    if (request.acceptedAt != null) {
+      final difference = DateTime.now().difference(request.acceptedAt!);
+      if (difference.inMinutes >= 5) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: const Text('İptal Süresi Aşıldı', style: TextStyle(color: AppColors.textPrimary)),
+            content: const Text(
+              'Sürücü talebinizi kabul edeli 5 dakikayı geçtiği için doğrudan iptal işlemi yapamazsınız. Lütfen uyuşmazlık bildirin ya da sürücüyle iletişime geçin.',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Kapat', style: TextStyle(color: AppColors.accent)),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text('Bu talebi iptal etmek istediğinize emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Evet, İptal Et'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await ref.read(requestNotifierProvider.notifier).cancelRequest(request.id);
       if (mounted) {
         context.go('/customer');
       }
@@ -60,6 +245,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
         }
 
         final customerLatLng = LatLng(request.customerLat, request.customerLng);
+
+        // Canlı yayın dinleyicisini başlat
+        if (request.driverId != null) {
+          _subscribeRealtime(request.id, customerLatLng);
+        }
+
         Set<Marker> markers = {
           Marker(
             markerId: const MarkerId('customer'),
@@ -71,6 +262,18 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
 
         Set<Polyline> polylines = {};
 
+        // OSRM Rotası varsa haritaya ekle
+        if (_routePoints.isNotEmpty) {
+          polylines.add(
+            Polyline(
+              polylineId: const PolylineId('route'),
+              points: _routePoints,
+              color: AppColors.accent,
+              width: 5,
+            ),
+          );
+        }
+
         Widget driverInfoWidget = const SizedBox();
 
         if (request.driverId != null) {
@@ -79,22 +282,20 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
             loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
             error: (err, st) => const Text('Sürücü bilgisi alınamadı.'),
             data: (driver) {
-              if (driver.latitude != null && driver.longitude != null) {
-                final driverLatLng = LatLng(driver.latitude!, driver.longitude!);
+              final activeDriverLoc = _currentDriverLocation ?? 
+                  (driver.latitude != null && driver.longitude != null 
+                      ? LatLng(driver.latitude!, driver.longitude!) 
+                      : null);
+
+              if (activeDriverLoc != null) {
                 markers.add(
                   Marker(
                     markerId: const MarkerId('driver'),
-                    position: driverLatLng,
+                    position: activeDriverLoc,
+                    rotation: _driverBearing,
+                    anchor: const Offset(0.5, 0.5), // Merkezden dönüş için
                     infoWindow: const InfoWindow(title: 'Çekici'),
                     icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-                  ),
-                );
-                polylines.add(
-                  Polyline(
-                    polylineId: const PolylineId('route'),
-                    points: [customerLatLng, driverLatLng],
-                    color: AppColors.accent,
-                    width: 4,
                   ),
                 );
               }
@@ -120,12 +321,56 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                           ],
                         ),
                       ),
-                      if (driver.phone != null)
+                      if (driver.phone != null) ...[
                         IconButton(
-                          onPressed: () => _makePhoneCall(driver.phone!),
+                          onPressed: () => context.push('/customer/chat/${request.id}'),
+                          icon: const Icon(Icons.chat_bubble, color: AppColors.accent),
+                          style: IconButton.styleFrom(backgroundColor: AppColors.surface),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => context.push('/customer/call/${request.id}'),
                           icon: const Icon(Icons.phone, color: AppColors.accent),
                           style: IconButton.styleFrom(backgroundColor: AppColors.surface),
                         ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: () => _reportDispute(request.id, driver.id),
+                          icon: const Icon(Icons.gavel_rounded, color: AppColors.error),
+                          style: IconButton.styleFrom(backgroundColor: AppColors.surface),
+                          tooltip: 'Sorun Bildir / Uyuşmazlık',
+                        ),
+                      ],
+                    ],
+                  ),
+                  const Divider(height: 24, color: AppColors.border),
+                  // ETA ve Kalan Mesafe Bilgisi (Gerçek Zamanlı Trafik)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Icon(Icons.timer_outlined, color: AppColors.accent, size: 20),
+                          const SizedBox(height: 4),
+                          Text(
+                            _etaDuration ?? 'Hesaplanıyor...',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                          const Text('Tahmini Varış', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                        ],
+                      ),
+                      Container(height: 30, width: 1, color: AppColors.divider),
+                      Column(
+                        children: [
+                          const Icon(Icons.navigation_outlined, color: AppColors.accent, size: 20),
+                          const SizedBox(height: 4),
+                          Text(
+                            _etaDistance ?? 'Hesaplanıyor...',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                          const Text('Kalan Mesafe', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                        ],
+                      ),
                     ],
                   ),
                   const Divider(height: 24, color: AppColors.border),
@@ -149,6 +394,86 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                       ),
                     ],
                   ),
+                  // IBAN Bilgisi: eşleşme sonrası göster
+                  if ((request.status == RequestStatus.accepted ||
+                          request.status == RequestStatus.inProgress) &&
+                      driver.iban != null) ...
+                    [
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.account_balance, color: AppColors.primary, size: 16),
+                                const SizedBox(width: 6),
+                                const Text(
+                                  'Ödeme Bilgisi',
+                                  style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
+                                ),
+                                const Spacer(),
+                                const Icon(Icons.lock_outline, color: AppColors.primary, size: 14),
+                                const SizedBox(width: 4),
+                                const Text('Güvenli', style: TextStyle(color: AppColors.primary, fontSize: 10)),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            if (driver.ibanOwnerName != null)
+                              Text(
+                                driver.ibanOwnerName!,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _formatIban(driver.iban!),
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontFamily: 'monospace',
+                                      fontSize: 14,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: driver.iban!));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('IBAN panoya kopyalandı.'),
+                                        duration: Duration(seconds: 2),
+                                        backgroundColor: AppColors.primary,
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.copy, color: AppColors.accent, size: 18),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Hizmet bedelini tamamlanma sonrası bu hesaba transfer ediniz.',
+                              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                 ],
               );
             },
@@ -194,18 +519,44 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (request.status == RequestStatus.pending) ...[
+                      if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance) ...[
                         const CircularProgressIndicator(color: AppColors.accent),
                         const SizedBox(height: 16),
-                        const Text('En yakın çekiciler aranıyor...', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text(
+                          request.status == RequestStatus.pending ? 'En yakın çekiciler aranıyor...' : 'Seçilen çekicilerden onay bekleniyor...', 
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                        ),
                         const SizedBox(height: 24),
                       ] else ...[
                         driverInfoWidget,
+                        if (request.status == RequestStatus.inProgress && request.completionCode != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.primary),
+                            ),
+                            child: Column(
+                              children: [
+                                const Text('Hizmet Tamamlama Kodu', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                const SizedBox(height: 4),
+                                Text(
+                                  request.completionCode!,
+                                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 8, color: AppColors.primary),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text('Lütfen bu kodu sürücüye iletin.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                       ],
-                      if (request.status == RequestStatus.pending || request.status == RequestStatus.accepted)
+                      if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance || request.status == RequestStatus.accepted)
                         OutlinedButton(
-                          onPressed: () => _cancelRequest(request.id),
+                          onPressed: () => _cancelRequest(request),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.error,
                             side: const BorderSide(color: AppColors.error),
@@ -222,5 +573,47 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> {
         );
       },
     );
+  }
+
+  void _reportDispute(String requestId, String driverId) {
+    // Get client user ID from supabase auth directly
+    final client = Supabase.instance.client;
+    final reporterId = client.auth.currentUser?.id;
+    if (reporterId == null) return;
+
+    showDisputeDialog(
+      context: context,
+      onSubmit: (title, description) async {
+        final dispute = DisputeModel(
+          id: '',
+          requestId: requestId,
+          reporterId: reporterId,
+          reportedId: driverId,
+          title: title,
+          description: description,
+          createdAt: DateTime.now(),
+        );
+        await DisputeRepository().createDispute(dispute);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sorun başarıyla bildirildi.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  /// IBAN'ı okunabilir formatta gösterir (TR00 0000 0000 ...)
+  String _formatIban(String iban) {
+    final clean = iban.replaceAll(' ', '');
+    final buffer = StringBuffer();
+    for (int i = 0; i < clean.length; i++) {
+      if (i > 0 && i % 4 == 0) buffer.write(' ');
+      buffer.write(clean[i]);
+    }
+    return buffer.toString();
   }
 }

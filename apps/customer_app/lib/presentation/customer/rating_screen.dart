@@ -30,6 +30,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
   double _score = 5.0;
   final _commentController = TextEditingController();
   bool _isLoading = false;
+  bool _shouldBlock = false;
 
   @override
   void dispose() {
@@ -55,6 +56,10 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
 
       final repo = RatingRepository();
       await repo.submitRating(rating);
+
+      if (_shouldBlock) {
+        await repo.blockDriver(user.id, widget.driverId);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -113,6 +118,41 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                   label: 'Yorumunuz (İsteğe Bağlı)',
                   hint: 'Sürücü ve hizmet hakkında düşünceleriniz...',
                   prefixIcon: Icons.rate_review_outlined,
+                ),
+                const SizedBox(height: 20),
+                // Block driver option
+                InkWell(
+                  onTap: () => setState(() => _shouldBlock = !_shouldBlock),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _shouldBlock
+                          ? AppColors.error.withValues(alpha: 0.12)
+                          : AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _shouldBlock ? AppColors.error.withValues(alpha: 0.5) : AppColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _shouldBlock,
+                          onChanged: (v) => setState(() => _shouldBlock = v ?? false),
+                          activeColor: AppColors.error,
+                          side: BorderSide(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                        ),
+                        const SizedBox(width: 4),
+                        const Expanded(
+                          child: Text(
+                            'Bu sürücüyle beni bir daha asla eşleştirme',
+                            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const Spacer(),
                 GreenButton(

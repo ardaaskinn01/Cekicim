@@ -15,8 +15,10 @@ import '../../presentation/driver/driver_home_screen.dart';
 import '../../presentation/driver/driver_history_screen.dart';
 import '../../presentation/driver/driver_profile_screen.dart';
 import '../../presentation/driver/rate_customer_screen.dart';
-import '../../presentation/driver/offer_detail_screen.dart';
+import '../../presentation/driver/incoming_request_screen.dart';
 import '../../presentation/driver/navigation_screen.dart';
+import '../../presentation/driver/chat_screen.dart';
+import '../../presentation/driver/voip_call_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -88,8 +90,34 @@ final routerProvider = Provider<GoRouter>((ref) {
           return RateCustomerScreen(requestId: requestId, customerId: customerId, customerName: customerName);
         },
       ),
-      GoRoute(path: '/driver/offer/:requestId', builder: (context, state) => const OfferDetailScreen()),
-      GoRoute(path: '/driver/navigate/:requestId', builder: (context, state) => const NavigationScreen()),
+      GoRoute(
+        path: '/driver/offer/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return IncomingRequestScreen(requestId: requestId);
+        },
+      ),
+      GoRoute(
+        path: '/driver/navigate/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return NavigationScreen(requestId: requestId);
+        },
+      ),
+      GoRoute(
+        path: '/driver/chat/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return ChatScreen(requestId: requestId);
+        },
+      ),
+      GoRoute(
+        path: '/driver/call/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return VoIPCallScreen(requestId: requestId);
+        },
+      ),
     ],
   );
 });

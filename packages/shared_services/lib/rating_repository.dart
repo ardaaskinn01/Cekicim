@@ -6,22 +6,30 @@ class RatingRepository {
   final SupabaseClient _client = SupabaseService.instance.client;
 
   Future<void> submitRating(RatingModel rating) async {
-    await _client.from('ratings').insert(rating.toJson());
-
-    // Update rated user statistics if they are a driver
-    final driverCheck = await _client.from('drivers').select('id, rating, total_ratings').eq('id', rating.ratedId).maybeSingle();
-    if (driverCheck != null) {
-      final currentRating = (driverCheck['rating'] as num?)?.toDouble() ?? 0.0;
-      final totalRatings = (driverCheck['total_ratings'] as int?) ?? 0;
-
-      final newTotal = totalRatings + 1;
-      final newRating = ((currentRating * totalRatings) + rating.score) / newTotal;
-
-      await _client.from('drivers').update({
-        'rating': newRating,
-        'total_ratings': newTotal,
-      }).eq('id', rating.ratedId);
+    try {
+      await _client.from('ratings').insert(rating.toJson());
+    } on PostgrestException catch (e) {
+      if (e.code == '23505') {
+        throw Exception('Bu talep için zaten değerlendirme yaptınız.');
+      }
+      throw Exception('Değerlendirme kaydedilemedi: ${e.message}');
+    } catch (e) {
+      throw Exception('Bir hata oluştu: $e');
     }
+  }
+
+  Future<void> blockDriver(String customerId, String driverId) async {
+    await _client.from('blocked_drivers').upsert({
+      'customer_id': customerId,
+      'driver_id': driverId,
+    });
+  }
+
+  Future<void> blockCustomer(String driverId, String customerId) async {
+    await _client.from('blocked_customers').upsert({
+      'driver_id': driverId,
+      'customer_id': customerId,
+    });
   }
 
   Future<List<RatingModel>> getRatingsForUser(String userId) async {
