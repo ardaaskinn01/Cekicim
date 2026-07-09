@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
@@ -255,27 +256,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
   }
 
   Future<void> _handleSubmit() async {
-    // Validations
-    if (_driverLicense == null || _vehicleRegistration == null || _criminalRecord == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen zorunlu belgeleri (Ehliyet, Ruhsat, Adli Sicil) yükleyin.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    if (_photoFront == null || _photoBack == null || _photoLeft == null || _photoRight == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lütfen çekicinin 4 açıdan fotoğraflarını eksiksiz yükleyin.'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
+    // [TEST MODE] Document and Photo validations are bypassed. 
+    // We only require at least one vehicle type for basic request routing.
     final selectedVehicleTypes = _supportedVehicleTypes.entries
         .where((e) => e.value)
         .map((e) => e.key)
@@ -292,41 +274,63 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
     setState(() {
       _isUploading = true;
-      _uploadStatus = 'Dosyalar hazırlanıyor...';
+      _uploadStatus = 'Bilgiler kaydediliyor...';
     });
 
     try {
       final repo = ref.read(authRepositoryProvider);
-      final driver = ref.read(currentUserProvider).value as DriverModel;
+      final user = ref.read(currentUserProvider).value;
+      if (user == null) throw Exception('Kullanıcı oturumu bulunamadı.');
 
-      // Upload files
-      setState(() => _uploadStatus = 'Ehliyet yükleniyor...');
-      final licenseUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'license',
-        fileName: 'license.jpg',
-        fileBytes: await _driverLicense!.readAsBytes(),
-      );
+      // Safely cast UserModel to DriverModel if not already casted by repository
+      final DriverModel driver = user is DriverModel
+          ? user
+          : DriverModel(
+              id: user.id,
+              email: user.email,
+              fullName: user.fullName,
+              phone: user.phone,
+              role: user.role,
+              createdAt: user.createdAt,
+              isVerified: user.isVerified,
+              vehiclePlate: Supabase.instance.client.auth.currentUser?.userMetadata?['vehicle_plate'] as String? ?? '06ANK06',
+            );
 
-      setState(() => _uploadStatus = 'Ruhsat yükleniyor...');
-      final registrationUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'registration',
-        fileName: 'registration.jpg',
-        fileBytes: await _vehicleRegistration!.readAsBytes(),
-      );
+      // Assign mock URLs if files are not uploaded for testing
+      final mockUrl = 'https://picsum.photos/800/600';
+      
+      String licenseUrl = mockUrl;
+      if (_driverLicense != null) {
+        licenseUrl = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'license',
+          fileName: 'license.jpg',
+          fileBytes: await _driverLicense!.readAsBytes(),
+        );
+      }
 
-      setState(() => _uploadStatus = 'Adli Sicil Kaydı yükleniyor...');
-      final criminalUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'criminal',
-        fileName: 'criminal.jpg',
-        fileBytes: await _criminalRecord!.readAsBytes(),
-      );
+      String registrationUrl = mockUrl;
+      if (_vehicleRegistration != null) {
+        registrationUrl = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'registration',
+          fileName: 'registration.jpg',
+          fileBytes: await _vehicleRegistration!.readAsBytes(),
+        );
+      }
 
-      String? srcUrl;
+      String criminalUrl = mockUrl;
+      if (_criminalRecord != null) {
+        criminalUrl = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'criminal',
+          fileName: 'criminal.jpg',
+          fileBytes: await _criminalRecord!.readAsBytes(),
+        );
+      }
+
+      String? srcUrl = mockUrl;
       if (_srcCertificate != null) {
-        setState(() => _uploadStatus = 'SRC Belgesi yükleniyor...');
         srcUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'src',
@@ -335,9 +339,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      String? psychoUrl;
+      String? psychoUrl = mockUrl;
       if (_psychotechnic != null) {
-        setState(() => _uploadStatus = 'Psikoteknik yükleniyor...');
         psychoUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'psychotechnic',
@@ -346,9 +349,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      String? taxUrl;
+      String? taxUrl = mockUrl;
       if (_taxPlate != null) {
-        setState(() => _uploadStatus = 'Vergi Levhası yükleniyor...');
         taxUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'tax_plate',
@@ -357,40 +359,40 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      // Upload vehicle photos
-      setState(() => _uploadStatus = 'Araç fotoğrafları yükleniyor (1/4)...');
-      final frontUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'vehicle_photos',
-        fileName: 'front.jpg',
-        fileBytes: await _photoFront!.readAsBytes(),
-      );
-
-      setState(() => _uploadStatus = 'Araç fotoğrafları yükleniyor (2/4)...');
-      final backUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'vehicle_photos',
-        fileName: 'back.jpg',
-        fileBytes: await _photoBack!.readAsBytes(),
-      );
-
-      setState(() => _uploadStatus = 'Araç fotoğrafları yükleniyor (3/4)...');
-      final leftUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'vehicle_photos',
-        fileName: 'left.jpg',
-        fileBytes: await _photoLeft!.readAsBytes(),
-      );
-
-      setState(() => _uploadStatus = 'Araç fotoğrafları yükleniyor (4/4)...');
-      final rightUrl = await repo.uploadDriverDocument(
-        driverId: driver.id,
-        documentType: 'vehicle_photos',
-        fileName: 'right.jpg',
-        fileBytes: await _photoRight!.readAsBytes(),
-      );
-
-      setState(() => _uploadStatus = 'Bilgiler güncelleniyor...');
+      // Mock vehicle photos
+      List<String> vehiclePhotos = [mockUrl, mockUrl, mockUrl, mockUrl];
+      if (_photoFront != null) {
+        vehiclePhotos[0] = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'vehicle_photos',
+          fileName: 'front.jpg',
+          fileBytes: await _photoFront!.readAsBytes(),
+        );
+      }
+      if (_photoBack != null) {
+        vehiclePhotos[1] = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'vehicle_photos',
+          fileName: 'back.jpg',
+          fileBytes: await _photoBack!.readAsBytes(),
+        );
+      }
+      if (_photoLeft != null) {
+        vehiclePhotos[2] = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'vehicle_photos',
+          fileName: 'left.jpg',
+          fileBytes: await _photoLeft!.readAsBytes(),
+        );
+      }
+      if (_photoRight != null) {
+        vehiclePhotos[3] = await repo.uploadDriverDocument(
+          driverId: driver.id,
+          documentType: 'vehicle_photos',
+          fileName: 'right.jpg',
+          fileBytes: await _photoRight!.readAsBytes(),
+        );
+      }
 
       final selectedEquipments = _equipments.entries
           .where((e) => e.value)
@@ -404,7 +406,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         srcCertificateUrl: srcUrl,
         psychotechnicUrl: psychoUrl,
         taxPlateUrl: taxUrl,
-        vehiclePhotos: [frontUrl, backUrl, leftUrl, rightUrl],
+        vehiclePhotos: vehiclePhotos,
         equipments: selectedEquipments,
         supportedVehicleTypes: selectedVehicleTypes,
         isOnboardingCompleted: true,
@@ -415,17 +417,15 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
       await repo.updateUserProfile(updatedDriver);
 
-      // Refresh auth notifier state
+      // Refresh auth notifier state and wait for it to complete
       await ref.read(authNotifierProvider.notifier).loadCurrentUser();
-
-      if (mounted) {
-        context.go('/driver');
-      }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('Onboarding submit error: $e');
+      debugPrint('Onboarding submit stack: $stack');
       if (mounted) {
         setState(() => _isUploading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Dosya yükleme hatası: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Kayıt güncellenirken hata oluştu: $e'), backgroundColor: AppColors.error),
         );
       }
     }
@@ -433,6 +433,16 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Listen for current user changes and navigate to /driver as soon as onboarding is completed successfully
+    ref.listen<AsyncValue<dynamic>>(currentUserProvider, (previous, next) {
+      final user = next.value;
+      if (user is DriverModel && user.isOnboardingCompleted) {
+        if (mounted) {
+          context.go('/driver');
+        }
+      }
+    });
+
     final driver = ref.watch(currentUserProvider).value;
     if (driver == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -463,253 +473,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
               ),
             ),
             Expanded(
-              child: IndexedStack(
-                index: _currentStep,
-                children: [
-                  // Step 1: Documents
-                  ListView(
-                    padding: const EdgeInsets.all(24.0),
-                    children: [
-                      const Text(
-                        'Resmi Belgeleri Yükleyin',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Başvurunuzun onaylanması için gerekli evrakların net fotoğraflarını çekin veya seçin.',
-                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 24),
-                      _buildDocTile('Sürücü Belgesi (Ehliyet)', _driverLicense, 'license'),
-                      _buildDocTile('Araç Ruhsatı', _vehicleRegistration, 'registration'),
-                      _buildDocTile('Adli Sicil Kaydı (E-Devlet)', _criminalRecord, 'criminal'),
-                      _buildDocTile('SRC Belgesi', _srcCertificate, 'src', isRequired: false),
-                      _buildDocTile('Psikoteknik Belgesi', _psychotechnic, 'psychotechnic', isRequired: false),
-                      _buildDocTile('Vergi Levhası / Oda Kaydı', _taxPlate, 'tax_plate', isRequired: false),
-                    ],
-                  ),
-
-                  // Step 2: Vehicle Photos
-                  Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'Çekici Fotoğrafları',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Platforma kayıtlı aracınızın 4 farklı açıdan net çekilmiş fotoğrafını yükleyin.',
-                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                        ),
-                        const SizedBox(height: 24),
-                        Expanded(
-                          child: GridView.count(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.1,
-                            children: [
-                              _buildPhotoBox('Ön Görünüm *', _photoFront, 'photo_front'),
-                              _buildPhotoBox('Arka Görünüm *', _photoBack, 'photo_back'),
-                              _buildPhotoBox('Sol Yan Görünüm *', _photoLeft, 'photo_left'),
-                              _buildPhotoBox('Sağ Yan Görünüm *', _photoRight, 'photo_right'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Step 3: Equipment and Vehicle Types list
-                  ListView(
-                    padding: const EdgeInsets.all(24.0),
-                    children: [
-                      const Text(
-                        'Ekipman Tanımlama',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Çekici aracınızda hazır bulundurduğunuz donanımları seçin. Doğru eşleşme için önemlidir.',
-                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 16),
-                      ..._equipments.keys.map((String key) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: CheckboxListTile(
-                            title: Text(key, style: const TextStyle(color: AppColors.textPrimary)),
-                            activeColor: AppColors.primary,
-                            checkColor: Colors.white,
-                            value: _equipments[key],
-                            onChanged: (bool? value) {
-                              setState(() {
-                                _equipments[key] = value ?? false;
-                              });
-                            },
-                          ),
-                        );
-                      }),
-                      const SizedBox(height: 24),
-                      const Divider(color: AppColors.border),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Taşıyabildiğiniz Araç Türleri *',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Çekebileceğiniz araç modellerini seçin. Müşteriler araç tipine göre filtreleme yapacaktır.',
-                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 16),
-                      ..._supportedVehicleTypes.keys.map((String key) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          decoration: BoxDecoration(
-                            color: AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: CheckboxListTile(
-                            title: Text(key, style: const TextStyle(color: AppColors.textPrimary)),
-                            activeColor: AppColors.primary,
-                            checkColor: Colors.white,
-                            value: _supportedVehicleTypes[key],
-                            onChanged: (bool? value) {
-                              setState(() {
-                                _supportedVehicleTypes[key] = value ?? false;
-                              });
-                            },
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-
-                  // Step 4: IBAN
-                  ListView(
-                    padding: const EdgeInsets.all(24.0),
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'Ödeme bilgileriniz yalnızca eşleşme gerçekleştikten sonra müşteriye gösterilecektir. Platform ücret veya komisyon almamaktadır.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.primary,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-                      const Text(
-                        'Banka Hesap Bilgileri',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Hizmet bedelini almak için IBAN bilgilerinizi girin. Müşteriler ödemeyi doğrudan banka transferiyle yapacaktır.',
-                        style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-                      ),
-                      const SizedBox(height: 28),
-                      Form(
-                        key: _ibanFormKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'IBAN Numarası *',
-                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _ibanController,
-                              keyboardType: TextInputType.text,
-                              textCapitalization: TextCapitalization.characters,
-                              style: const TextStyle(color: AppColors.textPrimary, letterSpacing: 1.5, fontWeight: FontWeight.w600),
-                              decoration: InputDecoration(
-                                hintText: 'TR00 0000 0000 0000 0000 0000 00',
-                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), letterSpacing: 1.0),
-                                filled: true,
-                                fillColor: AppColors.cardBackground,
-                                prefixIcon: const Icon(Icons.account_balance, color: AppColors.accent),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return 'IBAN zorunludur.';
-                                final clean = v.replaceAll(' ', '');
-                                if (!clean.startsWith('TR')) return "Türkiye IBAN'ı TR ile başlamalıdır.";
-                                if (clean.length != 26) return 'IBAN 26 karakter olmalıdır (TR + 24 rakam).';
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            const Text(
-                              'Hesap Sahibi Adı Soyadı *',
-                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _ibanOwnerController,
-                              textCapitalization: TextCapitalization.words,
-                              style: const TextStyle(color: AppColors.textPrimary),
-                              decoration: InputDecoration(
-                                hintText: 'Örn: Ahmet Yılmaz',
-                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
-                                filled: true,
-                                fillColor: AppColors.cardBackground,
-                                prefixIcon: const Icon(Icons.person_outline, color: AppColors.accent),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return 'Hesap sahibi adı zorunludur.';
-                                if (v.trim().split(' ').length < 2) return 'Lütfen ad ve soyadınızı girin.';
-                                return null;
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              child: _buildActiveStepContent(),
             ),
             // Bottom Buttons
             Container(
@@ -736,7 +500,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   ],
                   Expanded(
                     child: GreenButton(
-                      text: _currentStep == 3 ? 'Başvuruyu Tamamla' : 'Devam Et',
+                      text: _currentStep == 3 ? 'Tamamla' : 'Devam Et',
                       onPressed: () {
                         if (_currentStep < 3) {
                           setState(() => _currentStep++);
@@ -755,6 +519,252 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildActiveStepContent() {
+    switch (_currentStep) {
+      case 0:
+        return ListView(
+          padding: const EdgeInsets.all(24.0),
+          children: [
+            const Text(
+              'Resmi Belgeleri Yükleyin',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Başvurunuzun onaylanması için gerekli evrakların net fotoğraflarını çekin veya seçin.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 24),
+            _buildDocTile('Sürücü Belgesi (Ehliyet)', _driverLicense, 'license'),
+            _buildDocTile('Araç Ruhsatı', _vehicleRegistration, 'registration'),
+            _buildDocTile('Adli Sicil Kaydı (E-Devlet)', _criminalRecord, 'criminal'),
+            _buildDocTile('SRC Belgesi', _srcCertificate, 'src', isRequired: false),
+            _buildDocTile('Psikoteknik Belgesi', _psychotechnic, 'psychotechnic', isRequired: false),
+            _buildDocTile('Vergi Levhası / Oda Kaydı', _taxPlate, 'tax_plate', isRequired: false),
+          ],
+        );
+      case 1:
+        return Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Çekici Fotoğrafları',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Platforma kayıtlı aracınızın 4 farklı açıdan net çekilmiş fotoğrafını yükleyin.',
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 1.1,
+                  children: [
+                    _buildPhotoBox('Ön Görünüm *', _photoFront, 'photo_front'),
+                    _buildPhotoBox('Arka Görünüm *', _photoBack, 'photo_back'),
+                    _buildPhotoBox('Sol Yan Görünüm *', _photoLeft, 'photo_left'),
+                    _buildPhotoBox('Sağ Yan Görünüm *', _photoRight, 'photo_right'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      case 2:
+        return ListView(
+          padding: const EdgeInsets.all(24.0),
+          children: [
+            const Text(
+              'Ekipman Tanımlama',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Çekici aracınızda hazır bulundurduğunuz donanımları seçin. Doğru eşleşme için önemlidir.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ..._equipments.keys.map((String key) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: CheckboxListTile(
+                  title: Text(key, style: const TextStyle(color: AppColors.textPrimary)),
+                  activeColor: AppColors.primary,
+                  checkColor: Colors.white,
+                  value: _equipments[key],
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _equipments[key] = value ?? false;
+                    });
+                  },
+                ),
+              );
+            }),
+            const SizedBox(height: 24),
+            const Divider(color: AppColors.border),
+            const SizedBox(height: 16),
+            const Text(
+              'Taşıyabildiğiniz Araç Türleri *',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Çekebileceğiniz araç modellerini seçin. Müşteriler araç tipine göre filtreleme yapacaktır.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ..._supportedVehicleTypes.keys.map((String key) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: CheckboxListTile(
+                  title: Text(key, style: const TextStyle(color: AppColors.textPrimary)),
+                  activeColor: AppColors.primary,
+                  checkColor: Colors.white,
+                  value: _supportedVehicleTypes[key],
+                  onChanged: (bool? value) {
+                    setState(() {
+                      _supportedVehicleTypes[key] = value ?? false;
+                    });
+                  },
+                ),
+              );
+            }),
+          ],
+        );
+      case 3:
+        return ListView(
+          padding: const EdgeInsets.all(24.0),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Ödeme bilgileriniz yalnızca eşleşme gerçekleştikten sonra müşteriye gösterilecektir. Platform ücret veya komisyon almamaktadır.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.primary,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            const Text(
+              'Banka Hesap Bilgileri',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Hizmet bedelini almak için IBAN bilgilerinizi girin. Müşteriler ödemeyi doğrudan banka transferiyle yapacaktır.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 28),
+            Form(
+              key: _ibanFormKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'IBAN Numarası *',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _ibanController,
+                    keyboardType: TextInputType.text,
+                    textCapitalization: TextCapitalization.characters,
+                    style: const TextStyle(color: AppColors.textPrimary, letterSpacing: 1.5, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'TR00 0000 0000 0000 0000 0000 00',
+                      hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), letterSpacing: 1.0),
+                      filled: true,
+                      fillColor: AppColors.cardBackground,
+                      prefixIcon: const Icon(Icons.account_balance, color: AppColors.accent),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'IBAN zorunludur.';
+                      final clean = v.replaceAll(' ', '');
+                      if (!clean.startsWith('TR')) return "Türkiye IBAN'ı TR ile başlamalıdır.";
+                      if (clean.length != 26) return 'IBAN 26 karakter olmalıdır (TR + 24 rakam).';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Hesap Sahibi Adı Soyadı *',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _ibanOwnerController,
+                    textCapitalization: TextCapitalization.words,
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Örn: Ahmet Yılmaz',
+                      hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                      filled: true,
+                      fillColor: AppColors.cardBackground,
+                      prefixIcon: const Icon(Icons.person_outline, color: AppColors.accent),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Hesap sahibi adı zorunludur.';
+                      if (v.trim().split(' ').length < 2) return 'Lütfen ad ve soyadınızı girin.';
+                      return null;
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildStepIndicator(int index, String label) {

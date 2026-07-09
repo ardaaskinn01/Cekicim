@@ -46,8 +46,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.secondary,
-          foregroundColor: AppColors.textPrimary,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(54),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -59,7 +59,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.cardBackground,
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         hintStyle: const TextStyle(color: AppColors.textSecondary),
         labelStyle: const TextStyle(color: AppColors.textSecondary),
@@ -73,7 +73,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.accent, width: 2),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

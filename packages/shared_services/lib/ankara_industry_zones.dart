@@ -12,6 +12,13 @@ class IndustryZone {
     required this.latitude,
     required this.longitude,
   });
+
+  double distanceTo(double lat, double lng) {
+    // Quick Euclidean distance for local area projection (fast and sufficient)
+    final double dLat = latitude - lat;
+    final double dLng = longitude - lng;
+    return dLat * dLat + dLng * dLng;
+  }
 }
 
 class AnkaraIndustryZones {
@@ -73,4 +80,10 @@ class AnkaraIndustryZones {
       longitude: 32.7214,
     ),
   ];
+
+  static List<IndustryZone> getSortedZones(double lat, double lng) {
+    final List<IndustryZone> sorted = List.from(zones);
+    sorted.sort((a, b) => a.distanceTo(lat, lng).compareTo(b.distanceTo(lat, lng)));
+    return sorted;
+  }
 }

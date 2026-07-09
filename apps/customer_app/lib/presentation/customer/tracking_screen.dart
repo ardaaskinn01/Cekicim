@@ -15,6 +15,7 @@ import 'package:shared_services/routing_service.dart';
 import '../../providers/request_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
+import 'package:shared_ui/widgets/glass_container.dart';
 
 class LatLngTween extends Tween<LatLng> {
   LatLngTween({super.begin, super.end});
@@ -307,40 +308,25 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                   Row(
                     children: [
                       CircleAvatar(
-                        radius: 24,
+                        radius: 26,
+                        backgroundColor: AppColors.surface,
                         backgroundImage: driver.avatarUrl != null ? NetworkImage(driver.avatarUrl!) : null,
-                        child: driver.avatarUrl == null ? const Icon(Icons.person) : null,
+                        child: driver.avatarUrl == null ? const Icon(Icons.person, color: AppColors.textPrimary) : null,
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(driver.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                            RatingWidget(rating: driver.rating, isReadOnly: true, size: 16),
+                            Text(
+                              driver.fullName, 
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.2),
+                            ),
+                            const SizedBox(height: 4),
+                            RatingWidget(rating: driver.rating, isReadOnly: true, size: 14),
                           ],
                         ),
                       ),
-                      if (driver.phone != null) ...[
-                        IconButton(
-                          onPressed: () => context.push('/customer/chat/${request.id}'),
-                          icon: const Icon(Icons.chat_bubble, color: AppColors.accent),
-                          style: IconButton.styleFrom(backgroundColor: AppColors.surface),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () => context.push('/customer/call/${request.id}'),
-                          icon: const Icon(Icons.phone, color: AppColors.accent),
-                          style: IconButton.styleFrom(backgroundColor: AppColors.surface),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: () => _reportDispute(request.id, driver.id),
-                          icon: const Icon(Icons.gavel_rounded, color: AppColors.error),
-                          style: IconButton.styleFrom(backgroundColor: AppColors.surface),
-                          tooltip: 'Sorun Bildir / Uyuşmazlık',
-                        ),
-                      ],
                     ],
                   ),
                   const Divider(height: 24, color: AppColors.border),
@@ -505,17 +491,52 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                   ),
                 ),
               ),
+              // Floating action column for VoIP Call, Chat, and Dispute
+              if (request.driverId != null)
+                Positioned(
+                  right: 20,
+                  bottom: 260, // Positioned right above the bottom GlassContainer
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Chat Button
+                      FloatingActionButton.small(
+                        heroTag: 'chat_action',
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        onPressed: () => context.push('/customer/chat/${request.id}'),
+                        child: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                      ),
+                      const SizedBox(height: 12),
+                      // VoIP Phone Button
+                      FloatingActionButton.small(
+                        heroTag: 'call_action',
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        onPressed: () => context.push('/customer/call/${request.id}'),
+                        child: const Icon(Icons.phone_in_talk_outlined, size: 20),
+                      ),
+                      const SizedBox(height: 12),
+                      // Dispute Button
+                      FloatingActionButton.small(
+                        heroTag: 'dispute_action',
+                        backgroundColor: AppColors.error,
+                        foregroundColor: Colors.white,
+                        onPressed: () => _reportDispute(request.id, request.driverId!),
+                        child: const Icon(Icons.gavel_rounded, size: 20),
+                      ),
+                    ],
+                  ),
+                ),
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: Container(
+                child: GlassContainer(
                   padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.cardBackground,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                    boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20, offset: Offset(0, -5))],
-                  ),
+                  borderRadius: 24,
+                  opacity: 0.85,
+                  border: const Border(top: BorderSide(color: AppColors.border, width: 1.5)),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

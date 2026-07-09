@@ -223,6 +223,66 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     }
   }
 
+  Widget _buildStepper() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
+      decoration: const BoxDecoration(
+        color: AppColors.cardBackground,
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
+      ),
+      child: Row(
+        children: List.generate(4, (index) {
+          final isCompleted = _currentStep > index;
+          final isActive = _currentStep == index;
+          
+          return Expanded(
+            child: Row(
+              children: [
+                // Step Circle
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: isCompleted 
+                        ? AppColors.primary
+                        : (isActive ? AppColors.primary.withValues(alpha: 0.2) : Colors.transparent),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: (isCompleted || isActive) ? AppColors.primary : AppColors.border,
+                      width: 2,
+                    ),
+                  ),
+                  child: Center(
+                    child: isCompleted
+                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                        : Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: isActive ? AppColors.primary : AppColors.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                // Step Line Connection
+                if (index < 3)
+                  Expanded(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      height: 2,
+                      color: isCompleted ? AppColors.primary : AppColors.border,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LoadingOverlay(
@@ -230,11 +290,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       message: 'İşlem yapılıyor...',
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Çekici Çağır (Adım ${_currentStep + 1}/4)'),
+          title: const Text('Çekici Çağır'),
+          elevation: 0,
         ),
         body: SafeArea(
           child: Column(
             children: [
+              _buildStepper(),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20.0),
@@ -256,6 +318,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(50),
                             side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           child: const Text('Geri', style: TextStyle(color: AppColors.textPrimary)),
                         ),
@@ -294,13 +357,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                   initialPosition: _selectedLatLng,
                   markers: {
                     Marker(
-                      markerId: const MarkerId('pickup'),
+                      markerId: const MarkerId('my_current_position'),
                       position: _selectedLatLng,
-                      draggable: true,
-                      onDragEnd: (newPos) => setState(() => _selectedLatLng = newPos),
+                      infoWindow: const InfoWindow(title: 'Benim Konumum'),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                     ),
                   },
-                  onTap: (pos) => setState(() => _selectedLatLng = pos),
+                  onTap: null,
                 ),
               ),
             ),
@@ -308,17 +371,78 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             const Text('Araç Türü *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 12,
+              runSpacing: 12,
               children: _vehicleTypes.map((type) {
                 final isSelected = _selectedVehicleType == type;
-                return ChoiceChip(
-                  label: Text(type),
-                  selected: isSelected,
-                  selectedColor: AppColors.secondary,
-                  onSelected: (val) {
-                    if (val) setState(() => _selectedVehicleType = type);
+                
+                // Assign specific icons to each vehicle type
+                IconData icon;
+                switch (type) {
+                  case 'Sedan / Hatchback':
+                    icon = Icons.directions_car_filled_outlined;
+                    break;
+                  case 'SUV / Pick-up':
+                    icon = Icons.airport_shuttle_outlined;
+                    break;
+                  case 'Minibüs / Hafif Ticari':
+                    icon = Icons.local_shipping_outlined;
+                    break;
+                  case 'Motosiklet':
+                    icon = Icons.two_wheeler_outlined;
+                    break;
+                  case 'Ağır Vasıta (Otobüs / Kamyon)':
+                    icon = Icons.departure_board_outlined;
+                    break;
+                  default:
+                    icon = Icons.directions_car;
+                }
+
+                return InkWell(
+                  onTap: () {
+                    setState(() => _selectedVehicleType = type);
                   },
+                  borderRadius: BorderRadius.circular(16),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected 
+                          ? AppColors.primary.withValues(alpha: 0.15)
+                          : AppColors.cardBackground,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.border,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      boxShadow: isSelected ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        )
+                      ] : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          icon, 
+                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          type,
+                          style: TextStyle(
+                            color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }).toList(),
             ),
@@ -334,24 +458,63 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             InkWell(
               onTap: _pickImage,
               child: Container(
-                height: 120,
+                height: 140,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppColors.border,
+                    width: 1.5,
+                  ),
                 ),
                 child: _vehiclePhoto != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.file(File(_vehiclePhoto!.path), fit: BoxFit.cover),
+                    ? Stack(
+                        children: [
+                          Positioned.fill(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: Image.file(File(_vehiclePhoto!.path), fit: BoxFit.cover),
+                            ),
+                          ),
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: InkWell(
+                              onTap: () => setState(() => _vehiclePhoto = null),
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close, size: 18, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
                       )
-                    : const Column(
+                    : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.camera_alt, size: 40, color: AppColors.textSecondary),
-                          SizedBox(height: 8),
-                          Text('Fotoğraf Çekmek İçin Dokunun', style: TextStyle(color: AppColors.textSecondary)),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt_outlined, size: 32, color: AppColors.primary),
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Aracın Fotoğrafını Çekmek İçin Dokunun', 
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Çekici sürücüsünün aracınızı tanımasını kolaylaştırır.', 
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          ),
                         ],
                       ),
               ),
@@ -362,24 +525,110 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Nereye Götürülecek?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ...AnkaraIndustryZones.zones.map((zone) {
-              final isSelected = _selectedZone?.id == zone.id;
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(color: isSelected ? AppColors.primary : Colors.transparent, width: 2),
-                  borderRadius: BorderRadius.circular(12),
+            const Text('Nereye Götürülecek?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            
+            // Industry Zones Map Selection
+            SizedBox(
+              height: 220,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: MapWidget(
+                  initialPosition: _selectedLatLng,
+                  showMyLocation: true,
+                  fitMarkers: true, // Automatically center and fit both user & target sanayi site
+                  markers: {
+                    // User's own position
+                    Marker(
+                      markerId: const MarkerId('my_current_position'),
+                      position: _selectedLatLng,
+                      infoWindow: const InfoWindow(title: 'Benim Konumum'),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                    ),
+                    // If a zone is selected, show only that zone to focus on the route direction
+                    if (_selectedZone != null)
+                      Marker(
+                        markerId: MarkerId('zone_${_selectedZone!.id}'),
+                        position: LatLng(_selectedZone!.latitude, _selectedZone!.longitude),
+                        infoWindow: InfoWindow(title: _selectedZone!.name),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                      )
+                    else
+                      // If no zone selected, show all zones as red dots to select from
+                      ...AnkaraIndustryZones.zones.map((zone) {
+                        return Marker(
+                          markerId: MarkerId('zone_${zone.id}'),
+                          position: LatLng(zone.latitude, zone.longitude),
+                          infoWindow: InfoWindow(
+                            title: zone.name,
+                            snippet: 'Seçmek için dokunun',
+                          ),
+                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                          onTap: () {
+                            setState(() => _selectedZone = zone);
+                          },
+                        );
+                      }),
+                  },
                 ),
-                child: ListTile(
-                  title: Text(zone.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(zone.description),
-                  trailing: isSelected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
-                  onTap: () => setState(() => _selectedZone = zone),
-                ),
-              );
-            }).toList(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text('Sanayi Siteleri Listesi', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+            const SizedBox(height: 10),
+            ...() {
+              // Get sorted zones based on user current position
+              final sortedZones = AnkaraIndustryZones.getSortedZones(_selectedLatLng.latitude, _selectedLatLng.longitude);
+              
+              return sortedZones.asMap().entries.map((entry) {
+                final index = entry.key;
+                final zone = entry.value;
+                final isNearest = index == 0; // The first item is the closest one
+                final isSelected = _selectedZone?.id == zone.id;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(
+                      color: isSelected 
+                          ? AppColors.primary 
+                          : (isNearest ? AppColors.primary.withValues(alpha: 0.4) : Colors.transparent), 
+                      width: 2
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    title: Row(
+                      children: [
+                        Expanded(
+                          child: Text(zone.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                        if (isNearest)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.primary, width: 1),
+                            ),
+                            child: const Text(
+                              'Önerilen (En Yakın)',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Text(zone.description),
+                    trailing: isSelected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
+                    onTap: () => setState(() => _selectedZone = zone),
+                  ),
+                );
+              });
+            }(),
           ],
         );
       case 2:

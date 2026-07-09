@@ -23,17 +23,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _plateController = TextEditingController();
 
-  UserRole _role = UserRole.customer;
+  final _role = UserRole.customer;
   bool _isLoading = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final roleParam = GoRouterState.of(context).uri.queryParameters['role'];
-    if (roleParam != null) {
-      _role = UserRole.fromString(roleParam);
-    }
-  }
 
   @override
   void dispose() {

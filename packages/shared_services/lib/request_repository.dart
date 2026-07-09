@@ -78,6 +78,24 @@ class RequestRepository {
         .map((list) => list.where((item) => item['status'] == 'pending').toList());
   }
 
+  Future<List<DriverModel>> getAllAvailableDrivers() async {
+    final driversData = await _client
+        .from('drivers')
+        .select('*, profiles(*)')
+        .eq('is_available', true)
+        .eq('is_verified', true);
+
+    List<DriverModel> list = [];
+    for (var d in driversData) {
+      final profileJson = d['profiles'] as Map<String, dynamic>?;
+      if (profileJson == null) continue;
+      final isSuspended = profileJson['is_suspended'] as bool? ?? false;
+      if (isSuspended) continue;
+      list.add(DriverModel.fromJson(profileJson, d));
+    }
+    return list;
+  }
+
   Future<ServiceRequestModel> getRequestById(String requestId) async {
     final data = await _client.from('service_requests').select().eq('id', requestId).single();
     return ServiceRequestModel.fromJson(data);
@@ -107,13 +125,12 @@ class RequestRepository {
       blockingDriverIds = (blocking as List).map((r) => r['driver_id'] as String).toList();
     }
 
-    // Only get active, verified, onboarding-completed drivers
+    // Only get active, verified drivers
     final driversData = await _client
         .from('drivers')
         .select('*, profiles(*)')
         .eq('is_available', true)
-        .eq('is_verified', true)
-        .eq('is_onboarding_completed', true);
+        .eq('is_verified', true);
 
     final lastActiveCutoff = DateTime.now().subtract(const Duration(minutes: 3));
     List<DriverModel> nearby = [];

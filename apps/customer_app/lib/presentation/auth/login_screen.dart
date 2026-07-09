@@ -99,7 +99,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
                       const Text(
-                        'ÇEKİCİ',
+                        'ÇEKİCİM',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 32,
@@ -163,7 +163,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             style: TextStyle(color: AppColors.textSecondary),
                           ),
                           GestureDetector(
-                            onTap: () => context.push('/role-selection'),
+                            onTap: () => context.push('/register'),
                             child: const Text(
                               'Kayıt Olun',
                               style: TextStyle(

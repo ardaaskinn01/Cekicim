@@ -88,7 +88,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
               ),
               const SizedBox(height: 24),
               const Text(
-                'ÇEKİCİ',
+                'ÇEKİCİM',
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
@@ -98,7 +98,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
               ),
               const SizedBox(height: 8),
               const Text(
-                '7/24 Güvenilir Yol Yardım',
+                'Çekicim Yol Yardım Hizmetleri',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,

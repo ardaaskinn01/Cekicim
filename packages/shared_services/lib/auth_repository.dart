@@ -114,7 +114,10 @@ class AuthRepository {
 
     final metadataVerified = user.userMetadata?['is_verified'] as bool? ?? false;
     final profileDataCopy = Map<String, dynamic>.from(profileData);
-    profileDataCopy['is_verified'] = profileDataCopy['is_verified'] ?? metadataVerified;
+    // is_verified kolonu profiles tablosunda olmayabilir, güvenli fallback
+    if (!profileDataCopy.containsKey('is_verified') || profileDataCopy['is_verified'] == null) {
+      profileDataCopy['is_verified'] = metadataVerified;
+    }
 
     final userModel = UserModel.fromJson(profileDataCopy);
 
@@ -141,7 +144,7 @@ class AuthRepository {
     }).eq('id', userModel.id);
 
     if (userModel is DriverModel) {
-      await _client.from('drivers').update(userModel.toDriverJson()).eq('id', userModel.id);
+      await _client.from('drivers').upsert(userModel.toDriverJson());
     }
 
     return userModel;

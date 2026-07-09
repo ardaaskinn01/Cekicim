@@ -78,17 +78,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const Icon(Icons.local_shipping_rounded, size: 80, color: AppColors.accent),
                   const SizedBox(height: 24),
                   const Text(
-                    'SÜRÜCÜ GİRİŞİ',
+                    'ÇEKİCİM',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 28,
+                      fontSize: 32,
                       fontWeight: FontWeight.w900,
+                      letterSpacing: 3,
                       color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Çekici hizmet vermeye başlamak için giriş yapın.',
+                    'Çekicim ile hizmet vermeye başlamak için giriş yapın.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   ),
@@ -135,7 +136,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     children: [
                       const Text('Hesabınız yok mu?', style: TextStyle(color: AppColors.textSecondary)),
                       TextButton(
-                        onPressed: () => context.go('/register?role=driver'),
+                        onPressed: () => context.go('/register'),
                         child: const Text(
                           'Sürücü Ol',
                           style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),

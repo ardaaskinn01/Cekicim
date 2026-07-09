@@ -50,7 +50,6 @@ class _AppTextFieldState extends State<AppTextField> {
       style: const TextStyle(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: widget.label,
-        hintText: widget.hint,
         prefixIcon: widget.prefixIcon != null
             ? Icon(widget.prefixIcon, color: AppColors.textSecondary)
             : null,

@@ -30,7 +30,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isSplashing = state.uri.path == '/splash';
       final isAuthRoute = state.uri.path.startsWith('/login') ||
           state.uri.path.startsWith('/register') ||
-          state.uri.path.startsWith('/role-selection') ||
           state.uri.path.startsWith('/forgot-password') ||
           state.uri.path.startsWith('/verify-otp') ||
           state.uri.path.startsWith('/reset-password');
@@ -49,14 +48,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (userModel == null) return null;
 
         if (userModel.role == UserRole.customer) {
-          final isVerified = userModel.isVerified;
-          final isVerificationRoute = state.uri.path == '/customer/verification';
-
-          if (!isVerified) {
-            if (!isVerificationRoute) return '/customer/verification';
-          } else {
-            if (isVerificationRoute || isAuthRoute) return '/customer';
-          }
+          if (isAuthRoute) return '/customer';
         } else {
           return '/login';
         }
@@ -68,7 +60,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
-      GoRoute(path: '/role-selection', builder: (context, state) => const RoleSelectionScreen()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
       GoRoute(
         path: '/verify-otp',
@@ -78,7 +69,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(path: '/reset-password', builder: (context, state) => const ResetPasswordScreen()),
-      GoRoute(path: '/customer/verification', builder: (context, state) => const CustomerVerificationScreen()),
       GoRoute(path: '/customer', builder: (context, state) => const CustomerHomeScreen()),
       GoRoute(path: '/customer/request', builder: (context, state) => const RequestServiceScreen()),
       GoRoute(path: '/customer/history', builder: (context, state) => const HistoryScreen()),

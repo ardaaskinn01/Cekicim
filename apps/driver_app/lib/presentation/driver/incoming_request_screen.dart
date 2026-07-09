@@ -149,23 +149,68 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
           loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           error: (err, st) => Center(child: Text('Hata: $err', style: const TextStyle(color: Colors.white))),
           data: (request) {
+            final progressValue = _timeLeft / 30.0;
+            final timerColor = _timeLeft < 10 ? AppColors.error : AppColors.primary;
+
             return Padding(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.warning_amber_rounded, size: 80, color: AppColors.primary),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'YENİ TALEP',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textPrimary, letterSpacing: 2),
+                  // Animated Circular Countdown Timer
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: CircularProgressIndicator(
+                          value: progressValue,
+                          strokeWidth: 6,
+                          backgroundColor: AppColors.border,
+                          valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$_timeLeft',
+                            style: TextStyle(
+                              fontSize: 26, 
+                              fontWeight: FontWeight.w900, 
+                              color: timerColor,
+                              letterSpacing: -1,
+                            ),
+                          ),
+                          const Text(
+                            'SANİYE',
+                            style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'YENİ TALEBİNİZ VAR',
+                    style: TextStyle(
+                      fontSize: 20, 
+                      fontWeight: FontWeight.w900, 
+                      color: AppColors.textPrimary, 
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   Card(
-                    color: AppColors.surface,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    color: AppColors.cardBackground,
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: AppColors.border.withValues(alpha: 0.5), width: 1.5),
+                    ),
                     child: Padding(
-                      padding: const EdgeInsets.all(20.0),
+                      padding: const EdgeInsets.all(24.0),
                       child: Column(
                         children: [
                           // Müşteri puanı
@@ -173,11 +218,12 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                             future: RatingRepository().getAverageRating(request.customerId),
                             builder: (context, snap) {
                               final avg = snap.data ?? 5.0;
-                              final count = snap.connectionState == ConnectionState.done ? '' : '';
                               return Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Müşteri Puanı', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+                                  const Icon(Icons.person_outline_rounded, color: AppColors.textSecondary, size: 20),
+                                  const SizedBox(width: 10),
+                                  const Text('Müşteri Puanı', style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
+                                  const Spacer(),
                                   Row(
                                     children: [
                                       const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
@@ -188,44 +234,60 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                                             : '...',
                                         style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
                                       ),
-                                      Text(count, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                                     ],
                                   ),
                                 ],
                               );
                             },
                           ),
-                          const Divider(color: AppColors.border, height: 24),
-                          _buildInfoRow('Araç Tipi', request.vehicleType ?? 'Bilinmiyor'),
-                          const Divider(color: AppColors.border, height: 24),
-                          _buildInfoRow('Mesafe', '${request.distanceKm.toStringAsFixed(1)} km'),
-                          const Divider(color: AppColors.border, height: 24),
-                          _buildInfoRow('Hedef', request.destinationIndustryZone ?? 'Bilinmiyor'),
-                          const Divider(color: AppColors.border, height: 24),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Kazanç', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-                              Text(
-                                PriceCalculator.formatPrice(PriceCalculator.calculatePrice(request.distanceKm)),
-                                style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold),
-                              ),
-                            ],
+                          const Divider(color: AppColors.border, height: 28),
+                          _buildInfoRow(
+                            Icons.directions_car_filled_outlined,
+                            'Araç Tipi',
+                            request.vehicleType ?? 'Bilinmiyor',
+                          ),
+                          const Divider(color: AppColors.border, height: 28),
+                          _buildInfoRow(
+                            Icons.navigation_outlined,
+                            'Mesafe',
+                            '${request.distanceKm.toStringAsFixed(1)} km',
+                          ),
+                          const Divider(color: AppColors.border, height: 28),
+                          _buildInfoRow(
+                            Icons.location_on_outlined,
+                            'Hedef Sanayi',
+                            request.destinationIndustryZone ?? 'Bilinmiyor',
+                          ),
+                          const Divider(color: AppColors.border, height: 28),
+                          // Earning display banner
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.payments_outlined, color: AppColors.primary, size: 22),
+                                const SizedBox(width: 10),
+                                const Text(
+                                  'Tahmini Kazanç', 
+                                  style: TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  PriceCalculator.formatPrice(PriceCalculator.calculatePrice(request.distanceKm)),
+                                  style: const TextStyle(color: AppColors.primary, fontSize: 22, fontWeight: FontWeight.w900),
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  Text(
-                    '$_timeLeft sn içinde yanıtlayın',
-                    style: TextStyle(
-                      color: _timeLeft < 10 ? AppColors.error : AppColors.textSecondary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 36),
                   Row(
                     children: [
                       Expanded(
@@ -233,17 +295,17 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                           onPressed: _isLoading ? null : _rejectRequest,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(color: AppColors.error),
+                            side: const BorderSide(color: AppColors.error, width: 1.5),
                             foregroundColor: AppColors.error,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
-                          child: const Text('Reddet', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          child: const Text('Reddet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: GreenButton(
-                          text: _isLoading ? 'Bekleyin...' : 'Kabul Et',
+                          text: _isLoading ? 'Kabul Ediliyor...' : 'Kabul Et',
                           onPressed: _isLoading ? null : _acceptRequest,
                         ),
                       ),
@@ -258,12 +320,17 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-        Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+        Icon(icon, color: AppColors.textSecondary, size: 20),
+        const SizedBox(width: 10),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 15)),
+        const Spacer(),
+        Text(
+          value, 
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.bold),
+        ),
       ],
     );
   }

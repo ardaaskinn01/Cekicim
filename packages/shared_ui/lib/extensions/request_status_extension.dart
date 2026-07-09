@@ -7,6 +7,8 @@ extension RequestStatusExtension on RequestStatus {
     switch (this) {
       case RequestStatus.pending:
         return AppColors.warning;
+      case RequestStatus.awaitingAcceptance:
+        return AppColors.warning;
       case RequestStatus.accepted:
       case RequestStatus.inProgress:
         return AppColors.accent;

@@ -100,6 +100,9 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(currentUserProvider).value;
+    final driver = user is DriverModel ? user : null;
+
     return LoadingOverlay(
       isLoading: _isLoading,
       message: 'Profil güncelleniyor...',
@@ -261,6 +264,104 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                       return null;
                     },
                   ),
+                  const SizedBox(height: 24),
+                  // Premium Verification Documents Status Panel
+                  if (driver != null) ...[
+                    Card(
+                      color: AppColors.cardBackground,
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: driver.isVerified ? AppColors.primary.withValues(alpha: 0.4) : AppColors.border,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  driver.isVerified ? Icons.verified_user_rounded : Icons.shield_outlined, 
+                                  color: driver.isVerified ? AppColors.primary : AppColors.warning,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                const Text(
+                                  'Hesap Doğrulama Durumu', 
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                                ),
+                              ],
+                            ),
+                            const Divider(color: AppColors.border, height: 24),
+                            // Document Items
+                            _buildDocumentStatusRow(
+                              'Ehliyet Belgesi', 
+                              driver.driverLicenseUrl != null,
+                              driver.isVerified,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDocumentStatusRow(
+                              'SRC Belgesi', 
+                              driver.srcCertificateUrl != null,
+                              driver.isVerified,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDocumentStatusRow(
+                              'Psikoteknik Raporu', 
+                              driver.psychotechnicUrl != null,
+                              driver.isVerified,
+                            ),
+                            const SizedBox(height: 12),
+                            _buildDocumentStatusRow(
+                              'Ruhsat & Plaka Belgesi', 
+                              driver.vehicleRegistrationUrl != null,
+                              driver.isVerified,
+                            ),
+                            
+                            // Rejection bubble
+                            if (!driver.isVerified && driver.rejectionReason != null && driver.rejectionReason!.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.info_outline_rounded, color: AppColors.error, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Red Gerekçesi:', 
+                                            style: TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            driver.rejectionReason!,
+                                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 32),
                   GreenButton(
                     text: 'Değişiklikleri Kaydet',
@@ -283,6 +384,54 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDocumentStatusRow(String title, bool isUploaded, bool isDriverVerified) {
+    Color badgeColor;
+    String statusText;
+    IconData icon;
+
+    if (!isUploaded) {
+      badgeColor = AppColors.error;
+      statusText = 'Yüklenmedi';
+      icon = Icons.cancel_outlined;
+    } else if (isDriverVerified) {
+      badgeColor = AppColors.success;
+      statusText = 'Onaylandı';
+      icon = Icons.check_circle_outline_rounded;
+    } else {
+      badgeColor = AppColors.warning;
+      statusText = 'İnceleniyor';
+      icon = Icons.hourglass_empty_rounded;
+    }
+
+    return Row(
+      children: [
+        Icon(Icons.description_outlined, color: AppColors.textSecondary, size: 18),
+        const SizedBox(width: 8),
+        Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: badgeColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: badgeColor, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                statusText,
+                style: TextStyle(color: badgeColor, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

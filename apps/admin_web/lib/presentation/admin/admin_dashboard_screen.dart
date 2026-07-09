@@ -90,7 +90,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           .from('drivers')
           .select('*, profiles(*)')
           .eq('is_verified', false)
-          .eq('is_onboarding_completed', true);
+          .neq('vehicle_plate', '')
+          .not('iban', 'is', null);
 
       _unverifiedDrivers = List<Map<String, dynamic>>.from(unverifiedData);
 
@@ -203,7 +204,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       final client = SupabaseService.instance.client;
       await client.from('drivers').update({
         'is_verified': false,
-        'is_onboarding_completed': false,
         'rejection_reason': reason,
       }).eq('id', driverId);
 
@@ -418,18 +418,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   child: const Icon(Icons.local_shipping, color: AppColors.accent, size: 28),
                 ),
                 const SizedBox(width: 14),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Çekici TAG',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
-                    ),
-                    Text(
-                      'Backoffice Console',
-                      style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                    ),
-                  ],
+                const Text(
+                  'Çekicim',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary),
                 ),
               ],
             ),
@@ -467,14 +458,27 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   child: Icon(Icons.admin_panel_settings, color: AppColors.accent),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('System Admin', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13)),
-                      Text('Ops Manager', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    ],
+                Expanded(
+                  child: Consumer(
+                    builder: (context, ref, child) {
+                      final currentUser = ref.watch(currentUserProvider).value;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            currentUser?.fullName ?? 'Yönetici',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ),
                 IconButton(

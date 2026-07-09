@@ -60,6 +60,14 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               return MapWidget(
                 initialPosition: latLng,
                 showMyLocation: true,
+                markers: {
+                  Marker(
+                    markerId: const MarkerId('driver_current_position'),
+                    position: latLng,
+                    infoWindow: const InfoWindow(title: 'Benim Konumum'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                  ),
+                },
               );
             },
           ),

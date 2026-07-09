@@ -98,7 +98,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
               ),
               const SizedBox(height: 8),
               const Text(
-                'Çekici Yol Yardım Sürücü Uygulaması',
+                'Çekicim Yol Yardım Sürücü Uygulaması',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,

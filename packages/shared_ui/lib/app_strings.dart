@@ -1,5 +1,5 @@
 class AppStrings {
-  static const String appName = 'Çekici';
+  static const String appName = 'Çekicim';
   static const String customerRole = 'Müşteri';
   static const String driverRole = 'Çekici Sürücüsü';
   static const String adminRole = 'Yönetici';
