@@ -19,6 +19,7 @@ import '../../presentation/customer/tracking_screen.dart';
 import '../../presentation/customer/rating_screen.dart';
 import '../../presentation/customer/chat_screen.dart';
 import '../../presentation/customer/voip_call_screen.dart';
+import '../../presentation/customer/customer_disputes_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -73,6 +74,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/customer/request', builder: (context, state) => const RequestServiceScreen()),
       GoRoute(path: '/customer/history', builder: (context, state) => const HistoryScreen()),
       GoRoute(path: '/customer/profile', builder: (context, state) => const ProfileScreen()),
+      GoRoute(path: '/customer/disputes', builder: (context, state) => const CustomerDisputesScreen()),
       GoRoute(path: '/customer/tracking/:requestId', builder: (context, state) => const TrackingScreen()),
       GoRoute(
         path: '/customer/rate/:requestId/:driverId',
@@ -94,7 +96,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/customer/call/:requestId',
         builder: (context, state) {
           final requestId = state.pathParameters['requestId'] ?? '';
-          return VoIPCallScreen(requestId: requestId);
+          final isInitiator = state.uri.queryParameters['initiator'] == 'true';
+          return VoIPCallScreen(requestId: requestId, isInitiator: isInitiator);
         },
       ),
     ],

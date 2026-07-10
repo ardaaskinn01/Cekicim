@@ -188,11 +188,23 @@ class RequestRepository {
   }
 
   Future<void> sendAlarmToDrivers(String requestId, List<String> driverIds) async {
+    // 1. Update service request selected drivers and status
     await _client.from('service_requests').update({
       'selected_driver_ids': driverIds,
       'status': RequestStatus.awaitingAcceptance.dbValue,
     }).eq('id', requestId);
 
+    // 2. Insert rows into pending_offers table so driver streams are notified in real-time
+    if (driverIds.isNotEmpty) {
+      final inserts = driverIds.map((driverId) => {
+        'request_id': requestId,
+        'driver_id': driverId,
+        'status': 'pending',
+      }).toList();
+      await _client.from('pending_offers').insert(inserts);
+    }
+
+    // 3. Invoke FCM send edge function
     try {
       await _client.functions.invoke('send_driver_alarms', body: {
         'request_id': requestId,
@@ -274,6 +286,13 @@ class RequestRepository {
       'status': status.dbValue,
       if (status == RequestStatus.accepted) 'accepted_at': DateTime.now().toIso8601String(),
       if (status == RequestStatus.completed) 'completed_at': DateTime.now().toIso8601String(),
+    }).eq('id', requestId);
+  }
+
+  Future<void> updateCallStatus(String requestId, String? channelId, String? callerId) async {
+    await _client.from('service_requests').update({
+      'active_call_channel': channelId,
+      'active_call_caller_id': callerId,
     }).eq('id', requestId);
   }
 

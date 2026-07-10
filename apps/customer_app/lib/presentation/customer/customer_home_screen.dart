@@ -92,12 +92,20 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
               ..._availableDrivers
                   .where((d) => d.latitude != null && d.longitude != null)
                   .map((driver) {
+                String translatedType = driver.vehicleType;
+                if (translatedType.toLowerCase() == 'small') {
+                  translatedType = 'Binek Oto Kurtarıcı';
+                } else if (translatedType.toLowerCase() == 'medium') {
+                  translatedType = 'Orta Tonaj Çekici';
+                } else if (translatedType.toLowerCase() == 'large') {
+                  translatedType = 'Ağır Vasıta Çekici';
+                }
                 return Marker(
                   markerId: MarkerId('driver_${driver.id}'),
                   position: LatLng(driver.latitude!, driver.longitude!),
                   infoWindow: InfoWindow(
                     title: driver.fullName,
-                    snippet: '${driver.vehiclePlate} (${driver.vehicleType}) - Müsait Çekici',
+                    snippet: '${driver.vehiclePlate} ($translatedType) - Müsait Çekici',
                   ),
                   // Hue Orange / Green to make them standout dynamically as tow trucks
                   icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
@@ -194,7 +202,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'En yakın çekici 15 km yarıçapında aranır.', 
+                      'En yakın çekici 30 km yarıçapında aranır.', 
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ],

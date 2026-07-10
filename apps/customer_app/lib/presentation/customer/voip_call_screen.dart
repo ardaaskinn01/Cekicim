@@ -5,10 +5,17 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_services/agora_voice_service.dart';
 import '../../providers/request_provider.dart';
+import '../../providers/auth_provider.dart';
 
 class VoIPCallScreen extends ConsumerStatefulWidget {
   final String requestId;
-  const VoIPCallScreen({super.key, required this.requestId});
+  final bool isInitiator;
+
+  const VoIPCallScreen({
+    super.key,
+    required this.requestId,
+    this.isInitiator = false,
+  });
 
   @override
   ConsumerState<VoIPCallScreen> createState() => _VoIPCallScreenState();
@@ -62,6 +69,17 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
         });
       }
 
+      if (widget.isInitiator) {
+        final user = ref.read(currentUserProvider).value;
+        if (user != null) {
+          ref.read(requestRepositoryProvider).updateCallStatus(
+            widget.requestId,
+            channelId,
+            user.id,
+          ).catchError((_) {});
+        }
+      }
+
       await _voiceService.joinChannel(
         channelId,
         uid,
@@ -107,11 +125,19 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
     _durationTimer?.cancel();
     _pulseController?.dispose();
     _voiceService.leaveChannel();
+    if (widget.isInitiator) {
+      ref.read(requestRepositoryProvider).updateCallStatus(widget.requestId, null, null).catchError((_) {});
+    }
     super.dispose();
   }
 
   void _endCall() async {
     await _voiceService.leaveChannel();
+    if (widget.isInitiator) {
+      try {
+        await ref.read(requestRepositoryProvider).updateCallStatus(widget.requestId, null, null);
+      } catch (_) {}
+    }
     if (mounted) {
       Navigator.of(context).pop();
     }

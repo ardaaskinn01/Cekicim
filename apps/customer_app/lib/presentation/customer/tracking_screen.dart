@@ -13,6 +13,7 @@ import 'package:shared_services/dispute_repository.dart';
 import 'package:shared_ui/widgets/dispute_dialog.dart';
 import 'package:shared_services/routing_service.dart';
 import '../../providers/request_provider.dart';
+import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
 import 'package:shared_ui/widgets/glass_container.dart';
@@ -44,6 +45,57 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
   String? _etaDuration;
   String? _etaDistance;
   DateTime? _lastRouteFetchTime;
+  BuildContext? _incomingCallDialogContext;
+
+  void _showIncomingCallDialog(BuildContext context, ServiceRequestModel request) {
+    if (_incomingCallDialogContext != null) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        _incomingCallDialogContext = dialogContext;
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.phone_in_talk, color: AppColors.accent),
+              SizedBox(width: 8),
+              Text('Gelen Arama', style: TextStyle(color: AppColors.textPrimary)),
+            ],
+          ),
+          content: const Text('Çekiciden gelen sesli aramayı yanıtlamak ister misiniz?', style: TextStyle(color: AppColors.textSecondary)),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                _incomingCallDialogContext = null;
+                Navigator.pop(dialogContext);
+                try {
+                  await ref.read(requestRepositoryProvider).updateCallStatus(request.id, null, null);
+                } catch (_) {}
+              },
+              child: const Text('Reddet', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _incomingCallDialogContext = null;
+                Navigator.pop(dialogContext);
+                context.push('/customer/call/${request.id}');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Cevapla', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _incomingCallDialogContext = null;
+    });
+  }
 
   // Animasyon durumları (Konum yumuşatma için)
   AnimationController? _animationController;
@@ -232,15 +284,39 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
       return const Scaffold(body: Center(child: Text('Talep bulunamadı.')));
     }
 
+    ref.listen<AsyncValue<ServiceRequestModel>>(requestStatusProvider(requestId), (prev, next) {
+      final request = next.value;
+      final user = ref.read(currentUserProvider).value;
+      if (request != null && user != null) {
+        if (request.activeCallChannel != null && request.activeCallCallerId != user.id) {
+          if (GoRouterState.of(context).uri.path != '/customer/call/$requestId') {
+            _showIncomingCallDialog(context, request);
+          }
+        } else if (request.activeCallChannel == null && _incomingCallDialogContext != null) {
+          Navigator.pop(_incomingCallDialogContext!);
+          _incomingCallDialogContext = null;
+        }
+      }
+    });
+
     final requestAsync = ref.watch(requestStatusProvider(requestId));
 
     return requestAsync.when(
       loading: () => const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.accent))),
       error: (err, st) => Scaffold(body: Center(child: Text('Hata: $err'))),
       data: (request) {
-        if (request.status == RequestStatus.cancelled || request.status == RequestStatus.completed) {
+        if (request.status == RequestStatus.cancelled) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) context.go('/customer');
+          });
+          return const Scaffold();
+        }
+
+        if (request.status == RequestStatus.completed) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.go('/customer/rate/${request.id}/${request.driverId ?? ""}');
+            }
           });
           return const Scaffold();
         }
@@ -287,6 +363,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                   (driver.latitude != null && driver.longitude != null 
                       ? LatLng(driver.latitude!, driver.longitude!) 
                       : null);
+
+              if (activeDriverLoc != null && _etaDuration == null && _routePoints.isEmpty) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _fetchRouteAndETA(activeDriverLoc, customerLatLng);
+                });
+              }
 
               if (activeDriverLoc != null) {
                 markers.add(
@@ -495,7 +577,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
               if (request.driverId != null)
                 Positioned(
                   right: 20,
-                  bottom: 260, // Positioned right above the bottom GlassContainer
+                  top: 120, // Positioned at top right to avoid being covered by bottom sheet
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -513,7 +595,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                         heroTag: 'call_action',
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
-                        onPressed: () => context.push('/customer/call/${request.id}'),
+                        onPressed: () => context.push('/customer/call/${request.id}?initiator=true'),
                         child: const Icon(Icons.phone_in_talk_outlined, size: 20),
                       ),
                       const SizedBox(height: 12),

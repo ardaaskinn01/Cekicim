@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_services/location_utils.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_ui/app_colors.dart';
@@ -17,6 +18,7 @@ import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
+import 'package:shared_ui/price_calculator.dart';
 
 class RequestServiceScreen extends ConsumerStatefulWidget {
   const RequestServiceScreen({super.key});
@@ -138,6 +140,32 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
       final repo = ref.read(requestRepositoryProvider);
 
+      double distance = 10.0;
+      if (_selectedZone != null) {
+        distance = LocationUtils.distanceBetween(
+          _selectedLatLng.latitude,
+          _selectedLatLng.longitude,
+          _selectedZone!.latitude,
+          _selectedZone!.longitude,
+        );
+      }
+
+      // Calculate price dynamically:
+      // - First 1 km: 2000 TL (Base fee)
+      // - Between 1 km and 15 km: +200 TL/km
+      // - Beyond 15 km: +150 TL/km
+      double price = 2000.0;
+      if (distance > 1.0) {
+        if (distance <= 15.0) {
+          price += (distance - 1.0) * 200.0;
+        } else {
+          price += (14.0 * 200.0) + (distance - 15.0) * 150.0;
+        }
+      }
+
+      // Generate a random 4-digit completion code
+      final random = (1000 + (DateTime.now().microsecondsSinceEpoch % 9000)).toString();
+
       final tempRequest = ServiceRequestModel(
         id: '',
         customerId: user.id,
@@ -156,11 +184,12 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         vehicleType: _selectedVehicleType,
         vehiclePhotoUrl: 'https://placeholder.com/image.jpg',
         selectedDriverIds: _selectedDriverIds,
-        distanceKm: 10.0,
-        price: 3000.0,
+        distanceKm: distance,
+        price: price,
         status: RequestStatus.awaitingAcceptance,
         createdAt: DateTime.now(),
         customerPhone: user.phone ?? '08501234567',
+        completionCode: random,
       );
 
       final requestId = await repo.createRequest(tempRequest);
@@ -653,9 +682,25 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             const SizedBox(height: 16),
             ..._nearbyDrivers.map((driver) {
               final isSelected = _selectedDriverIds.contains(driver.id);
+              final dist = LocationUtils.distanceBetween(
+                _selectedLatLng.latitude,
+                _selectedLatLng.longitude,
+                driver.latitude ?? 0.0,
+                driver.longitude ?? 0.0,
+              );
+              // Calculate pricing distance (customer to target zone)
+              final targetDist = _selectedZone != null ? LocationUtils.distanceBetween(
+                _selectedLatLng.latitude,
+                _selectedLatLng.longitude,
+                _selectedZone!.latitude,
+                _selectedZone!.longitude,
+              ) : 1.0;
+              final targetPrice = PriceCalculator.calculatePrice(targetDist);
+
               return DriverSelectionCard(
                 driver: driver,
-                distanceKm: 10.0, // Placeholder
+                distanceKm: dist,
+                targetPrice: targetPrice,
                 isSelected: isSelected,
                 onChanged: (val) {
                   setState(() {

@@ -35,6 +35,57 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   final RoutingService _routingService = RoutingService();
   List<LatLng> _routePoints = [];
   bool _isTrackingStarted = false;
+  BuildContext? _incomingCallDialogContext;
+
+  void _showIncomingCallDialog(BuildContext context, ServiceRequestModel request) {
+    if (_incomingCallDialogContext != null) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        _incomingCallDialogContext = dialogContext;
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.phone_in_talk, color: AppColors.accent),
+              SizedBox(width: 8),
+              Text('Gelen Arama', style: TextStyle(color: AppColors.textPrimary)),
+            ],
+          ),
+          content: const Text('Müşteriden gelen sesli aramayı yanıtlamak ister misiniz?', style: TextStyle(color: AppColors.textSecondary)),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                _incomingCallDialogContext = null;
+                Navigator.pop(dialogContext);
+                try {
+                  await ref.read(requestRepositoryProvider).updateCallStatus(request.id, null, null);
+                } catch (_) {}
+              },
+              child: const Text('Reddet', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _incomingCallDialogContext = null;
+                Navigator.pop(dialogContext);
+                context.push('/driver/call/${request.id}');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Cevapla', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _incomingCallDialogContext = null;
+    });
+  }
 
   @override
   void initState() {
@@ -211,6 +262,21 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<ServiceRequestModel>>(requestStatusProvider(widget.requestId), (prev, next) {
+      final request = next.value;
+      final user = ref.read(currentUserProvider).value;
+      if (request != null && user != null) {
+        if (request.activeCallChannel != null && request.activeCallCallerId != user.id) {
+          if (GoRouterState.of(context).uri.path != '/driver/call/${widget.requestId}') {
+            _showIncomingCallDialog(context, request);
+          }
+        } else if (request.activeCallChannel == null && _incomingCallDialogContext != null) {
+          Navigator.pop(_incomingCallDialogContext!);
+          _incomingCallDialogContext = null;
+        }
+      }
+    });
+
     final requestAsync = ref.watch(requestStatusProvider(widget.requestId));
 
     return Scaffold(
@@ -297,7 +363,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                             const SizedBox(width: 8),
                             IconButton(
                               icon: const Icon(Icons.phone_in_talk, color: AppColors.accent, size: 28),
-                              onPressed: () => context.push('/driver/call/${req.id}'),
+                              onPressed: () => context.push('/driver/call/${req.id}?initiator=true'),
                             ),
                           ],
                         ],

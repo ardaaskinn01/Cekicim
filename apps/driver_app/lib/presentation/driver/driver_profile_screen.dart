@@ -369,6 +369,16 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     isLoading: _isLoading,
                   ),
                   const SizedBox(height: 16),
+                  ListTile(
+                    onTap: () => context.push('/driver/disputes'),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: AppColors.surface,
+                    leading: const Icon(Icons.support_agent_outlined, color: AppColors.accent),
+                    title: const Text('Destek Taleplerim', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    subtitle: const Text('Şikayet ve uyuşmazlık geçmişiniz', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
                   OutlinedButton(
                     onPressed: _handleSignOut,
                     style: OutlinedButton.styleFrom(

@@ -6,6 +6,7 @@ import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/price_calculator.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_services/rating_repository.dart';
+import 'package:shared_models/request_status.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 
@@ -22,6 +23,8 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   bool _isLoading = false;
   Timer? _timer;
   int _timeLeft = 30; // 30 seconds to accept
+
+  Future<double>? _customerRatingFuture;
 
   @override
   void initState() {
@@ -55,7 +58,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
       await ref.read(requestNotifierProvider.notifier).acceptRequest(widget.requestId, user.id);
       
       if (!mounted) return;
-      context.go('/driver/active'); // Or whatever the active route is
+      context.go('/driver/navigate/${widget.requestId}');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -149,6 +152,29 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
           loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
           error: (err, st) => Center(child: Text('Hata: $err', style: const TextStyle(color: Colors.white))),
           data: (request) {
+            final user = ref.watch(currentUserProvider).value;
+            if (request.status != RequestStatus.awaitingAcceptance) {
+              if (request.driverId == user?.id) {
+                return const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                );
+              }
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Talep başka bir sürücü tarafından kabul edildi veya iptal edildi.'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                  context.go('/driver');
+                }
+              });
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
+
             final progressValue = _timeLeft / 30.0;
             final timerColor = _timeLeft < 10 ? AppColors.error : AppColors.primary;
 
@@ -215,7 +241,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                         children: [
                           // Müşteri puanı
                           FutureBuilder<double>(
-                            future: RatingRepository().getAverageRating(request.customerId),
+                            future: _customerRatingFuture ??= RatingRepository().getAverageRating(request.customerId),
                             builder: (context, snap) {
                               final avg = snap.data ?? 5.0;
                               return Row(
@@ -277,7 +303,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                                 ),
                                 const Spacer(),
                                 Text(
-                                  PriceCalculator.formatPrice(PriceCalculator.calculatePrice(request.distanceKm)),
+                                  PriceCalculator.formatPrice(request.price),
                                   style: const TextStyle(color: AppColors.primary, fontSize: 22, fontWeight: FontWeight.w900),
                                 ),
                               ],

@@ -30,6 +30,8 @@ class ServiceRequestModel {
   final String? completionCode;
   final String? cancellationReason;
   final DateTime? cancelledAt;
+  final String? activeCallChannel;
+  final String? activeCallCallerId;
 
   ServiceRequestModel({
     required this.id,
@@ -61,6 +63,8 @@ class ServiceRequestModel {
     this.completionCode,
     this.cancellationReason,
     this.cancelledAt,
+    this.activeCallChannel,
+    this.activeCallCallerId,
   });
 
   factory ServiceRequestModel.fromJson(Map<String, dynamic> json) {
@@ -105,12 +109,13 @@ class ServiceRequestModel {
       cancelledAt: json['cancelled_at'] != null
           ? DateTime.parse(json['cancelled_at'] as String)
           : null,
+      activeCallChannel: json['active_call_channel'] as String?,
+      activeCallCallerId: json['active_call_caller_id'] as String?,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
+    final data = {
       'customer_id': customerId,
       'driver_id': driverId,
       'customer_lat': customerLat,
@@ -139,7 +144,13 @@ class ServiceRequestModel {
       'completion_code': completionCode,
       'cancellation_reason': cancellationReason,
       'cancelled_at': cancelledAt?.toIso8601String(),
+      'active_call_channel': activeCallChannel,
+      'active_call_caller_id': activeCallCallerId,
     };
+    if (id.isNotEmpty) {
+      data['id'] = id;
+    }
+    return data;
   }
 
   ServiceRequestModel copyWith({
@@ -172,6 +183,8 @@ class ServiceRequestModel {
     String? completionCode,
     String? cancellationReason,
     DateTime? cancelledAt,
+    String? activeCallChannel,
+    String? activeCallCallerId,
   }) {
     return ServiceRequestModel(
       id: id ?? this.id,
@@ -203,6 +216,8 @@ class ServiceRequestModel {
       completionCode: completionCode ?? this.completionCode,
       cancellationReason: cancellationReason ?? this.cancellationReason,
       cancelledAt: cancelledAt ?? this.cancelledAt,
+      activeCallChannel: activeCallChannel ?? this.activeCallChannel,
+      activeCallCallerId: activeCallCallerId ?? this.activeCallCallerId,
     );
   }
 }

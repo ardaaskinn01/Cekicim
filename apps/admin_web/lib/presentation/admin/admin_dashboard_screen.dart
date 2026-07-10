@@ -55,6 +55,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   // Admin notes input for dispute resolving
   final _adminNotesController = TextEditingController();
 
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  bool _showDetailsMobile = false;
+
   @override
   void initState() {
     super.initState();
@@ -362,12 +365,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 900;
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.background,
+      drawer: isMobile ? Drawer(child: _buildSidebar()) : null,
       body: Row(
         children: [
-          // Sidebar Navigation
-          _buildSidebar(),
+          // Sidebar Navigation (Desktop only)
+          if (!isMobile) _buildSidebar(),
 
           // Main Content
           Expanded(
@@ -504,6 +510,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           setState(() {
             _selectedMenuIndex = index;
           });
+          if (MediaQuery.of(context).size.width < 900) {
+            Navigator.pop(context);
+          }
         },
         selected: isSelected,
         selectedTileColor: AppColors.primary.withValues(alpha: 0.12),
@@ -535,31 +544,41 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Widget _buildHeader() {
+    final isMobile = MediaQuery.of(context).size.width < 900;
     String pageTitle = '';
     switch (_selectedMenuIndex) {
       case 0: pageTitle = 'Gösterge Paneli'; break;
-      case 1: pageTitle = 'Sürücü Evrak Onaylama Kuyruğu'; break;
-      case 2: pageTitle = 'Uyuşmazlık Çözüm Merkezi'; break;
-      case 3: pageTitle = 'Sürücü Yönetimi'; break;
-      case 4: pageTitle = 'Müşteri Yönetimi'; break;
-      case 5: pageTitle = 'Sistem Talep Kayıtları'; break;
-      case 6: pageTitle = 'Canlı Operasyon Haritası'; break;
-      case 7: pageTitle = 'Kullanıcı Değerlendirmeleri'; break;
+      case 1: pageTitle = isMobile ? 'Evrak Onay' : 'Sürücü Evrak Onaylama Kuyruğu'; break;
+      case 2: pageTitle = isMobile ? 'Uyuşmazlık' : 'Uyuşmazlık Çözüm Merkezi'; break;
+      case 3: pageTitle = 'Sürücüler'; break;
+      case 4: pageTitle = 'Müşteriler'; break;
+      case 5: pageTitle = isMobile ? 'Talepler' : 'Sistem Talep Kayıtları'; break;
+      case 6: pageTitle = isMobile ? 'Canlı Harita' : 'Canlı Operasyon Haritası'; break;
+      case 7: pageTitle = 'Değerlendirmeler'; break;
     }
 
     return Container(
       height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
       decoration: const BoxDecoration(
         color: AppColors.cardBackground,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            pageTitle,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          if (isMobile) ...[
+            IconButton(
+              icon: const Icon(Icons.menu, color: AppColors.accent),
+              onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: Text(
+              pageTitle,
+              style: TextStyle(fontSize: isMobile ? 18 : 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.accent),
@@ -708,56 +727,106 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
 
     final driver = _selectedDriverApproval;
-    if (driver == null) return const SizedBox.shrink();
+    final isMobile = MediaQuery.of(context).size.width < 750;
+    if (driver == null && !isMobile) return const SizedBox.shrink();
 
-    final profile = driver['profiles'] as Map<String, dynamic>;
+    final profile = driver != null ? driver['profiles'] as Map<String, dynamic> : const <String, dynamic>{};
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left Column: List of pending approvals
-        Container(
-          width: 320,
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.border)),
-          ),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _unverifiedDrivers.length,
-            itemBuilder: (context, index) {
-              final d = _unverifiedDrivers[index];
-              final prof = d['profiles'] as Map<String, dynamic>;
-              final isSelected = d['id'] == driver['id'];
+        if (!isMobile || !_showDetailsMobile)
+          isMobile
+              ? Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _unverifiedDrivers.length,
+                    itemBuilder: (context, index) {
+                      final d = _unverifiedDrivers[index];
+                      final prof = d['profiles'] as Map<String, dynamic>;
+                      final isSelected = driver != null && d['id'] == driver['id'];
 
-              return Card(
-                color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
+                      return Card(
+                        color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
+                        ),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          onTap: () {
+                            setState(() {
+                              _selectedDriverApproval = d;
+                              _showDetailsMobile = true;
+                            });
+                          },
+                          title: Text(prof['full_name'] ?? 'Bilinmiyor', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          subtitle: Text('Plaka: ${d['vehicle_plate'] ?? ''}', style: const TextStyle(color: AppColors.textSecondary)),
+                          trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              : SizedBox(
+                  width: 320,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      border: Border(right: BorderSide(color: AppColors.border)),
+                    ),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _unverifiedDrivers.length,
+                      itemBuilder: (context, index) {
+                        final d = _unverifiedDrivers[index];
+                        final prof = d['profiles'] as Map<String, dynamic>;
+                        final isSelected = driver != null && d['id'] == driver['id'];
+
+                        return Card(
+                          color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
+                          ),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            onTap: () => setState(() => _selectedDriverApproval = d),
+                            title: Text(prof['full_name'] ?? 'Bilinmiyor', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                            subtitle: Text('Plaka: ${d['vehicle_plate'] ?? ''}', style: const TextStyle(color: AppColors.textSecondary)),
+                            trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  onTap: () => setState(() => _selectedDriverApproval = d),
-                  title: Text(prof['full_name'] ?? 'Bilinmiyor', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  subtitle: Text('Plaka: ${d['vehicle_plate'] ?? ''}', style: const TextStyle(color: AppColors.textSecondary)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
-                ),
-              );
-            },
-          ),
-        ),
 
         // Right Column: Document Details Review
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32.0),
-            child: Card(
-              color: AppColors.cardBackground,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+        if (driver != null && (!isMobile || _showDetailsMobile))
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
+              child: Card(
+                color: AppColors.cardBackground,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (isMobile) ...[
+                        Row(
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => setState(() => _showDetailsMobile = false),
+                              icon: const Icon(Icons.arrow_back, color: AppColors.accent),
+                              label: const Text('Başvurular Listesine Dön', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                            ),
+                          ],
+                        ),
+                        const Divider(color: AppColors.border),
+                        const SizedBox(height: 12),
+                      ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -811,7 +880,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   GridView.count(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3,
+                    crossAxisCount: isMobile ? 2 : 3,
                     crossAxisSpacing: 16,
                     mainAxisSpacing: 16,
                     childAspectRatio: 1.4,
@@ -839,8 +908,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: isMobile ? 2 : 4,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
                         childAspectRatio: 1.3,
@@ -893,131 +962,246 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
 
     final disp = _selectedDispute;
-    if (disp == null) return const SizedBox.shrink();
+    final isMobile = MediaQuery.of(context).size.width < 750;
+    if (disp == null && !isMobile) return const SizedBox.shrink();
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Disputes list sidebar
-        Container(
-          width: 320,
-          decoration: const BoxDecoration(
-            border: Border(right: BorderSide(color: AppColors.border)),
-          ),
-          child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: _allDisputes.length,
-            itemBuilder: (context, index) {
-              final d = _allDisputes[index];
-              final isSelected = d.id == disp.id;
+        if (!isMobile || !_showDetailsMobile)
+          isMobile
+          ? Expanded(
+            child: Container(
+              decoration: const BoxDecoration(),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _allDisputes.length,
+                itemBuilder: (context, index) {
+                  final d = _allDisputes[index];
+                  final isSelected = disp != null && d.id == disp.id;
 
-              return Card(
-                color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
-                ),
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  onTap: () => _selectDispute(d),
-                  title: Text(d.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  subtitle: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: d.status == DisputeStatus.resolved
-                              ? AppColors.success.withValues(alpha: 0.2)
-                              : AppColors.error.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(d.status.label, style: TextStyle(fontSize: 10, color: d.status == DisputeStatus.resolved ? AppColors.success : AppColors.error)),
+                  return Card(
+                    color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
+                    ),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      onTap: () {
+                        _selectDispute(d);
+                        if (isMobile) setState(() => _showDetailsMobile = true);
+                      },
+                      title: Text(d.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      subtitle: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: d.status == DisputeStatus.resolved
+                                  ? AppColors.success.withValues(alpha: 0.2)
+                                  : AppColors.error.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(d.status.label, style: TextStyle(fontSize: 10, color: d.status == DisputeStatus.resolved ? AppColors.success : AppColors.error)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('${d.createdAt.day}.${d.createdAt.month}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Text('${d.createdAt.day}.${d.createdAt.month}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
-                ),
-              );
-            },
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                    ),
+                  );
+                },
+              ),
+            ),
+          )
+          : SizedBox(
+            width: 320,
+            child: Container(
+              decoration: const BoxDecoration(
+                border: Border(right: BorderSide(color: AppColors.border)),
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _allDisputes.length,
+                itemBuilder: (context, index) {
+                  final d = _allDisputes[index];
+                  final isSelected = disp != null && d.id == disp.id;
+
+                  return Card(
+                    color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
+                    ),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      onTap: () => _selectDispute(d),
+                      title: Text(d.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      subtitle: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: d.status == DisputeStatus.resolved
+                                  ? AppColors.success.withValues(alpha: 0.2)
+                                  : AppColors.error.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(d.status.label, style: TextStyle(fontSize: 10, color: d.status == DisputeStatus.resolved ? AppColors.success : AppColors.error)),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('${d.createdAt.day}.${d.createdAt.month}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                        ],
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
-        ),
 
         // Dispute details
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(32.0),
-            child: Card(
-              color: AppColors.cardBackground,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        if (disp != null && (!isMobile || _showDetailsMobile))
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
+              child: Card(
+                color: AppColors.cardBackground,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(disp.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                            const SizedBox(height: 4),
-                            Text('Uyuşmazlık ID: ${disp.id}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      if (disp.status == DisputeStatus.pending || disp.status == DisputeStatus.investigating)
+                      if (isMobile) ...[
                         Row(
                           children: [
-                            OutlinedButton(
-                              onPressed: () => _resolveDispute(disp.id, DisputeStatus.dismissed),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.error,
-                                side: const BorderSide(color: AppColors.error),
-                              ),
-                              child: const Text('Talebi Reddet / Kapat'),
-                            ),
-                            const SizedBox(width: 16),
-                            ElevatedButton(
-                              onPressed: () => _resolveDispute(disp.id, DisputeStatus.resolved),
-                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-                              child: const Text('Sorun Çözüldü İşaretle', style: TextStyle(color: Colors.white)),
+                            TextButton.icon(
+                              onPressed: () => setState(() => _showDetailsMobile = false),
+                              icon: const Icon(Icons.arrow_back, color: AppColors.accent),
+                              label: const Text('Uyuşmazlık Listesine Dön', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
                             ),
                           ],
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: disp.status == DisputeStatus.resolved ? AppColors.success.withValues(alpha: 0.15) : AppColors.divider,
-                            border: Border.all(color: disp.status == DisputeStatus.resolved ? AppColors.success : AppColors.border),
-                            borderRadius: BorderRadius.circular(12),
+                        ),
+                        const Divider(color: AppColors.border),
+                        const SizedBox(height: 12),
+                      ],
+                  if (isMobile)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(disp.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        const SizedBox(height: 4),
+                        Text('Uyuşmazlık ID: ${disp.id}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                        const SizedBox(height: 16),
+                        if (disp.status == DisputeStatus.pending || disp.status == DisputeStatus.investigating)
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => _resolveDispute(disp.id, DisputeStatus.dismissed),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.error,
+                                  side: const BorderSide(color: AppColors.error),
+                                ),
+                                child: const Text('Talebi Reddet / Kapat'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () => _resolveDispute(disp.id, DisputeStatus.resolved),
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                                child: const Text('Sorun Çözüldü İşaretle', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: disp.status == DisputeStatus.resolved ? AppColors.success.withValues(alpha: 0.15) : AppColors.divider,
+                              border: Border.all(color: disp.status == DisputeStatus.resolved ? AppColors.success : AppColors.border),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Karar: ${disp.status.label}',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: disp.status == DisputeStatus.resolved ? AppColors.success : AppColors.textPrimary),
+                            ),
                           ),
-                          child: Text(
-                            'Karar: ${disp.status.label}',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: disp.status == DisputeStatus.resolved ? AppColors.success : AppColors.textPrimary),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(disp.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                              const SizedBox(height: 4),
+                              Text('Uyuşmazlık ID: ${disp.id}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                            ],
                           ),
                         ),
-                    ],
-                  ),
+                        if (disp.status == DisputeStatus.pending || disp.status == DisputeStatus.investigating)
+                          Row(
+                            children: [
+                              OutlinedButton(
+                                onPressed: () => _resolveDispute(disp.id, DisputeStatus.dismissed),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.error,
+                                  side: const BorderSide(color: AppColors.error),
+                                ),
+                                child: const Text('Talebi Reddet / Kapat'),
+                              ),
+                              const SizedBox(width: 16),
+                              ElevatedButton(
+                                onPressed: () => _resolveDispute(disp.id, DisputeStatus.resolved),
+                                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                                child: const Text('Sorun Çözüldü İşaretle', style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: disp.status == DisputeStatus.resolved ? AppColors.success.withValues(alpha: 0.15) : AppColors.divider,
+                              border: Border.all(color: disp.status == DisputeStatus.resolved ? AppColors.success : AppColors.border),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'Karar: ${disp.status.label}',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: disp.status == DisputeStatus.resolved ? AppColors.success : AppColors.textPrimary),
+                            ),
+                          ),
+                      ],
+                    ),
                   const Divider(color: AppColors.border, height: 40),
 
                   // Parties
                   const Text('İlgili Taraflar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildPartyCard('Şikayeti Aşan (Reporter)', disp.reporterId),
-                      ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: _buildPartyCard('Şikayet Edilen (Reported)', disp.reportedId),
-                      ),
-                    ],
-                  ),
+                  if (isMobile) ...[
+                    _buildPartyCard('Şikayeti Paylaşan (Reporter)', disp.reporterId),
+                    const SizedBox(height: 16),
+                    _buildPartyCard('Şikayet Edilen (Reported)', disp.reportedId),
+                  ] else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildPartyCard('Şikayeti Paylaşan (Reporter)', disp.reporterId),
+                        ),
+                        const SizedBox(width: 24),
+                        Expanded(
+                          child: _buildPartyCard('Şikayet Edilen (Reported)', disp.reportedId),
+                        ),
+                      ],
+                    ),
                   const Divider(color: AppColors.border, height: 40),
 
                   // Description
@@ -1061,7 +1245,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                     margin: const EdgeInsets.only(bottom: 12),
                                     alignment: isReporter ? Alignment.centerRight : Alignment.centerLeft,
                                     child: Container(
-                                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.4),
+                                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * (isMobile ? 0.7 : 0.4)),
                                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                       decoration: BoxDecoration(
                                         color: isReporter ? AppColors.primary.withValues(alpha: 0.4) : AppColors.cardBackground,

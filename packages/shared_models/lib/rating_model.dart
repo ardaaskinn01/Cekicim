@@ -32,8 +32,7 @@ class RatingModel {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
+    final data = {
       'request_id': requestId,
       'rater_id': raterId,
       'rated_id': ratedId,
@@ -41,5 +40,9 @@ class RatingModel {
       'comment': comment,
       'created_at': createdAt.toIso8601String(),
     };
+    if (id.isNotEmpty) {
+      data['id'] = id;
+    }
+    return data;
   }
 }

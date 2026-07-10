@@ -411,6 +411,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         supportedVehicleTypes: selectedVehicleTypes,
         isOnboardingCompleted: true,
         isVerified: false, // verification is pending admin review
+        rejectionReason: '', // Clear rejection reason since they resubmitted!
         iban: _ibanController.text.replaceAll(' ', '').toUpperCase(),
         ibanOwnerName: _ibanOwnerController.text.trim(),
       );
@@ -458,6 +459,38 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         ),
         body: Column(
           children: [
+            if (driver is DriverModel && driver.rejectionReason != null && driver.rejectionReason!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: AppColors.error),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Önceki Başvurunuz Reddedildi',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Gerekçe: ${driver.rejectionReason}',
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             // Custom Step Indicator
             Container(
               padding: const EdgeInsets.symmetric(vertical: 16),

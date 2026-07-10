@@ -8,6 +8,7 @@ import 'package:shared_services/dispute_repository.dart';
 import 'package:shared_ui/widgets/dispute_dialog.dart';
 import 'package:shared_ui/extensions/request_status_extension.dart';
 import '../../providers/auth_provider.dart';
+import 'package:shared_models/user_model.dart';
 import '../../providers/request_provider.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
 import 'package:go_router/go_router.dart';
@@ -117,11 +118,30 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                               ],
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              'Tarih: ${req.createdAt.day}.${req.createdAt.month}.${req.createdAt.year} ${req.createdAt.hour.toString().padLeft(2, '0')}:${req.createdAt.minute.toString().padLeft(2, '0')}',
-                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                            ),
-                            const SizedBox(height: 8),
+                             Text(
+                               'Tarih: ${req.createdAt.day}.${req.createdAt.month}.${req.createdAt.year} ${req.createdAt.hour.toString().padLeft(2, '0')}:${req.createdAt.minute.toString().padLeft(2, '0')}',
+                               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                             ),
+                             if (req.driverId != null) ...[
+                               const SizedBox(height: 6),
+                               FutureBuilder<UserModel?>(
+                                 future: ref.read(authRepositoryProvider).getUserProfile(req.driverId!),
+                                 builder: (context, snapshot) {
+                                   final driverName = snapshot.data?.fullName ?? 'Yükleniyor...';
+                                   return Row(
+                                     children: [
+                                       const Icon(Icons.person_outline, size: 14, color: AppColors.textSecondary),
+                                       const SizedBox(width: 4),
+                                       Text(
+                                         'Çekici: $driverName',
+                                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                                       ),
+                                     ],
+                                   );
+                                 },
+                               ),
+                             ],
+                             const SizedBox(height: 8),
                             Row(
                               children: [
                                 Container(

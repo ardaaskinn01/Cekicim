@@ -64,12 +64,14 @@ class _DisputeDialogState extends State<DisputeDialog> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Uyuşmazlık / Sorun Bildir',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
+                    const Expanded(
+                      child: Text(
+                        'Uyuşmazlık / Sorun Bildir',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                     IconButton(

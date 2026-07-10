@@ -19,6 +19,7 @@ import '../../presentation/driver/incoming_request_screen.dart';
 import '../../presentation/driver/navigation_screen.dart';
 import '../../presentation/driver/chat_screen.dart';
 import '../../presentation/driver/voip_call_screen.dart';
+import '../../presentation/driver/driver_disputes_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -49,7 +50,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
         if (userModel.role == UserRole.driver) {
           final isDriverModel = userModel is DriverModel;
-          final completedOnboarding = isDriverModel && userModel.isOnboardingCompleted;
+          final hasRejection = isDriverModel &&
+              userModel.rejectionReason != null &&
+              userModel.rejectionReason!.isNotEmpty;
+          final completedOnboarding = isDriverModel &&
+              userModel.isOnboardingCompleted &&
+              !hasRejection; // If rejected, onboarding is not completed successfully
           final isOnboardingRoute = state.uri.path == '/driver/onboarding';
 
           if (!completedOnboarding) {
@@ -81,6 +87,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/driver', builder: (context, state) => const DriverHomeScreen()),
       GoRoute(path: '/driver/history', builder: (context, state) => const DriverHistoryScreen()),
       GoRoute(path: '/driver/profile', builder: (context, state) => const DriverProfileScreen()),
+      GoRoute(path: '/driver/disputes', builder: (context, state) => const DriverDisputesScreen()),
       GoRoute(
         path: '/driver/rate/:requestId/:customerId',
         builder: (context, state) {
@@ -115,7 +122,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/driver/call/:requestId',
         builder: (context, state) {
           final requestId = state.pathParameters['requestId'] ?? '';
-          return VoIPCallScreen(requestId: requestId);
+          final isInitiator = state.uri.queryParameters['initiator'] == 'true';
+          return VoIPCallScreen(requestId: requestId, isInitiator: isInitiator);
         },
       ),
     ],

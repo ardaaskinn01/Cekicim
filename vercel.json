@@ -1,7 +1,7 @@
 {
   "cleanUrls": true,
-  "buildCommand": "bash build.sh",
-  "outputDirectory": "public",
+  "buildCommand": "bash apps/admin_web/build.sh",
+  "outputDirectory": "apps/admin_web/public",
   "rewrites": [
     {
       "source": "/(.*)",

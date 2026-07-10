@@ -31,7 +31,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
 
 # Symbolication related
 app.*.symbols
@@ -53,3 +53,5 @@ app.*.map.json
 **/GoogleService-Info.plist
 **/firebase_options.dart
 
+.vercel
+.env*

@@ -95,7 +95,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 const Text('Müşteri ile Sohbet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 Text(
-                  request.status.dbValue.toUpperCase(),
+                  request.status.label,
                   style: const TextStyle(fontSize: 11, color: AppColors.accent, fontWeight: FontWeight.w600),
                 ),
               ],

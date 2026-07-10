@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +18,32 @@ class DriverHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
+  Timer? _verificationPollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startVerificationPolling();
+  }
+
+  @override
+  void dispose() {
+    _verificationPollTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startVerificationPolling() {
+    _verificationPollTimer?.cancel();
+    _verificationPollTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+      final user = ref.read(currentUserProvider).value;
+      if (user is DriverModel && !user.isVerified) {
+        ref.read(authNotifierProvider.notifier).loadCurrentUser();
+      } else if (user is DriverModel && user.isVerified) {
+        _verificationPollTimer?.cancel();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
@@ -80,16 +107,46 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                 color: AppColors.error.withValues(alpha: 0.95),
                 elevation: 4,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      Icon(Icons.hourglass_empty_rounded, color: Colors.white),
-                      SizedBox(width: 12),
+                      Icon(
+                        driver.rejectionReason != null && driver.rejectionReason!.isNotEmpty
+                            ? Icons.error_outline_rounded
+                            : Icons.hourglass_empty_rounded,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          'Evraklarınız inceleniyor. Yönetici onayından sonra çevrimiçi olabilirsiniz.',
-                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              driver.rejectionReason != null && driver.rejectionReason!.isNotEmpty
+                                  ? 'Başvurunuz Reddedildi: ${driver.rejectionReason}'
+                                  : 'Evraklarınız inceleniyor. Yönetici onayından sonra çevrimiçi olabilirsiniz.',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            if (driver.rejectionReason != null && driver.rejectionReason!.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              InkWell(
+                                onTap: () => context.go('/driver/onboarding'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Evrakları Düzenle & Yeniden Gönder',
+                                    style: TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],

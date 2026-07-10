@@ -6,7 +6,8 @@ import 'package:shared_ui/price_calculator.dart';
 
 class DriverSelectionCard extends StatelessWidget {
   final DriverModel driver;
-  final double distanceKm;
+  final double distanceKm; // Driver to customer distance
+  final double targetPrice; // Customer to industry zone price
   final bool isSelected;
   final ValueChanged<bool?> onChanged;
 
@@ -14,6 +15,7 @@ class DriverSelectionCard extends StatelessWidget {
     super.key,
     required this.driver,
     required this.distanceKm,
+    required this.targetPrice,
     required this.isSelected,
     required this.onChanged,
   });
@@ -21,7 +23,7 @@ class DriverSelectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final etaMinutes = (distanceKm / 40.0 * 60).round();
-    final price = PriceCalculator.calculatePrice(distanceKm);
+    final price = targetPrice;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
