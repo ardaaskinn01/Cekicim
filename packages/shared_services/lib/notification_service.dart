@@ -19,10 +19,12 @@ class NotificationService {
     await _flutterLocalNotificationsPlugin.initialize(initSettings);
 
     const androidChannel = AndroidNotificationChannel(
-      'cekici_channel',
+      'cekici_alerts',
       'Çekici Bildirimleri',
       description: 'Yeni teklif ve yol yardım bildirim kanalı',
       importance: Importance.max,
+      sound: RawResourceAndroidNotificationSound('bg_alarm2'),
+      playSound: true,
     );
 
     await _flutterLocalNotificationsPlugin
@@ -89,15 +91,25 @@ class NotificationService {
 
   Future<void> showLocalNotification(String title, String body) async {
     const androidDetails = AndroidNotificationDetails(
-      'cekici_channel',
+      'cekici_alerts',
       'Çekici Bildirimleri',
       channelDescription: 'Yeni teklif ve yol yardım bildirim kanalı',
       importance: Importance.max,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
+      sound: RawResourceAndroidNotificationSound('bg_alarm2'),
+      playSound: true,
     );
 
-    const notificationDetails = NotificationDetails(android: androidDetails);
+    const iosDetails = DarwinNotificationDetails(
+      presentSound: true,
+      sound: 'bg_alarm2.mp3',
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
     await _flutterLocalNotificationsPlugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
