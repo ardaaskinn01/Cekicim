@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:ui' as ui;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -105,9 +106,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
 
   bool _isRealtimeSubscribed = false;
 
+  BitmapDescriptor? _driverIcon;
+
   @override
   void initState() {
     super.initState();
+    _loadCustomMarker();
     _animationController = AnimationController(
       duration: const Duration(seconds: 3), // Konum güncelleme aralığıyla (3sn) senkronize
       vsync: this,
@@ -118,6 +122,56 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
           });
         }
       });
+  }
+
+  Future<void> _loadCustomMarker() async {
+    try {
+      final icon = await _getBytesFromCanvas(100, 100, Icons.rv_hookup, AppColors.success);
+      if (mounted) {
+        setState(() {
+          _driverIcon = icon;
+        });
+      }
+    } catch (e) {
+      debugPrint("Hata custom marker oluşturulurken: $e");
+    }
+  }
+
+  Future<BitmapDescriptor> _getBytesFromCanvas(int width, int height, IconData iconData, Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+
+    // Dış halka/gölge boyası
+    final Paint paint = Paint()..color = color;
+    canvas.drawCircle(Offset(width / 2, height / 2), width / 2, paint);
+
+    // Beyaz kenarlık
+    final Paint borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4;
+    canvas.drawCircle(Offset(width / 2, height / 2), width / 2 - 2, borderPaint);
+
+    // İkon çizimi
+    TextPainter textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(iconData.codePoint),
+      style: TextStyle(
+        fontSize: width * 0.55,
+        fontFamily: iconData.fontFamily,
+        color: Colors.white,
+        package: iconData.fontPackage,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset((width - textPainter.width) / 2, (height - textPainter.height) / 2),
+    );
+
+    final ui.Image image = await pictureRecorder.endRecording().toImage(width, height);
+    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 
   @override
@@ -384,7 +438,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                     rotation: _driverBearing,
                     anchor: const Offset(0.5, 0.5), // Merkezden dönüş için
                     infoWindow: const InfoWindow(title: 'Çekici'),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                    icon: _driverIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
                   ),
                 );
               }
