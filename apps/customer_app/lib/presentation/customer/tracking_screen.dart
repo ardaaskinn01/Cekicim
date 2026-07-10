@@ -371,10 +371,16 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
               }
 
               if (activeDriverLoc != null) {
+                LatLng displayLoc = activeDriverLoc;
+                if (activeDriverLoc.latitude == customerLatLng.latitude && 
+                    activeDriverLoc.longitude == customerLatLng.longitude) {
+                  // Eşleşme testinde üst üste binmemesi için 15-20 metre kuzeydoğuya ötele
+                  displayLoc = LatLng(activeDriverLoc.latitude + 0.00015, activeDriverLoc.longitude + 0.00015);
+                }
                 markers.add(
                   Marker(
                     markerId: const MarkerId('driver'),
-                    position: activeDriverLoc,
+                    position: displayLoc,
                     rotation: _driverBearing,
                     anchor: const Offset(0.5, 0.5), // Merkezden dönüş için
                     infoWindow: const InfoWindow(title: 'Çekici'),
