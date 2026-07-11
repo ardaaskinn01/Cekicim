@@ -9,12 +9,33 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  await SupabaseService.initialize();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  await NotificationService().initialize();
+  
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Failed to load .env file: $e");
+  }
+
+  try {
+    await SupabaseService.initialize();
+  } catch (e) {
+    debugPrint("Failed to initialize Supabase: $e");
+  }
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    debugPrint("Failed to initialize Firebase: $e");
+  }
+
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint("Failed to initialize local notifications: $e");
+  }
+
   runApp(const ProviderScope(child: CekiciApp()));
 }
 

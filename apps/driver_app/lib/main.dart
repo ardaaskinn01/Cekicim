@@ -19,14 +19,35 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  // Register background handler BEFORE runApp
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  await SupabaseService.initialize();
-  await NotificationService().initialize();
+  
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint("Failed to load .env file: $e");
+  }
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    // Register background handler BEFORE runApp
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint("Failed to initialize Firebase: $e");
+  }
+
+  try {
+    await SupabaseService.initialize();
+  } catch (e) {
+    debugPrint("Failed to initialize Supabase: $e");
+  }
+
+  try {
+    await NotificationService().initialize();
+  } catch (e) {
+    debugPrint("Failed to initialize local notifications: $e");
+  }
+
   runApp(const ProviderScope(child: DriverApp()));
 }
 
