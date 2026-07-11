@@ -871,7 +871,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     runSpacing: 16,
                     children: [
                       _buildDetailItem('Araç Plakası', driver['vehicle_plate'] ?? '-'),
-                      _buildDetailItem('Araç Tipi', driver['vehicle_type'] ?? '-'),
+                      _buildDetailItem(
+                        'Araç Tipi',
+                        driver['vehicle_type'] == 'small'
+                            ? 'Küçük / Standart (Oto Çekici)'
+                            : driver['vehicle_type'] == 'medium'
+                                ? 'Orta (Ahtapot / Çift Katlı)'
+                                : driver['vehicle_type'] == 'large'
+                                    ? 'Büyük (Ağır Vasıta)'
+                                    : (driver['vehicle_type'] ?? '-'),
+                      ),
                       _buildDetailItem('IBAN Sahibi', driver['iban_owner_name'] ?? '-'),
                       _buildDetailItem('IBAN Numarası', driver['iban'] ?? '-'),
                     ],
