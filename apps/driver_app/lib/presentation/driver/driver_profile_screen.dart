@@ -109,12 +109,19 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Profil')),
         body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(currentUserProvider);
+              await ref.read(currentUserProvider.future);
+              await ref.read(authNotifierProvider.notifier).loadCurrentUser();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 10),
                   const CircleAvatar(
@@ -394,7 +401,8 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildDocumentStatusRow(String title, bool isUploaded, bool isDriverVerified) {
@@ -420,8 +428,14 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       children: [
         Icon(Icons.description_outlined, color: AppColors.textSecondary, size: 18),
         const SizedBox(width: 8),
-        Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-        const Spacer(),
+        Expanded(
+          child: Text(
+            title, 
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(

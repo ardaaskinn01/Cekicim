@@ -37,6 +37,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     _verificationPollTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
       final user = ref.read(currentUserProvider).value;
       if (user is DriverModel && !user.isVerified) {
+        // Invalidate current user provider to force reload from Supabase
+        ref.invalidate(currentUserProvider);
         ref.read(authNotifierProvider.notifier).loadCurrentUser();
       } else if (user is DriverModel && user.isVerified) {
         _verificationPollTimer?.cancel();
