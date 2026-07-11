@@ -1,8 +1,8 @@
 # melos_managed_dependency_overrides: shared_models,shared_services,shared_ui
 dependency_overrides:
   shared_models:
-    path: ../../packages/shared_models
+    path: ..\\..\\packages\\shared_models
   shared_services:
-    path: ../../packages/shared_services
+    path: ..\\..\\packages\\shared_services
   shared_ui:
-    path: ../../packages/shared_ui
+    path: ..\\..\\packages\\shared_ui
