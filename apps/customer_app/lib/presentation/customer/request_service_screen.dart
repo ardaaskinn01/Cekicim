@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_services/location_utils.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
@@ -150,8 +151,18 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         );
       }
 
-      // Calculate price dynamically using shared PriceCalculator
-      final price = PriceCalculator.calculatePrice(distance);
+      // Calculate price dynamically:
+      // - First 1 km: 2000 TL (Base fee)
+      // - Between 1 km and 15 km: +200 TL/km
+      // - Beyond 15 km: +150 TL/km
+      double price = 2000.0;
+      if (distance > 1.0) {
+        if (distance <= 15.0) {
+          price += (distance - 1.0) * 200.0;
+        } else {
+          price += (14.0 * 200.0) + (distance - 15.0) * 150.0;
+        }
+      }
 
       // Generate a random 4-digit completion code
       final random = (1000 + (DateTime.now().microsecondsSinceEpoch % 9000)).toString();
@@ -304,6 +315,15 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<Position?>>(locationProvider, (prev, next) {
+      final pos = next.value;
+      if (pos != null && _selectedLatLng == const LatLng(39.9208, 32.8541)) {
+        setState(() {
+          _selectedLatLng = LatLng(pos.latitude, pos.longitude);
+        });
+      }
+    });
+
     return LoadingOverlay(
       isLoading: _isLoading,
       message: 'İşlem yapılıyor...',
@@ -382,7 +402,11 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                     ),
                   },
-                  onTap: null,
+                  onTap: (latLng) {
+                    setState(() {
+                      _selectedLatLng = latLng;
+                    });
+                  },
                 ),
               ),
             ),
