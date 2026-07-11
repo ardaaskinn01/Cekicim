@@ -1155,21 +1155,25 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       ],
                     )
                   else
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 16,
+                      runSpacing: 16,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(disp.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                              const SizedBox(height: 4),
-                              Text('Uyuşmazlık ID: ${disp.id}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                            ],
-                          ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(disp.title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                            const SizedBox(height: 4),
+                            Text('Uyuşmazlık ID: ${disp.id}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                          ],
                         ),
                         if (disp.status == DisputeStatus.pending || disp.status == DisputeStatus.investigating)
-                          Row(
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 12,
                             children: [
                               OutlinedButton(
                                 onPressed: () => _resolveDispute(disp.id, DisputeStatus.dismissed),
@@ -1179,7 +1183,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 ),
                                 child: const Text('Talebi Reddet / Kapat'),
                               ),
-                              const SizedBox(width: 16),
                               ElevatedButton(
                                 onPressed: () => _resolveDispute(disp.id, DisputeStatus.resolved),
                                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
