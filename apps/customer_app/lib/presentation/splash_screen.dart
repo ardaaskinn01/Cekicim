@@ -33,20 +33,27 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
-    final user = await ref.read(currentUserProvider.future);
-    if (!mounted) return;
+    try {
+      final user = await ref.read(currentUserProvider.future);
+      if (!mounted) return;
 
-    if (user == null) {
-      context.go('/login');
-    } else {
-      switch (user.role) {
-        case UserRole.customer:
-          context.go('/customer');
-          break;
-        case UserRole.driver:
-        case UserRole.admin:
-          context.go('/login');
-          break;
+      if (user == null) {
+        context.go('/login');
+      } else {
+        switch (user.role) {
+          case UserRole.customer:
+            context.go('/customer');
+            break;
+          case UserRole.driver:
+          case UserRole.admin:
+            context.go('/login');
+            break;
+        }
+      }
+    } catch (e) {
+      debugPrint("Splash screen auth error: $e");
+      if (mounted) {
+        context.go('/login');
       }
     }
   }
