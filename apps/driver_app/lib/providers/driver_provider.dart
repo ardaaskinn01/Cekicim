@@ -21,7 +21,11 @@ class DriverStatusNotifier extends StateNotifier<bool> {
   final String _driverId;
   Timer? _locationTimer;
 
-  DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(false);
+  DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(false) {
+    if (_driverId.isNotEmpty) {
+      _requestRepo.updateDriverOnlineStatus(_driverId, false).catchError((_) {});
+    }
+  }
 
   Future<void> toggleOnlineStatus() async {
     final nextStatus = !state;
