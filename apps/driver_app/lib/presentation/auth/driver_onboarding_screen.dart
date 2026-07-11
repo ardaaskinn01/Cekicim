@@ -150,24 +150,47 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
     return Card(
       color: AppColors.cardBackground,
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(
-          title + (isRequired ? ' *' : ''),
-          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-        ),
-        subtitle: Text(
-          hasFile ? file.name : 'Seçilmedi',
-          style: TextStyle(color: hasFile ? AppColors.primary : AppColors.textSecondary, fontSize: 13),
-        ),
-        trailing: hasFile
-            ? Row(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border, width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.check_circle, color: AppColors.primary),
-                  const SizedBox(width: 8),
+                  Text(
+                    title + (isRequired ? ' *' : ''),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    hasFile ? file.name : 'Seçilmedi',
+                    style: TextStyle(
+                      color: hasFile ? AppColors.primary : AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            if (hasFile)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+                  const SizedBox(width: 4),
                   IconButton(
-                    icon: const Icon(Icons.delete, color: AppColors.error),
+                    icon: const Icon(Icons.delete, color: AppColors.error, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
                     onPressed: () {
                       setState(() {
                         switch (docType) {
@@ -183,14 +206,20 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   )
                 ],
               )
-            : ElevatedButton(
+            else
+              ElevatedButton(
                 onPressed: () => _pickImage(docType),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  minimumSize: const Size(80, 36),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Yükle'),
+                child: const Text('Yükle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
               ),
+          ],
+        ),
       ),
     );
   }
