@@ -20,6 +20,7 @@ import '../../presentation/driver/navigation_screen.dart';
 import '../../presentation/driver/chat_screen.dart';
 import '../../presentation/driver/voip_call_screen.dart';
 import '../../presentation/driver/driver_disputes_screen.dart';
+import '../../presentation/driver/complete_request_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -116,6 +117,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final requestId = state.pathParameters['requestId'] ?? '';
           return ChatScreen(requestId: requestId);
+        },
+      ),
+      GoRoute(
+        path: '/driver/complete/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return CompleteRequestScreen(requestId: requestId);
         },
       ),
       GoRoute(

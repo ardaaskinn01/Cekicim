@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/driver_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
+import 'package:shared_services/notification_service.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -19,6 +20,7 @@ class DriverHomeScreen extends ConsumerStatefulWidget {
 
 class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   Timer? _verificationPollTimer;
+  String? _lastNavigatedOfferId;
 
   @override
   void initState() {
@@ -53,15 +55,30 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     final isOnline = ref.watch(driverStatusProvider);
     final locationAsync = ref.watch(locationProvider);
 
-    // Watch pending offers
+    // Watch pending offers — guard against duplicate pushes for the same offer
     ref.listen<AsyncValue<List<Map<String, dynamic>>>>(pendingOffersProvider, (prev, next) {
       final list = next.value;
       if (list != null && list.isNotEmpty) {
         final offer = list.first;
         final reqId = offer['request_id'] as String;
-        context.push('/driver/offer/$reqId');
+        // Only navigate if we haven't already navigated for this offer
+        if (_lastNavigatedOfferId != reqId) {
+          _lastNavigatedOfferId = reqId;
+          // Play alarm sound when offer arrives while app is in foreground
+          NotificationService().showLocalNotification(
+            '🚨 Yeni Yol Yardım Talebi!',
+            'Yakınınızda yeni bir talep var. Hemen inceleyin!',
+          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) context.push('/driver/offer/$reqId');
+          });
+        }
+      } else {
+        // List is empty — reset so next offer can be navigated to
+        _lastNavigatedOfferId = null;
       }
     });
+
 
     return Scaffold(
       appBar: AppBar(

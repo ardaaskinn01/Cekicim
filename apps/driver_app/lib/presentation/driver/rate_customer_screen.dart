@@ -81,47 +81,49 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Müşteriyi Değerlendir')),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 24),
-                Text(
-                  widget.customerName,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Hizmet verdiğiniz müşteriyi puanlayıp geri bildirimde bulunun.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-                ),
-                const SizedBox(height: 48),
-                Center(
-                  child: RatingWidget(
-                    rating: _rating,
-                    onRatingChanged: (newRating) {
-                      setState(() => _rating = newRating);
-                    },
-                    size: 40,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 24),
+                  Text(
+                    widget.customerName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
-                ),
-                const SizedBox(height: 32),
-                AppTextField(
-                  controller: _commentController,
-                  label: 'Müşteri hakkında yorum yazın (İsteğe bağlı)',
-                  prefixIcon: Icons.comment_outlined,
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 48),
-                GreenButton(
-                  text: 'Puanla & Bitir',
-                  onPressed: _submitRating,
-                  isLoading: _isLoading,
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Hizmet verdiğiniz müşteriyi puanlayıp geri bildirimde bulunun.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  ),
+                  const SizedBox(height: 48),
+                  Center(
+                    child: RatingWidget(
+                      rating: _rating,
+                      onRatingChanged: (newRating) {
+                        setState(() => _rating = newRating);
+                      },
+                      size: 40,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  AppTextField(
+                    controller: _commentController,
+                    label: 'Müşteri hakkında yorum yazın (İsteğe bağlı)',
+                    prefixIcon: Icons.comment_outlined,
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 48),
+                  GreenButton(
+                    text: 'Puanla & Bitir',
+                    onPressed: _submitRating,
+                    isLoading: _isLoading,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

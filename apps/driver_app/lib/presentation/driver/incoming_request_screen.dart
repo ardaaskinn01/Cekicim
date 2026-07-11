@@ -21,6 +21,8 @@ class IncomingRequestScreen extends ConsumerStatefulWidget {
 
 class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   bool _isLoading = false;
+  bool _hasLoadedRequest = false; // Guard: don't redirect until first real data arrives
+  bool _navigationPending = false; // Guard: prevent duplicate go('/driver')
   Timer? _timer;
   int _timeLeft = 30; // 30 seconds to accept
 
@@ -153,27 +155,43 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
           error: (err, st) => Center(child: Text('Hata: $err', style: const TextStyle(color: Colors.white))),
           data: (request) {
             final user = ref.watch(currentUserProvider).value;
+
+            // Mark that we've received real data at least once
+            if (!_hasLoadedRequest) {
+              // Do it after build to avoid setState in build
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _hasLoadedRequest = true);
+              });
+            }
+
             if (request.status != RequestStatus.awaitingAcceptance) {
               if (request.driverId == user?.id) {
+                // This driver accepted it — show loading while navigating
                 return const Center(
                   child: CircularProgressIndicator(color: AppColors.primary),
                 );
               }
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Talep başka bir sürücü tarafından kabul edildi veya iptal edildi.'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                  context.go('/driver');
-                }
-              });
+              // Only redirect if we have loaded the request at least once
+              // (prevents race condition on first stream emission)
+              if (_hasLoadedRequest && !_navigationPending) {
+                _navigationPending = true;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Talep başka bir sürücü tarafından kabul edildi veya iptal edildi.'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                    context.go('/driver');
+                  }
+                });
+              }
               return const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               );
             }
+
 
             final progressValue = _timeLeft / 30.0;
             final timerColor = _timeLeft < 10 ? AppColors.error : AppColors.primary;

@@ -2,16 +2,15 @@ import 'app_constants.dart';
 
 class PriceCalculator {
   static double calculatePrice(double distanceKm) {
-    final roundedDistance = distanceKm.ceil();
-    if (roundedDistance <= 1) {
+    if (distanceKm <= AppConstants.baseKm) {
       return AppConstants.minPrice;
     }
-    if (roundedDistance <= 15) {
-      final extraKm = roundedDistance - 1;
+    if (distanceKm <= 15.0) {
+      final extraKm = distanceKm - AppConstants.baseKm;
       return AppConstants.minPrice + (extraKm * AppConstants.pricePerKmUpTo15);
     } else {
-      final baseFifteenKmPrice = AppConstants.minPrice + (14 * AppConstants.pricePerKmUpTo15);
-      final extraOverFifteen = roundedDistance - 15;
+      final baseFifteenKmPrice = AppConstants.minPrice + (14.0 * AppConstants.pricePerKmUpTo15);
+      final extraOverFifteen = distanceKm - 15.0;
       return baseFifteenKmPrice + (extraOverFifteen * AppConstants.pricePerKmAfter15);
     }
   }

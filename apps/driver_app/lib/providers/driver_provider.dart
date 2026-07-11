@@ -23,9 +23,12 @@ class DriverStatusNotifier extends StateNotifier<bool> {
 
   DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(false) {
     if (_driverId.isNotEmpty) {
+      // On startup: set driver offline and expire all old pending offers
       _requestRepo.updateDriverOnlineStatus(_driverId, false).catchError((_) {});
+      _requestRepo.expireAllPendingOffersForDriver(_driverId).catchError((_) {});
     }
   }
+
 
   Future<void> toggleOnlineStatus() async {
     final nextStatus = !state;

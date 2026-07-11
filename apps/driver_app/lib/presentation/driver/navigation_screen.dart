@@ -143,18 +143,16 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   }
 
   Future<void> _updateStatus(ServiceRequestModel request, RequestStatus nextStatus) async {
+    // If completing the request, navigate to code verification screen first
+    if (nextStatus == RequestStatus.completed) {
+      context.push('/driver/complete/${request.id}');
+      return;
+    }
+
     setState(() => _isActionLoading = true);
     try {
       final repo = ref.read(requestRepositoryProvider);
       await repo.updateRequestStatus(request.id, nextStatus);
-
-      if (nextStatus == RequestStatus.completed) {
-        await _trackingService.stopTracking();
-        final customerProfile = await AuthRepository().getUserProfile(request.customerId);
-        if (!mounted) return;
-        final customerName = customerProfile?.fullName ?? 'Müşteri';
-        context.go('/driver/rate/${request.id}/${request.customerId}?name=$customerName');
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -165,6 +163,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
       if (mounted) setState(() => _isActionLoading = false);
     }
   }
+
 
   Future<void> _openExternalNavigation(double lat, double lng, String name) async {
     try {

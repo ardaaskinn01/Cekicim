@@ -58,24 +58,54 @@ class RequestRepository {
   }
 
   Stream<ServiceRequestModel> watchRequestStatus(String requestId) {
-    return _client
-        .from('service_requests')
-        .stream(primaryKey: ['id'])
-        .eq('id', requestId)
-        .map((dataList) {
-          if (dataList.isEmpty) {
-            throw Exception('Request not found');
-          }
-          return ServiceRequestModel.fromJson(dataList.first);
-        });
+    // Use periodic HTTP polling instead of .stream() to avoid RLS issues
+    // where selected_driver_ids-based access can return empty before subscription settles.
+    final controller = StreamController<ServiceRequestModel>();
+
+    Future<void> fetchOnce() async {
+      try {
+        final data = await _client
+            .from('service_requests')
+            .select()
+            .eq('id', requestId)
+            .maybeSingle();
+        if (data != null && !controller.isClosed) {
+          controller.add(ServiceRequestModel.fromJson(data));
+        }
+      } catch (_) {}
+    }
+
+    Timer? timer;
+    fetchOnce().then((_) {
+      timer = Timer.periodic(const Duration(seconds: 3), (_) => fetchOnce());
+    });
+
+    controller.onCancel = () {
+      timer?.cancel();
+      controller.close();
+    };
+
+    return controller.stream;
   }
 
   Stream<List<Map<String, dynamic>>> watchPendingOffersForDriver(String driverId) {
+    final cutoff = DateTime.now().subtract(const Duration(hours: 2));
     return _client
         .from('pending_offers')
         .stream(primaryKey: ['id'])
         .eq('driver_id', driverId)
-        .map((list) => list.where((item) => item['status'] == 'pending').toList());
+        .map((list) => list.where((item) {
+              if (item['status'] != 'pending') return false;
+              // If created_at column exists, filter out offers older than 2 hours
+              // to prevent stale offers from showing on app restart
+              final createdAtStr = item['created_at'] as String?;
+              if (createdAtStr != null) {
+                final createdAt = DateTime.tryParse(createdAtStr);
+                if (createdAt != null && createdAt.isBefore(cutoff)) return false;
+              }
+              // If created_at is null (column doesn't exist yet), include the offer
+              return true;
+            }).toList());
   }
 
   Future<List<DriverModel>> getAllAvailableDrivers() async {
@@ -367,6 +397,17 @@ class RequestRepository {
         .eq('request_id', requestId)
         .eq('driver_id', driverId);
   }
+
+  /// Called on driver app startup to clear all stale pending offers.
+  /// This prevents the "talep iptal edildi" error when re-running the app.
+  Future<void> expireAllPendingOffersForDriver(String driverId) async {
+    await _client
+        .from('pending_offers')
+        .update({'status': 'expired'})
+        .eq('driver_id', driverId)
+        .eq('status', 'pending');
+  }
+
 
   Future<Map<String, double>> getDriverEarningsSummary(String driverId) async {
     final now = DateTime.now();
