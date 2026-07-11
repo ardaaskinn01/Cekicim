@@ -150,18 +150,8 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         );
       }
 
-      // Calculate price dynamically:
-      // - First 1 km: 2000 TL (Base fee)
-      // - Between 1 km and 15 km: +200 TL/km
-      // - Beyond 15 km: +150 TL/km
-      double price = 2000.0;
-      if (distance > 1.0) {
-        if (distance <= 15.0) {
-          price += (distance - 1.0) * 200.0;
-        } else {
-          price += (14.0 * 200.0) + (distance - 15.0) * 150.0;
-        }
-      }
+      // Calculate price dynamically using shared PriceCalculator
+      final price = PriceCalculator.calculatePrice(distance);
 
       // Generate a random 4-digit completion code
       final random = (1000 + (DateTime.now().microsecondsSinceEpoch % 9000)).toString();
