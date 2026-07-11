@@ -182,10 +182,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         'rejection_reason': null,
       }).eq('id', driverId);
 
-      await client.from('profiles').update({
-        'is_verified': true,
-      }).eq('id', driverId);
-
       _selectedDriverApproval = null;
       await _loadDashboardData();
 
@@ -212,10 +208,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       await client.from('drivers').update({
         'is_verified': false,
         'rejection_reason': reason,
-      }).eq('id', driverId);
-
-      await client.from('profiles').update({
-        'is_verified': false,
       }).eq('id', driverId);
 
       _selectedDriverApproval = null;
