@@ -614,78 +614,76 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 0: DASHBOARD
   Widget _buildDashboardTab() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Statistics Overview row
-          Row(
+          // Statistics Overview grid
+          GridView.count(
+            crossAxisCount: isMobile ? 2 : 4,
+            crossAxisSpacing: isMobile ? 12 : 24,
+            mainAxisSpacing: isMobile ? 12 : 24,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: isMobile ? 1.4 : 1.7,
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Toplam Ciro',
-                  '${_totalEarnings.toStringAsFixed(2)} TL',
-                  Icons.monetization_on_outlined,
-                  AppColors.accent,
-                ),
+              _buildStatCard(
+                'Toplam Ciro',
+                '${_totalEarnings.toStringAsFixed(2)} TL',
+                Icons.monetization_on_outlined,
+                AppColors.accent,
               ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildStatCard(
-                  'Aktif Talepler',
-                  '$_activeRequestsCount',
-                  Icons.local_shipping_outlined,
-                  Colors.blue,
-                ),
+              _buildStatCard(
+                'Aktif Talepler',
+                '$_activeRequestsCount',
+                Icons.local_shipping_outlined,
+                Colors.blue,
               ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildStatCard(
-                  'Onay Bekleyenler',
-                  '$_pendingApprovalsCount',
-                  Icons.verified_user_outlined,
-                  AppColors.warning,
-                ),
+              _buildStatCard(
+                'Onay Bekleyenler',
+                '$_pendingApprovalsCount',
+                Icons.verified_user_outlined,
+                AppColors.warning,
               ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildStatCard(
-                  'Uyuşmazlıklar',
-                  '$_unresolvedDisputesCount',
-                  Icons.gavel_outlined,
-                  AppColors.error,
-                ),
+              _buildStatCard(
+                'Uyuşmazlıklar',
+                '$_unresolvedDisputesCount',
+                Icons.gavel_outlined,
+                AppColors.error,
               ),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
 
-          // User statistics row
-          Row(
+          // User statistics grid
+          GridView.count(
+            crossAxisCount: isMobile ? 1 : 2,
+            crossAxisSpacing: isMobile ? 12 : 24,
+            mainAxisSpacing: isMobile ? 12 : 24,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: isMobile ? 3.0 : 3.6,
             children: [
-              Expanded(
-                child: _buildStatCard(
-                  'Toplam Sürücü',
-                  '${_allDrivers.length}',
-                  Icons.drive_eta_outlined,
-                  AppColors.textSecondary,
-                ),
+              _buildStatCard(
+                'Toplam Sürücü',
+                '${_allDrivers.length}',
+                Icons.drive_eta_outlined,
+                AppColors.textSecondary,
               ),
-              const SizedBox(width: 24),
-              Expanded(
-                child: _buildStatCard(
-                  'Toplam Müşteri',
-                  '${_allCustomers.length}',
-                  Icons.people_outline,
-                  AppColors.textSecondary,
-                ),
+              _buildStatCard(
+                'Toplam Müşteri',
+                '${_allCustomers.length}',
+                Icons.people_outline,
+                AppColors.textSecondary,
               ),
             ],
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           _buildFinancialChartCard(),
-          const SizedBox(height: 48),
+          const SizedBox(height: 24),
 
           // Recent Activity Log
           const Text(
@@ -1352,6 +1350,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 3: DRIVERS
   Widget _buildDriversTab() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
     final query = _driverSearchController.text.toLowerCase().trim();
     final list = _allDrivers.where((d) {
       final prof = d['profiles'] as Map<String, dynamic>;
@@ -1361,7 +1360,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1392,49 +1391,52 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
             child: list.isEmpty
                 ? _buildEmptyState('Eşleşen sürücü bulunamadı.')
-                : DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Ad Soyad')),
-                      DataColumn(label: Text('Telefon')),
-                      DataColumn(label: Text('Araç Plakası')),
-                      DataColumn(label: Text('Puan')),
-                      DataColumn(label: Text('Evrak Onay')),
-                      DataColumn(label: Text('İşlem')),
-                    ],
-                    rows: list.map((d) {
-                      final prof = d['profiles'] as Map<String, dynamic>;
-                      final isVerified = d['is_verified'] as bool? ?? false;
-                      final isSuspended = prof['is_suspended'] as bool? ?? false;
-                      final rating = (d['rating'] as num?)?.toDouble() ?? 5.0;
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Ad Soyad')),
+                        DataColumn(label: Text('Telefon')),
+                        DataColumn(label: Text('Araç Plakası')),
+                        DataColumn(label: Text('Puan')),
+                        DataColumn(label: Text('Evrak Onay')),
+                        DataColumn(label: Text('İşlem')),
+                      ],
+                      rows: list.map((d) {
+                        final prof = d['profiles'] as Map<String, dynamic>;
+                        final isVerified = d['is_verified'] as bool? ?? false;
+                        final isSuspended = prof['is_suspended'] as bool? ?? false;
+                        final rating = (d['rating'] as num?)?.toDouble() ?? 5.0;
 
-                      return DataRow(
-                        cells: [
-                          DataCell(Text(prof['full_name'] ?? 'Bilinmiyor')),
-                          DataCell(Text(prof['phone'] ?? '-')),
-                          DataCell(Text(d['vehicle_plate'] ?? '-')),
-                          DataCell(Row(
-                            children: [
-                              const Icon(Icons.star, color: Colors.amber, size: 16),
-                              const SizedBox(width: 4),
-                              Text(rating.toStringAsFixed(1)),
-                            ],
-                          )),
-                          DataCell(Icon(
-                            isVerified ? Icons.verified : Icons.warning_amber_rounded,
-                            color: isVerified ? AppColors.success : AppColors.warning,
-                          )),
-                          DataCell(
-                            TextButton(
-                              onPressed: () => _toggleUserBlock(prof['id'], !isSuspended),
-                              child: Text(
-                                isSuspended ? 'Engeli Kaldır' : 'Engelle',
-                                style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(prof['full_name'] ?? 'Bilinmiyor')),
+                            DataCell(Text(prof['phone'] ?? '-')),
+                            DataCell(Text(d['vehicle_plate'] ?? '-')),
+                            DataCell(Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.amber, size: 16),
+                                const SizedBox(width: 4),
+                                Text(rating.toStringAsFixed(1)),
+                              ],
+                            )),
+                            DataCell(Icon(
+                              isVerified ? Icons.verified : Icons.warning_amber_rounded,
+                              color: isVerified ? AppColors.success : AppColors.warning,
+                            )),
+                            DataCell(
+                              TextButton(
+                                onPressed: () => _toggleUserBlock(prof['id'], !isSuspended),
+                                child: Text(
+                                  isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                                  style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
           ),
         ],
@@ -1444,13 +1446,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 4: CUSTOMERS
   Widget _buildCustomersTab() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
     final query = _customerSearchController.text.toLowerCase().trim();
     final list = _allCustomers.where((c) {
       return c.fullName.toLowerCase().contains(query) || c.email.toLowerCase().contains(query);
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1480,41 +1483,44 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
             child: list.isEmpty
                 ? _buildEmptyState('Müşteri bulunamadı.')
-                : DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Ad Soyad')),
-                      DataColumn(label: Text('E-posta')),
-                      DataColumn(label: Text('Telefon')),
-                      DataColumn(label: Text('Puan')),
-                      DataColumn(label: Text('İşlem')),
-                    ],
-                    rows: list.map((c) {
-                      final isSuspended = c.isSuspended;
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Ad Soyad')),
+                        DataColumn(label: Text('E-posta')),
+                        DataColumn(label: Text('Telefon')),
+                        DataColumn(label: Text('Puan')),
+                        DataColumn(label: Text('İşlem')),
+                      ],
+                      rows: list.map((c) {
+                        final isSuspended = c.isSuspended;
 
-                      return DataRow(
-                        cells: [
-                          DataCell(Text(c.fullName)),
-                          DataCell(Text(c.email)),
-                          DataCell(Text(c.phone ?? '-')),
-                          DataCell(Row(
-                            children: [
-                              const Icon(Icons.star, color: Colors.amber, size: 16),
-                              const SizedBox(width: 4),
-                              Text(c.rating.toStringAsFixed(1)),
-                            ],
-                          )),
-                          DataCell(
-                            TextButton(
-                              onPressed: () => _toggleUserBlock(c.id, !isSuspended),
-                              child: Text(
-                                isSuspended ? 'Engeli Kaldır' : 'Engelle',
-                                style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
+                        return DataRow(
+                          cells: [
+                            DataCell(Text(c.fullName)),
+                            DataCell(Text(c.email)),
+                            DataCell(Text(c.phone ?? '-')),
+                            DataCell(Row(
+                              children: [
+                                const Icon(Icons.star, color: Colors.amber, size: 16),
+                                const SizedBox(width: 4),
+                                Text(c.rating.toStringAsFixed(1)),
+                              ],
+                            )),
+                            DataCell(
+                              TextButton(
+                                onPressed: () => _toggleUserBlock(c.id, !isSuspended),
+                                child: Text(
+                                  isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                                  style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
           ),
         ],
@@ -1524,6 +1530,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 5: REQUESTS
   Widget _buildRequestsTab() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
     final query = _requestSearchController.text.toLowerCase().trim();
     final list = _allRequests.where((r) {
       final brand = r.carBrand.toLowerCase();
@@ -1533,7 +1540,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }).toList();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1563,27 +1570,30 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
             child: list.isEmpty
                 ? _buildEmptyState('Talep bulunamadı.')
-                : DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Araç')),
-                      DataColumn(label: Text('Arıza Tipi')),
-                      DataColumn(label: Text('Hedef Sanayi')),
-                      DataColumn(label: Text('Fiyat')),
-                      DataColumn(label: Text('Durum')),
-                      DataColumn(label: Text('Tarih')),
-                    ],
-                    rows: list.map((r) {
-                      return DataRow(
-                        cells: [
-                          DataCell(Text('${r.carBrand} ${r.carModel}')),
-                          DataCell(Text(r.problemType ?? '-')),
-                          DataCell(Text(r.destinationIndustryZone ?? '-')),
-                          DataCell(Text('${r.price} TL')),
-                          DataCell(Text(r.status.label, style: TextStyle(color: r.status.color, fontWeight: FontWeight.bold))),
-                          DataCell(Text('${r.createdAt.day}.${r.createdAt.month}.${r.createdAt.year}')),
-                        ],
-                      );
-                    }).toList(),
+                : SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: DataTable(
+                      columns: const [
+                        DataColumn(label: Text('Araç')),
+                        DataColumn(label: Text('Arıza Tipi')),
+                        DataColumn(label: Text('Hedef Sanayi')),
+                        DataColumn(label: Text('Fiyat')),
+                        DataColumn(label: Text('Durum')),
+                        DataColumn(label: Text('Tarih')),
+                      ],
+                      rows: list.map((r) {
+                        return DataRow(
+                          cells: [
+                            DataCell(Text('${r.carBrand} ${r.carModel}')),
+                            DataCell(Text(r.problemType ?? '-')),
+                            DataCell(Text(r.destinationIndustryZone ?? '-')),
+                            DataCell(Text('${r.price} TL')),
+                            DataCell(Text(r.status.label, style: TextStyle(color: r.status.color, fontWeight: FontWeight.bold))),
+                            DataCell(Text('${r.createdAt.day}.${r.createdAt.month}.${r.createdAt.year}')),
+                          ],
+                        );
+                      }).toList(),
+                    ),
                   ),
           ),
         ],
@@ -1593,8 +1603,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // Common UI helper widgets
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+    final isMobile = MediaQuery.of(context).size.width < 750;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 12 : 24),
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
@@ -1603,18 +1614,32 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 10),
-              Text(value, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: isMobile ? 11 : 13, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  value,
+                  style: TextStyle(fontSize: isMobile ? 16 : 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(isMobile ? 8 : 12),
             decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
-            child: Icon(icon, size: 28, color: color),
+            child: Icon(icon, size: isMobile ? 20 : 28, color: color),
           ),
         ],
       ),
@@ -1648,6 +1673,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Widget _buildFinancialChartCard() {
+    final isMobile = MediaQuery.of(context).size.width < 750;
     final dailyData = <String, double>{};
     final now = DateTime.now();
     
@@ -1672,23 +1698,39 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       color: AppColors.cardBackground,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Mali Analiz ve Günlük Ciro Dağılımı (Son 7 Gün)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                ),
-                Text(
-                  'Toplam Ciro: ${_totalEarnings.toStringAsFixed(2)} TL',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent),
-                ),
-              ],
-            ),
+            if (isMobile)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Mali Analiz ve Günlük Ciro Dağılımı (Son 7 Gün)',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Toplam Ciro: ${_totalEarnings.toStringAsFixed(2)} TL',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent, fontSize: 14),
+                  ),
+                ],
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Mali Analiz ve Günlük Ciro Dağılımı (Son 7 Gün)',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  ),
+                  Text(
+                    'Toplam Ciro: ${_totalEarnings.toStringAsFixed(2)} TL',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent),
+                  ),
+                ],
+              ),
             const SizedBox(height: 32),
             SizedBox(
               height: 200,
@@ -1705,11 +1747,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                       children: [
                         Text(
                           e.value > 0 ? '${e.value.toInt()} TL' : '',
-                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: isMobile ? 8 : 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          width: 40,
+                          width: isMobile ? 16 : 40,
                           height: barHeight,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
@@ -1717,7 +1759,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               begin: Alignment.bottomCenter,
                               end: Alignment.topCenter,
                             ),
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(isMobile ? 4 : 6),
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.accent.withValues(alpha: 0.3),
@@ -1730,7 +1772,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         const SizedBox(height: 12),
                         Text(
                           e.key,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                          style: TextStyle(fontSize: isMobile ? 10 : 12, color: AppColors.textPrimary, fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
