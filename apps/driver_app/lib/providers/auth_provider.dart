@@ -19,7 +19,10 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   final repo = ref.watch(authRepositoryProvider);
   final user = await repo.getCurrentUser();
   if (user != null) {
-    await NotificationService().setupFCM(user.id);
+    // Run FCM setup in the background to prevent blocking critical UI routing
+    NotificationService().setupFCM(user.id).catchError((e) {
+      debugPrint('Error setting up FCM: $e');
+    });
   }
   return user;
 });
