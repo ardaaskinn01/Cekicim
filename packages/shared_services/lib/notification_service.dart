@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'auth_repository.dart';
 
@@ -42,6 +43,17 @@ class NotificationService {
 
   Future<void> setupFCM(String userId) async {
     try {
+      // Safely check if Firebase has been initialized first
+      try {
+        if (Firebase.apps.isEmpty) {
+          debugPrint('Firebase is not initialized. Skipping FCM setup.');
+          return;
+        }
+      } catch (e) {
+        debugPrint('Firebase checking error: $e. Skipping FCM setup.');
+        return;
+      }
+
       final messaging = FirebaseMessaging.instance;
       
       // Request permission
@@ -50,6 +62,15 @@ class NotificationService {
         badge: true,
         sound: true,
       );
+
+      // On iOS, we MUST verify the APNs token is available before calling getToken()
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final apnsToken = await messaging.getAPNSToken();
+        if (apnsToken == null) {
+          debugPrint('APNS token is not available yet. Skipping FCM token retrieval.');
+          return;
+        }
+      }
 
       // Get token
       final token = await messaging.getToken();
