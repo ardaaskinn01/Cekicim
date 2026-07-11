@@ -851,11 +851,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                             style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
                           ),
                           const SizedBox(width: 16),
-                          ElevatedButton.icon(
+                          OutlinedButton.icon(
                             onPressed: () => _verifyDriver(driver['id']),
-                            icon: const Icon(Icons.check_rounded, color: Colors.white),
-                            label: const Text('Onayla', style: TextStyle(color: Colors.white)),
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                            icon: const Icon(Icons.check_rounded, color: AppColors.success),
+                            label: const Text('Onayla', style: TextStyle(color: AppColors.success)),
+                            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.success)),
                           ),
                         ],
                       ),
