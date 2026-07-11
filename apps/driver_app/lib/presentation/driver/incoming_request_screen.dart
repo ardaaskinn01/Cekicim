@@ -7,7 +7,6 @@ import 'package:shared_ui/price_calculator.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_services/rating_repository.dart';
 import 'package:shared_models/request_status.dart';
-import 'package:shared_services/notification_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 
@@ -31,13 +30,6 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   void initState() {
     super.initState();
     _startTimer();
-    // Play the alarm sound locally via local notifications
-    NotificationService().showLocalNotification(
-      'YENİ YOL YARDIM TALEBİ',
-      'Yakınınızda yeni bir çekici talebi var. Kabul etmek için tıklayın.',
-    ).catchError((e) {
-      debugPrint('Error triggering alarm sound in foreground: $e');
-    });
   }
 
   void _startTimer() {
@@ -363,11 +355,10 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
         const SizedBox(width: 16),
         Expanded(
           child: Text(
-            value,
+            value, 
             textAlign: TextAlign.end,
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.bold),
             overflow: TextOverflow.ellipsis,
-            maxLines: 1,
           ),
         ),
       ],

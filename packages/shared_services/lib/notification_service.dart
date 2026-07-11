@@ -19,7 +19,7 @@ class NotificationService {
     await _flutterLocalNotificationsPlugin.initialize(initSettings);
 
     const androidChannel = AndroidNotificationChannel(
-      'cekici_alerts',
+      'cekici_alerts_v2',
       'Çekici Bildirimleri',
       description: 'Yeni teklif ve yol yardım bildirim kanalı',
       importance: Importance.max,
@@ -91,7 +91,7 @@ class NotificationService {
 
   Future<void> showLocalNotification(String title, String body) async {
     const androidDetails = AndroidNotificationDetails(
-      'cekici_alerts',
+      'cekici_alerts_v2',
       'Çekici Bildirimleri',
       channelDescription: 'Yeni teklif ve yol yardım bildirim kanalı',
       importance: Importance.max,

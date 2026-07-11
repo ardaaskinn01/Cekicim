@@ -36,6 +36,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   List<LatLng> _routePoints = [];
   bool _isTrackingStarted = false;
   BuildContext? _incomingCallDialogContext;
+  bool _isCancellationDialogShown = false;
 
   void _showIncomingCallDialog(BuildContext context, ServiceRequestModel request) {
     if (_incomingCallDialogContext != null) return;
@@ -266,7 +267,41 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
       final request = next.value;
       final user = ref.read(currentUserProvider).value;
       if (request != null && user != null) {
-        if (request.activeCallChannel != null && request.activeCallCallerId != user.id) {
+        if (request.status == RequestStatus.cancelled && !_isCancellationDialogShown) {
+          _isCancellationDialogShown = true;
+          _trackingService.stopTracking();
+          _isTrackingStarted = false;
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (dialogCtx) => AlertDialog(
+                backgroundColor: AppColors.cardBackground,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text('Talep İptal Edildi', style: TextStyle(color: AppColors.textPrimary)),
+                  ],
+                ),
+                content: const Text(
+                  'Bu hizmet talebi müşteri tarafından iptal edilmiştir.', 
+                  style: TextStyle(color: AppColors.textSecondary)
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(dialogCtx);
+                      context.go('/driver');
+                    },
+                    child: const Text('Tamam', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+        } else if (request.activeCallChannel != null && request.activeCallCallerId != user.id) {
           if (GoRouterState.of(context).uri.path != '/driver/call/${widget.requestId}') {
             _showIncomingCallDialog(context, request);
           }
