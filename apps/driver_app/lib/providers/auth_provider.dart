@@ -1,9 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/user_model.dart';
 import 'package:shared_services/auth_repository.dart';
 import 'package:shared_services/supabase_service.dart';
-
 import 'package:shared_services/notification_service.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
