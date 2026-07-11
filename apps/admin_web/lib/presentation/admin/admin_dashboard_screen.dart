@@ -827,8 +827,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         const Divider(color: AppColors.border),
                         const SizedBox(height: 12),
                       ],
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 16,
+                    runSpacing: 16,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -839,6 +842,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                         ],
                       ),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           OutlinedButton.icon(
                             onPressed: () => _showRejectionDialog(driver['id']),
