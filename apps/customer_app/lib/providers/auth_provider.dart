@@ -6,6 +6,8 @@ import 'package:shared_services/auth_repository.dart';
 import 'package:shared_services/supabase_service.dart';
 import 'package:shared_services/notification_service.dart';
 
+import 'package:shared_models/user_role.dart';
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository();
 });
@@ -19,6 +21,10 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   final repo = ref.watch(authRepositoryProvider);
   final user = await repo.getCurrentUser();
   if (user != null) {
+    if (user.role != UserRole.customer) {
+      await repo.signOut();
+      return null;
+    }
     // Run FCM setup in the background to prevent blocking critical UI routing
     NotificationService().setupFCM(user.id).catchError((e) {
       debugPrint('Error setting up FCM: $e');
