@@ -277,6 +277,13 @@ class RequestRepository {
       'is_available': false,
     }).eq('id', driverId);
 
+    // Update the accepting driver's own pending offer to 'accepted' so it is cleared from their pending list
+    try {
+      await _client.from('pending_offers').update({
+        'status': 'accepted',
+      }).eq('request_id', requestId).eq('driver_id', driverId);
+    } catch (_) {}
+
     // Notify other drivers that the request has been taken
     try {
       final List<dynamic> selectedIdsRaw = data['selected_driver_ids'] ?? [];
