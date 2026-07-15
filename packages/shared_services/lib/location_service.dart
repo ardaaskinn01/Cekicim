@@ -94,9 +94,40 @@ class LocationService {
   }
 
   Future<Position> getCurrentLocation() async {
+    try {
+      return await Future.any([
+        _getCurrentLocationInternal(),
+        Future.delayed(const Duration(seconds: 3)).then((_) => throw TimeoutException('Location request timed out')),
+      ]);
+    } catch (e) {
+      // Fallback if location request times out or fails (e.g. emulator issue)
+      final lastKnown = await Geolocator.getLastKnownPosition().timeout(
+        const Duration(seconds: 1),
+        onTimeout: () => null,
+      );
+      if (lastKnown != null) {
+        return _mockToAnkara(lastKnown);
+      }
+      return Position(
+        latitude: ankaraLat + _stableSeedOffsetLat,
+        longitude: ankaraLng + _stableSeedOffsetLng,
+        timestamp: DateTime.now(),
+        accuracy: 10,
+        altitude: 0,
+        altitudeAccuracy: 0,
+        heading: 0,
+        headingAccuracy: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        floor: null,
+        isMocked: true,
+      );
+    }
+  }
+
+  Future<Position> _getCurrentLocationInternal() async {
     final hasPermission = await requestPermission();
     if (!hasPermission) {
-      // If no permission, return a default simulated Ankara position instead of throwing
       return Position(
         latitude: ankaraLat + _stableSeedOffsetLat,
         longitude: ankaraLng + _stableSeedOffsetLng,
@@ -122,25 +153,11 @@ class LocationService {
       );
       return _mockToAnkara(realPos);
     } catch (e) {
-      // Fallback if location request times out or fails (e.g. emulator issue)
       final lastKnown = await Geolocator.getLastKnownPosition();
       if (lastKnown != null) {
         return _mockToAnkara(lastKnown);
       }
-      return Position(
-        latitude: ankaraLat + _stableSeedOffsetLat,
-        longitude: ankaraLng + _stableSeedOffsetLng,
-        timestamp: DateTime.now(),
-        accuracy: 10,
-        altitude: 0,
-        altitudeAccuracy: 0,
-        heading: 0,
-        headingAccuracy: 0,
-        speed: 0,
-        speedAccuracy: 0,
-        floor: null,
-        isMocked: true,
-      );
+      rethrow;
     }
   }
 

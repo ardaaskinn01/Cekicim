@@ -1,10 +1,10 @@
 -- Supabase SQL Editor'de çalıştırmak için Admin Kullanıcısı Oluşturma Scripti (Telefon Numarası ile)
--- Telefon numarasını kendinize göre değiştirebilirsiniz.
+-- Telefon numarasını kendinize göre değiştirebilirsiniz (Sistemin algıladığı gibi + işareti olmadan yazın).
 
 DO $$
 DECLARE
   new_user_id UUID := gen_random_uuid();
-  admin_phone TEXT := '+905001234567'; -- Buraya kendi telefon numaranızı girebilirsiniz
+  admin_phone TEXT := '905528045457'; -- Başına + koymayın (Sistem telefonla girişte '+'sız kaydeder)
   admin_email TEXT := 'admin@cekicim.com'; -- Opsiyonel fallback email
 BEGIN
   -- 1. auth.users tablosuna telefon numarası ile kullanıcıyı ekle
@@ -55,5 +55,5 @@ BEGIN
   ) ON CONFLICT (id) DO UPDATE 
   SET role = 'admin', phone = admin_phone, is_verified = true;
 
-  RAISE NOTICE 'Admin kullanıcısı başarıyla oluşturuldu. Telefon: %', admin_phone;
+  RAISE NOTICE 'Admin kullanıcısı başarıyla oluşturuldu/güncellendi. Telefon: %', admin_phone;
 END $$;
