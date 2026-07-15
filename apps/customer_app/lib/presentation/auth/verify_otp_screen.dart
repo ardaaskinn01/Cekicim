@@ -7,8 +7,8 @@ import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
 
 class VerifyOtpScreen extends ConsumerStatefulWidget {
-  final String email;
-  const VerifyOtpScreen({super.key, required this.email});
+  final String phone;
+  const VerifyOtpScreen({super.key, required this.phone});
 
   @override
   ConsumerState<VerifyOtpScreen> createState() => _VerifyOtpScreenState();
@@ -43,14 +43,13 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final repo = ref.read(authRepositoryProvider);
-      await repo.verifyOTP(widget.email, code);
+      await ref.read(authNotifierProvider.notifier).verifySMSCode(widget.phone, code);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kod doğrulandı! Yeni şifrenizi belirleyebilirsiniz.'), backgroundColor: AppColors.success),
+        const SnackBar(content: Text('Giriş başarılı!'), backgroundColor: AppColors.success),
       );
-      context.go('/reset-password');
+      context.go('/customer');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,7 +82,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${widget.email} adresine gönderilen 6 haneli kodu aşağıdaki kutucuklara yazınız.',
+                  '${widget.phone} numarasına gönderilen 6 haneli doğrulama kodunu aşağıdaki kutucuklara yazınız.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 ),

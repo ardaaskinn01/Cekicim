@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_ui/app_colors.dart';
-import 'package:shared_models/user_role.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -23,7 +23,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _plateController = TextEditingController();
 
-  final _role = UserRole.customer;
   bool _isLoading = false;
 
   @override
@@ -41,23 +40,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final repo = ref.read(authRepositoryProvider);
-      final user = await repo.signUpWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final phone = Supabase.instance.client.auth.currentUser?.phone ?? '';
+
+      await ref.read(authNotifierProvider.notifier).completeProfile(
         fullName: _fullNameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        role: _role,
-        vehiclePlate: _role == UserRole.driver ? _plateController.text.trim() : null,
+        phone: phone,
       );
 
       if (!mounted) return;
-
-      if (user.role == UserRole.customer) {
-        context.go('/customer');
-      } else {
-        context.go('/login');
-      }
+      context.go('/customer');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -75,10 +66,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isLoading,
-      message: 'Hesabınız oluşturuluyor...',
+      message: 'Profiliniz tamamlanıyor...',
       child: Scaffold(
         appBar: AppBar(
-          title: Text('${_role.label} Kaydı'),
+          title: const Text('Profili Tamamla'),
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -88,9 +79,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    '${_role.label} Hesabı Oluştur',
-                    style: const TextStyle(
+                  const Text(
+                    'Profilinizi Tamamlayın',
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -98,7 +89,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Lütfen tüm bilgilerinizi eksiksiz doldurunuz.',
+                    'Uygulamayı kullanmaya başlamak için lütfen adınızı giriniz.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   ),
                   const SizedBox(height: 24),
@@ -108,68 +99,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     prefixIcon: Icons.person_outline,
                     validator: (val) => val == null || val.trim().isEmpty ? 'Ad soyad gereklidir' : null,
                   ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _emailController,
-                    label: 'E-posta Adresi',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'E-posta gereklidir';
-                      if (!val.contains('@')) return 'Geçerli e-posta giriniz';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _phoneController,
-                    label: 'Telefon Numarası',
-                    hint: '0850... veya 05...',
-                    prefixIcon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                    validator: (val) => val == null || val.trim().isEmpty ? 'Telefon gereklidir' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _passwordController,
-                    label: 'Şifre',
-                    prefixIcon: Icons.lock_outline,
-                    isPassword: true,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Şifre gereklidir';
-                      if (val.length < 6) return 'Şifre en az 6 karakter olmalıdır';
-                      return null;
-                    },
-                  ),
-                  if (_role == UserRole.driver) ...[
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      controller: _plateController,
-                      label: 'Çekici Araç Plakası',
-                      hint: '34 ABC 123',
-                      prefixIcon: Icons.numbers,
-                      validator: (val) => val == null || val.trim().isEmpty ? 'Plaka gereklidir' : null,
-                    ),
-                  ],
                   const SizedBox(height: 32),
                   GreenButton(
-                    text: 'Kayıt Ol ve Giriş Yap',
+                    text: 'Kaydı Tamamla',
                     onPressed: _handleRegister,
                     isLoading: _isLoading,
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Zaten hesabınız var mı? ', style: TextStyle(color: AppColors.textSecondary)),
-                      GestureDetector(
-                        onTap: () => context.go('/login'),
-                        child: const Text(
-                          'Giriş Yapın',
-                          style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),

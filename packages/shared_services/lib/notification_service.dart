@@ -128,6 +128,7 @@ class NotificationService {
       icon: '@mipmap/ic_launcher',
       sound: RawResourceAndroidNotificationSound('bg_alarm2'),
       playSound: true,
+      fullScreenIntent: true,
     );
 
     const iosDetails = DarwinNotificationDetails(

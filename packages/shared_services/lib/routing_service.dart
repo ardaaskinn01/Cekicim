@@ -137,7 +137,7 @@ class RoutingService {
         final data = json.decode(response.body);
         if (data['code'] == 'Ok' && data['routes'] != null && data['routes'].isNotEmpty) {
           final encodedPolyline = data['routes'][0]['geometry'] as String;
-          return _decodePolyline(encodedPolyline);
+          return compute(_decodePolylineHelper, encodedPolyline);
         }
       }
     } catch (e) {
@@ -146,35 +146,35 @@ class RoutingService {
 
     return [];
   }
+}
 
-  /// Encoded Polyline stringini [lat, lng] koordinat listesine çözer
-  List<List<double>> _decodePolyline(String encoded) {
-    List<List<double>> points = [];
-    int index = 0, len = encoded.length;
-    int lat = 0, lng = 0;
+/// Encoded Polyline stringini [lat, lng] koordinat listesine çözer (Top-level for compute isolate)
+List<List<double>> _decodePolylineHelper(String encoded) {
+  List<List<double>> points = [];
+  int index = 0, len = encoded.length;
+  int lat = 0, lng = 0;
 
-    while (index < len) {
-      int b, shift = 0, result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lat += dlat;
+  while (index < len) {
+    int b, shift = 0, result = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
 
-      shift = 0;
-      result = 0;
-      do {
-        b = encoded.codeUnitAt(index++) - 63;
-        result |= (b & 0x1f) << shift;
-        shift += 5;
-      } while (b >= 0x20);
-      int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
-      lng += dlng;
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
 
-      points.add([lat / 1E5, lng / 1E5]);
-    }
-    return points;
+    points.add([lat / 1E5, lng / 1E5]);
   }
+  return points;
 }

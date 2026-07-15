@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
-import 'package:shared_models/user_role.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -17,14 +16,12 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -33,20 +30,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final repo = ref.read(authRepositoryProvider);
-      final user = await repo.signInWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
+      final phone = _phoneController.text.trim();
+      await ref.read(authNotifierProvider.notifier).sendSMSCode(phone);
 
       if (!mounted) return;
-
-      if (user.role == UserRole.customer) {
-        context.go('/customer');
-      } else {
-        await repo.signOut();
-        throw Exception('Bu uygulamaya sadece Müşteriler giriş yapabilir.');
-      }
+      context.push('/verify-otp?phone=${Uri.encodeComponent(phone)}');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,41 +104,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 36),
                       AppTextField(
-                        controller: _emailController,
-                        label: 'E-posta Adresi',
-                        hint: 'ornek@email.com',
-                        prefixIcon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
+                        controller: _phoneController,
+                        label: 'Telefon Numarası',
+                        hint: '05... veya +905...',
+                        prefixIcon: Icons.phone_outlined,
+                        keyboardType: TextInputType.phone,
                         validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'E-posta gereklidir';
-                          if (!val.contains('@')) return 'Geçerli bir e-posta girin';
+                          if (val == null || val.trim().isEmpty) return 'Telefon numarası gereklidir';
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
-                      AppTextField(
-                        controller: _passwordController,
-                        label: 'Şifre',
-                        prefixIcon: Icons.lock_outline,
-                        isPassword: true,
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'Şifre gereklidir';
-                          return null;
-                        },
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () => context.push('/forgot-password'),
-                          child: const Text(
-                            'Şifremi Unuttum?',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       GreenButton(
-                        text: 'Giriş Yap',
+                        text: 'Giriş Yap / Kod Gönder',
                         onPressed: _handleLogin,
                         isLoading: _isLoading,
                       ),

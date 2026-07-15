@@ -32,6 +32,10 @@ class ServiceRequestModel {
   final DateTime? cancelledAt;
   final String? activeCallChannel;
   final String? activeCallCallerId;
+  final String? customerName;
+  final String? driverName;
+  final double? customerRatingFromDriver;
+  final double? driverRatingFromCustomer;
 
   ServiceRequestModel({
     required this.id,
@@ -65,6 +69,10 @@ class ServiceRequestModel {
     this.cancelledAt,
     this.activeCallChannel,
     this.activeCallCallerId,
+    this.customerName,
+    this.driverName,
+    this.customerRatingFromDriver,
+    this.driverRatingFromCustomer,
   });
 
   factory ServiceRequestModel.fromJson(Map<String, dynamic> json) {
@@ -111,7 +119,31 @@ class ServiceRequestModel {
           : null,
       activeCallChannel: json['active_call_channel'] as String?,
       activeCallCallerId: json['active_call_caller_id'] as String?,
+      customerName: json['customer'] != null ? json['customer']['full_name'] as String? : null,
+      driverName: json['driver'] != null ? json['driver']['full_name'] as String? : null,
+      customerRatingFromDriver: _parseCustomerRating(json['ratings'], json['customer_id'] as String),
+      driverRatingFromCustomer: _parseDriverRating(json['ratings'], json['customer_id'] as String),
     );
+  }
+
+  static double? _parseCustomerRating(dynamic ratingsList, String customerId) {
+    if (ratingsList == null || ratingsList is! List) return null;
+    for (var r in ratingsList) {
+      if (r['rated_id'] == customerId) {
+        return (r['score'] as num?)?.toDouble();
+      }
+    }
+    return null;
+  }
+
+  static double? _parseDriverRating(dynamic ratingsList, String customerId) {
+    if (ratingsList == null || ratingsList is! List) return null;
+    for (var r in ratingsList) {
+      if (r['rater_id'] == customerId) {
+        return (r['score'] as num?)?.toDouble();
+      }
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -185,6 +217,10 @@ class ServiceRequestModel {
     DateTime? cancelledAt,
     String? activeCallChannel,
     String? activeCallCallerId,
+    String? customerName,
+    String? driverName,
+    double? customerRatingFromDriver,
+    double? driverRatingFromCustomer,
   }) {
     return ServiceRequestModel(
       id: id ?? this.id,
@@ -218,6 +254,10 @@ class ServiceRequestModel {
       cancelledAt: cancelledAt ?? this.cancelledAt,
       activeCallChannel: activeCallChannel ?? this.activeCallChannel,
       activeCallCallerId: activeCallCallerId ?? this.activeCallCallerId,
+      customerName: customerName ?? this.customerName,
+      driverName: driverName ?? this.driverName,
+      customerRatingFromDriver: customerRatingFromDriver ?? this.customerRatingFromDriver,
+      driverRatingFromCustomer: driverRatingFromCustomer ?? this.driverRatingFromCustomer,
     );
   }
 }

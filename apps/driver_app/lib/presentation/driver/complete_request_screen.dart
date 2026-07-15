@@ -26,30 +26,34 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
     super.dispose();
   }
 
-  Future<void> _completeRequest() async {
+  Future<void> _verifyPickupCode() async {
     final code = _codeController.text.trim();
     if (code.length != 4) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen 4 haneli tamamlama kodunu girin.')),
+        const SnackBar(content: Text('Lütfen 4 haneli biniş kodunu girin.')),
       );
       return;
     }
 
     if (!_isConfirmed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen hizmetin tamamlandığını onaylayın.')),
+        const SnackBar(content: Text('Lütfen yolcuyu aldığınızı onaylayın.')),
       );
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(requestRepositoryProvider).completeRequest(widget.requestId, code);
+      await ref.read(requestRepositoryProvider).verifyPickupCode(widget.requestId, code);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hizmet başarıyla tamamlandı.'), backgroundColor: AppColors.primary),
+        const SnackBar(content: Text('Yolcu binişi doğrulandı. Yolculuk başladı.'), backgroundColor: AppColors.primary),
       );
-      context.go('/driver'); // Return to main screen
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/driver/navigate/${widget.requestId}');
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -64,32 +68,32 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isLoading,
-      message: 'Tamamlanıyor...',
+      message: 'Doğrulanıyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Hizmeti Tamamla')),
+        appBar: AppBar(title: const Text('Yolcu Biniş Doğrulaması')),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.check_circle_outline, size: 80, color: AppColors.primary),
+              const Icon(Icons.pin_drop_outlined, size: 80, color: AppColors.primary),
               const SizedBox(height: 24),
               const Text(
-                'Müşteriden Aldığınız Kodu Girin',
+                'Müşteriden Aldığınız Biniş Kodunu Girin',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               const Text(
-                'Hizmetin başarıyla tamamlandığını doğrulamak için müşterinin ekranında yazan 4 haneli kodu giriniz.',
+                'Yolcunun bindiğini doğrulamak için müşterinin ekranında yazan 4 haneli kodu giriniz.',
                 style: TextStyle(color: AppColors.textSecondary),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
               AppTextField(
                 controller: _codeController,
-                label: 'Tamamlama Kodu',
+                label: 'Biniş Kodu',
                 hint: 'Örn: 1234',
                 keyboardType: TextInputType.number,
                 maxLength: 4,
@@ -97,7 +101,7 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
               const SizedBox(height: 24),
               CheckboxListTile(
                 title: const Text(
-                  'Aracı eksiksiz, hasarsız ve sorunsuz bir şekilde teslim ettiğimi onaylıyorum.',
+                  'Yolcuyu ve aracını güvenle teslim aldığımı onaylıyorum.',
                   style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
                 ),
                 value: _isConfirmed,
@@ -111,8 +115,8 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
               ),
               const SizedBox(height: 32),
               GreenButton(
-                text: 'Hizmeti Bitir',
-                onPressed: _completeRequest,
+                text: 'Yolculuğu Başlat',
+                onPressed: _verifyPickupCode,
               ),
             ],
           ),

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_ui/app_colors.dart';
-import 'package:shared_models/user_role.dart';
+
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -40,23 +41,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final repo = ref.read(authRepositoryProvider);
-      final user = await repo.signUpWithEmail(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final phone = Supabase.instance.client.auth.currentUser?.phone ?? '';
+
+      await ref.read(authNotifierProvider.notifier).completeProfile(
         fullName: _fullNameController.text.trim(),
-        phone: _phoneController.text.trim(),
-        role: UserRole.driver,
+        phone: phone,
         vehiclePlate: _plateController.text.trim(),
       );
 
       if (!mounted) return;
-
-      if (user.role == UserRole.driver) {
-        context.go('/driver');
-      } else {
-        context.go('/login');
-      }
+      context.go('/driver');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -74,9 +68,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isLoading,
-      message: 'Kayıt oluşturuluyor...',
+      message: 'Profiliniz tamamlanıyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Sürücü Kaydı')),
+        appBar: AppBar(title: const Text('Profili Tamamla')),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -86,13 +80,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Çekici Sürücüsü Olun',
+                    'Sürücü Profilinizi Tamamlayın',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Sistemdeki yol yardım taleplerini yanıtlamak için bilgilerinizi eksiksiz doldurun.',
+                    'Sistemdeki yol yardım taleplerini yanıtlamak için bilgilerinizi tamamlayın.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   ),
@@ -108,29 +102,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
                   AppTextField(
-                    controller: _emailController,
-                    label: 'E-posta Adresi',
-                    prefixIcon: Icons.email_outlined,
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'E-posta gereklidir';
-                      if (!val.contains('@')) return 'Geçerli bir e-posta giriniz';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _phoneController,
-                    label: 'Telefon Numarası',
-                    prefixIcon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Telefon gereklidir';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
                     controller: _plateController,
                     label: 'Araç Plakası',
                     prefixIcon: Icons.numbers_rounded,
@@ -139,21 +110,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _passwordController,
-                    label: 'Şifre',
-                    prefixIcon: Icons.lock_outline,
-                    isPassword: true,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Şifre gereklidir';
-                      if (val.length < 8) return 'Şifre en az 8 karakter olmalıdır';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
                   GreenButton(
-                    text: 'Kayıt Ol',
+                    text: 'Kaydı Tamamla',
                     onPressed: _handleRegister,
                     isLoading: _isLoading,
                   ),

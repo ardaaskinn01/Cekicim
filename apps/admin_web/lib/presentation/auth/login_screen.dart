@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
-import 'package:shared_models/user_role.dart';
+
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -17,14 +17,15 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _otpController = TextEditingController();
+  bool _codeSent = false;
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _phoneController.dispose();
+    _otpController.dispose();
     super.dispose();
   }
 
@@ -33,19 +34,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final repo = ref.read(authRepositoryProvider);
-      final user = await repo.signInWithEmail(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-
-      if (!mounted) return;
-
-      if (user.role == UserRole.admin) {
-        context.go('/admin');
+      final phone = _phoneController.text.trim();
+      if (!_codeSent) {
+        // Send OTP
+        await ref.read(authNotifierProvider.notifier).sendSMSCode(phone);
+        setState(() {
+          _codeSent = true;
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Doğrulama kodu gönderildi!'), backgroundColor: AppColors.success),
+        );
       } else {
-        await repo.signOut();
-        throw Exception('Bu uygulamaya sadece Admin Yöneticileri giriş yapabilir.');
+        // Verify OTP
+        final code = _otpController.text.trim();
+        await ref.read(authNotifierProvider.notifier).verifySMSCode(phone, code);
+        
+        if (!mounted) return;
+        context.go('/admin');
       }
     } catch (e) {
       if (!mounted) return;
@@ -64,7 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isLoading,
-      message: 'Giriş yapılıyor...',
+      message: _codeSent ? 'Giriş yapılıyor...' : 'Kod gönderiliyor...',
       child: Scaffold(
         body: Center(
           child: Container(
@@ -97,31 +103,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      AppTextField(
-                        controller: _emailController,
-                        label: 'E-posta Adresi',
-                        prefixIcon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'E-posta gereklidir';
-                          if (!val.contains('@')) return 'Geçerli bir e-posta giriniz';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      AppTextField(
-                        controller: _passwordController,
-                        label: 'Şifre',
-                        prefixIcon: Icons.lock_outline,
-                        isPassword: true,
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'Şifre gereklidir';
-                          return null;
-                        },
-                      ),
+                      if (!_codeSent) ...[
+                        AppTextField(
+                          controller: _phoneController,
+                          label: 'Telefon Numarası',
+                          hint: '05... veya +905...',
+                          prefixIcon: Icons.phone_outlined,
+                          keyboardType: TextInputType.phone,
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) return 'Telefon numarası gereklidir';
+                            return null;
+                          },
+                        ),
+                      ] else ...[
+                        AppTextField(
+                          controller: _otpController,
+                          label: 'Doğrulama Kodu',
+                          hint: '6 Haneli OTP Kodu',
+                          prefixIcon: Icons.security_rounded,
+                          keyboardType: TextInputType.number,
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) return 'Kod gereklidir';
+                            if (val.length < 6) return 'Kod en az 6 haneli olmalıdır';
+                            return null;
+                          },
+                        ),
+                      ],
                       const SizedBox(height: 32),
                       GreenButton(
-                        text: 'Yönetici Girişi',
+                        text: _codeSent ? 'Giriş Yap' : 'Kod Gönder',
                         onPressed: _handleLogin,
                         isLoading: _isLoading,
                       ),

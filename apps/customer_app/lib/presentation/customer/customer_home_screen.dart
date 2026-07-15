@@ -11,9 +11,7 @@ import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/glass_container.dart';
 
-import 'dart:async';
-import 'package:shared_models/driver_model.dart';
-import 'package:shared_services/request_repository.dart';
+
 
 class CustomerHomeScreen extends ConsumerStatefulWidget {
   const CustomerHomeScreen({super.key});
@@ -24,39 +22,6 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
   int _selectedIndex = 0;
-  List<DriverModel> _availableDrivers = [];
-  Timer? _driversPollTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _startPollingDrivers();
-  }
-
-  @override
-  void dispose() {
-    _driversPollTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startPollingDrivers() {
-    // Initial fetch
-    _fetchDrivers();
-    // Poll every 6 seconds to keep drivers location live on map
-    _driversPollTimer = Timer.periodic(const Duration(seconds: 6), (timer) {
-      _fetchDrivers();
-    });
-  }
-
-  Future<void> _fetchDrivers() async {
-    try {
-      final repo = ref.read(requestRepositoryProvider);
-      final list = await repo.getAllAvailableDrivers();
-      if (mounted) {
-        setState(() => _availableDrivers = list);
-      }
-    } catch (_) {}
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,29 +53,6 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                   infoWindow: const InfoWindow(title: 'Benim Konumum'),
                   icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                 ),
-              // Available Driver Tow Trucks
-              ..._availableDrivers
-                  .where((d) => d.latitude != null && d.longitude != null)
-                  .map((driver) {
-                String translatedType = driver.vehicleType;
-                if (translatedType.toLowerCase() == 'small') {
-                  translatedType = 'Binek Oto Kurtarıcı';
-                } else if (translatedType.toLowerCase() == 'medium') {
-                  translatedType = 'Orta Tonaj Çekici';
-                } else if (translatedType.toLowerCase() == 'large') {
-                  translatedType = 'Ağır Vasıta Çekici';
-                }
-                return Marker(
-                  markerId: MarkerId('driver_${driver.id}'),
-                  position: LatLng(driver.latitude!, driver.longitude!),
-                  infoWindow: InfoWindow(
-                    title: driver.fullName,
-                    snippet: '${driver.vehiclePlate} ($translatedType) - Müsait Çekici',
-                  ),
-                  // Hue Orange / Green to make them standout dynamically as tow trucks
-                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-                );
-              }),
             },
           ),
 
@@ -202,7 +144,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'En yakın çekici 30 km yarıçapında aranır.', 
+                      'Müsait ve en yakın çekici aranıyor...', 
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
                   ],

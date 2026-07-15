@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/user_role.dart';
@@ -9,6 +8,7 @@ import 'nvi_service.dart';
 
 class AuthRepository {
   final SupabaseClient _client = SupabaseService.instance.client;
+  bool get _isProductionOfficial => false;
 
   Future<UserModel> signInWithEmail(String email, String password) async {
     final response = await _client.auth.signInWithPassword(
@@ -16,11 +16,24 @@ class AuthRepository {
       password: password,
     );
 
-    if (response.user == null) {
+    final user = response.user;
+    if (user == null) {
       throw Exception('Giriş başarısız oldu.');
     }
 
-    final userModel = await getCurrentUser();
+    final profileData = await _client
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+    if (profileData == null) {
+      throw Exception('Kullanıcı profili bulunamadı.');
+    }
+    final role = UserRole.fromString(profileData['role'] as String?);
+
+    final userModel = await getCurrentUser(role);
     if (userModel == null) {
       throw Exception('Kullanıcı profili bulunamadı.');
     }
@@ -100,7 +113,7 @@ class AuthRepository {
     await _client.auth.signOut();
   }
 
-  Future<UserModel?> getCurrentUser() async {
+  Future<UserModel?> getCurrentUser(UserRole expectedRole) async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
 
@@ -108,6 +121,7 @@ class AuthRepository {
         .from('profiles')
         .select()
         .eq('id', user.id)
+        .eq('role', expectedRole.dbValue)
         .maybeSingle();
 
     if (profileData == null) return null;
@@ -121,7 +135,7 @@ class AuthRepository {
 
     final userModel = UserModel.fromJson(profileDataCopy);
 
-    if (userModel.role == UserRole.driver) {
+    if (expectedRole == UserRole.driver) {
       final driverData = await _client
           .from('drivers')
           .select()
@@ -131,6 +145,105 @@ class AuthRepository {
       if (driverData != null) {
         return DriverModel.fromJson(profileDataCopy, driverData);
       }
+    }
+
+    return userModel;
+  }
+
+  Future<void> signInWithPhone(String phone) async {
+    var normalizedPhone = phone.trim();
+    if (!normalizedPhone.startsWith('+')) {
+      if (normalizedPhone.startsWith('0')) {
+        normalizedPhone = '+90${normalizedPhone.substring(1)}';
+      } else if (normalizedPhone.startsWith('90')) {
+        normalizedPhone = '+$normalizedPhone';
+      } else {
+        normalizedPhone = '+90$normalizedPhone';
+      }
+    }
+
+    await _client.auth.signInWithOtp(
+      phone: normalizedPhone,
+    );
+  }
+
+  Future<void> verifyPhoneOTP(String phone, String token) async {
+    var normalizedPhone = phone.trim();
+    if (!normalizedPhone.startsWith('+')) {
+      if (normalizedPhone.startsWith('0')) {
+        normalizedPhone = '+90${normalizedPhone.substring(1)}';
+      } else if (normalizedPhone.startsWith('90')) {
+        normalizedPhone = '+$normalizedPhone';
+      } else {
+        normalizedPhone = '+90$normalizedPhone';
+      }
+    }
+
+    await _client.auth.verifyOTP(
+      phone: normalizedPhone,
+      token: token,
+      type: OtpType.sms,
+    );
+  }
+
+  Future<UserModel> createUserProfile({
+    required String fullName,
+    required String phone,
+    required UserRole role,
+    String? vehiclePlate,
+  }) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      throw Exception('Oturum bulunamadı.');
+    }
+
+    var normalizedPhone = phone.trim();
+    if (!normalizedPhone.startsWith('+')) {
+      if (normalizedPhone.startsWith('0')) {
+        normalizedPhone = '+90${normalizedPhone.substring(1)}';
+      } else if (normalizedPhone.startsWith('90')) {
+        normalizedPhone = '+$normalizedPhone';
+      } else {
+        normalizedPhone = '+90$normalizedPhone';
+      }
+    }
+
+    // Insert profile
+    await _client.from('profiles').insert({
+      'id': user.id,
+      'email': user.email ?? '$normalizedPhone@phone.user',
+      'full_name': fullName,
+      'phone': normalizedPhone,
+      'role': role.dbValue,
+      'is_verified': false,
+    });
+
+    final userModel = UserModel(
+      id: user.id,
+      email: user.email ?? '$normalizedPhone@phone.user',
+      fullName: fullName,
+      phone: normalizedPhone,
+      role: role,
+      createdAt: DateTime.now(),
+    );
+
+    // If driver, insert driver record
+    if (role == UserRole.driver && vehiclePlate != null) {
+      await _client.from('drivers').insert({
+        'id': user.id,
+        'vehicle_plate': vehiclePlate,
+        'is_onboarding_completed': false,
+      });
+
+      return DriverModel(
+        id: user.id,
+        email: user.email ?? '$normalizedPhone@phone.user',
+        fullName: fullName,
+        phone: normalizedPhone,
+        role: role,
+        createdAt: DateTime.now(),
+        vehiclePlate: vehiclePlate,
+      );
     }
 
     return userModel;
@@ -159,12 +272,8 @@ class AuthRepository {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Kullanıcı oturumu bulunamadı.');
 
-    // Girişim şirketleşene kadar resmi NVI SOAP sunucusuna istek atmamak için bypass modu.
-    // Şirket kurulup IP adresi tanımlatıldığında bu değeri 'true' yapabilirsiniz.
-    const bool isProductionOfficial = false; 
-
     bool isValid = false;
-    if (!isProductionOfficial) {
+    if (!_isProductionOfficial) {
       isValid = true;
       debugPrint('MERNIS (Bypass Mode): T.C. Kimlik doğrulaması tamamen atlandı (Aktif Bypass).');
     } else {

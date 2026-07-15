@@ -9,7 +9,8 @@ ALTER TABLE drivers
 -- Drivers tablosuna mevcut politikalar korunuyor; iban alanı zaten select ile açık.
 -- Sadece müşterinin eşleştiği sürücünün ibanını görmesi için bir view oluşturuyoruz.
 
-CREATE OR REPLACE VIEW driver_iban_for_customer AS
+CREATE OR REPLACE VIEW driver_iban_for_customer 
+WITH (security_invoker = true) AS
 SELECT
   d.id AS driver_id,
   d.iban,

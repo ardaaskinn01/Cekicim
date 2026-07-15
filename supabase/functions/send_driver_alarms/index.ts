@@ -3,7 +3,7 @@ import { JWT } from 'npm:google-auth-library@9'
 
 Deno.serve(async (req) => {
   try {
-    const { request_id, driver_ids } = await req.json()
+    const { request_id, driver_ids, notification_type } = await req.json()
 
     if (!request_id || !driver_ids || !Array.isArray(driver_ids)) {
       return new Response(JSON.stringify({ error: 'Missing request_id or driver_ids' }), {
@@ -63,16 +63,26 @@ Deno.serve(async (req) => {
     // Send notification to each token
     const results = await Promise.all(
       tokens.map(async (token: string) => {
+        const title = notification_type === 'REQUEST_TAKEN'
+          ? 'Talep Alındı'
+          : 'Yeni Yol Yardım Talebi!'
+        const body = notification_type === 'REQUEST_TAKEN'
+          ? 'İncelediğiniz talep başka bir sürücü tarafından kabul edildi.'
+          : 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.'
+        const type = notification_type === 'REQUEST_TAKEN'
+          ? 'REQUEST_TAKEN'
+          : 'NEW_REQUEST'
+
         const messageBody = {
           message: {
             token: token,
             notification: {
-              title: 'Yeni Yol Yardım Talebi!',
-              body: 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.',
+              title: title,
+              body: body,
             },
             data: {
               requestId: request_id,
-              type: 'NEW_REQUEST',
+              type: type,
             },
             android: {
               priority: 'high',

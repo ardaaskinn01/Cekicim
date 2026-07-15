@@ -7,8 +7,8 @@ import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
 
 class VerifyOtpScreen extends ConsumerStatefulWidget {
-  final String email;
-  const VerifyOtpScreen({super.key, required this.email});
+  final String phone;
+  const VerifyOtpScreen({super.key, required this.phone});
 
   @override
   ConsumerState<VerifyOtpScreen> createState() => _VerifyOtpScreenState();
@@ -36,11 +36,13 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final repo = ref.read(authRepositoryProvider);
-      await repo.verifyOTP(widget.email, code);
+      await ref.read(authNotifierProvider.notifier).verifySMSCode(widget.phone, code);
 
       if (!mounted) return;
-      context.go('/reset-password');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Giriş başarılı!'), backgroundColor: AppColors.success),
+      );
+      context.go('/driver');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -69,7 +71,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
               children: [
                 const SizedBox(height: 24),
                 Text(
-                  '${widget.email}\nadresine gönderilen 6 haneli doğrulama kodunu giriniz.',
+                  '${widget.phone}\nnumarasına gönderilen 6 haneli doğrulama kodunu giriniz.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 ),

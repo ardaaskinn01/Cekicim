@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/price_calculator.dart';
-import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_services/rating_repository.dart';
 import 'package:shared_models/request_status.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:shared_ui/widgets/map_widget.dart';
+import 'package:shared_services/routing_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 
@@ -24,8 +26,10 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   bool _hasLoadedRequest = false; // Guard: don't redirect until first real data arrives
   bool _navigationPending = false; // Guard: prevent duplicate go('/driver')
   Timer? _timer;
-  int _timeLeft = 30; // 30 seconds to accept
+  int _timeLeft = 15; // 15 seconds to accept
 
+  List<LatLng> _routePoints = [];
+  bool _isRouteFetched = false;
   Future<double>? _customerRatingFuture;
 
   @override
@@ -43,6 +47,23 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
         _timeoutRequest();
       }
     });
+  }
+
+  Future<void> _fetchRoute(double originLat, double originLng, double destLat, double destLng) async {
+    try {
+      final points = await RoutingService().getRoute(
+        originLat: originLat,
+        originLng: originLng,
+        destLat: destLat,
+        destLng: destLng,
+      );
+      if (mounted) {
+        setState(() {
+          _routePoints = points.map((p) => LatLng(p[0], p[1])).toList();
+          _isRouteFetched = true;
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -156,6 +177,21 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
           data: (request) {
             final user = ref.watch(currentUserProvider).value;
 
+            // Fetch route points once when request data is available
+            if (!_isRouteFetched && 
+                request.destinationLat != null && 
+                request.destinationLng != null) {
+              _isRouteFetched = true; // prevent duplicate calls
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _fetchRoute(
+                  request.customerLat,
+                  request.customerLng,
+                  request.destinationLat!,
+                  request.destinationLng!,
+                );
+              });
+            }
+
             // Mark that we've received real data at least once
             if (!_hasLoadedRequest) {
               // Do it after build to avoid setState in build
@@ -192,194 +228,238 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
               );
             }
 
+            final pickupLatLng = LatLng(request.customerLat, request.customerLng);
+            final destLatLng = LatLng(request.destinationLat ?? 0.0, request.destinationLng ?? 0.0);
 
-            final progressValue = _timeLeft / 30.0;
-            final timerColor = _timeLeft < 10 ? AppColors.error : AppColors.primary;
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Animated Circular Countdown Timer
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 90,
-                        height: 90,
-                        child: CircularProgressIndicator(
-                          value: progressValue,
-                          strokeWidth: 6,
-                          backgroundColor: AppColors.border,
-                          valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+            return Stack(
+              children: [
+                // 1. Full screen MapWidget background
+                Positioned.fill(
+                  child: MapWidget(
+                    initialPosition: pickupLatLng,
+                    showMyLocation: false,
+                    fitMarkers: true,
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('pickup_marker'),
+                        position: pickupLatLng,
+                        infoWindow: const InfoWindow(title: 'Yolcu Alış Konumu'),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                      ),
+                      Marker(
+                        markerId: const MarkerId('destination_marker'),
+                        position: destLatLng,
+                        infoWindow: const InfoWindow(title: 'Yolcu İniş Konumu'),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                      ),
+                    },
+                    polylines: {
+                      if (_routePoints.isNotEmpty)
+                        Polyline(
+                          polylineId: const PolylineId('route'),
+                          points: _routePoints,
+                          color: AppColors.primary,
+                          width: 5,
                         ),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '$_timeLeft',
-                            style: TextStyle(
-                              fontSize: 26, 
-                              fontWeight: FontWeight.w900, 
-                              color: timerColor,
-                              letterSpacing: -1,
-                            ),
-                          ),
-                          const Text(
-                            'SANİYE',
-                            style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ],
+                    },
                   ),
-                  const SizedBox(height: 28),
-                  const Text(
-                    'YENİ TALEBİNİZ VAR',
-                    style: TextStyle(
-                      fontSize: 20, 
-                      fontWeight: FontWeight.w900, 
-                      color: AppColors.textPrimary, 
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Card(
-                    color: AppColors.cardBackground,
-                    elevation: 8,
+                ),
+
+                // 2. Floating Reject ("Reddet") Button on the map
+                Positioned(
+                  right: 20,
+                  bottom: 300, // Positioned right above the bottom details card
+                  child: FloatingActionButton.extended(
+                    onPressed: _isLoading ? null : _rejectRequest,
+                    backgroundColor: Colors.white,
+                    elevation: 4,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(color: AppColors.border.withValues(alpha: 0.5), width: 1.5),
+                      borderRadius: BorderRadius.circular(12),
+                      side: const BorderSide(color: AppColors.error, width: 1.5),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(24.0),
-                      child: Column(
-                        children: [
-                          // Müşteri puanı
-                          FutureBuilder<double>(
-                            future: _customerRatingFuture ??= RatingRepository().getAverageRating(request.customerId),
-                            builder: (context, snap) {
-                              final avg = snap.data ?? 5.0;
-                              return Row(
+                    icon: const Icon(Icons.close, color: AppColors.error),
+                    label: const Text(
+                      'Reddet',
+                      style: TextStyle(
+                        color: AppColors.error,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 3. Bottom Sheet details card
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 15,
+                          offset: const Offset(0, -4),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header Row: Customer Name/Rating and Price
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            FutureBuilder<double>(
+                              future: _customerRatingFuture ??= RatingRepository().getAverageRating(request.customerId),
+                              builder: (context, snap) {
+                                final avg = snap.data ?? 5.0;
+                                final ratingStr = snap.connectionState == ConnectionState.done
+                                    ? avg.toStringAsFixed(1)
+                                    : '...';
+                                return Row(
+                                  children: [
+                                    const CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: AppColors.border,
+                                      child: Icon(Icons.person, color: AppColors.textSecondary, size: 20),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          request.carPlate.isNotEmpty ? request.carPlate : 'Müşteri',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                        ),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              ratingStr,
+                                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                            Text(
+                              PriceCalculator.formatPrice(request.price),
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(height: 24),
+
+                        // Route detail rows matching reference design
+                        Row(
+                          children: [
+                            Column(
+                              children: [
+                                const Icon(Icons.circle, color: Colors.green, size: 16),
+                                Container(
+                                  width: 2,
+                                  height: 24,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const Icon(Icons.location_on, color: Colors.red, size: 16),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.person_outline_rounded, color: AppColors.textSecondary, size: 20),
-                                  const SizedBox(width: 10),
-                                  const Text('Müşteri Puanı', style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-                                  const Spacer(),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        snap.connectionState == ConnectionState.done
-                                            ? avg.toStringAsFixed(1)
-                                            : '...',
-                                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
+                                  Text(
+                                    '${request.distanceKm.toStringAsFixed(1)} KM uzaklıkta',
+                                    style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    request.customerAddress ?? 'Belirtilmedi',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    request.destinationAddress ?? 'Belirtilmedi',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                   ),
                                 ],
-                              );
-                            },
-                          ),
-                          const Divider(color: AppColors.border, height: 28),
-                          _buildInfoRow(
-                            Icons.directions_car_filled_outlined,
-                            'Araç Tipi',
-                            request.vehicleType ?? 'Bilinmiyor',
-                          ),
-                          const Divider(color: AppColors.border, height: 28),
-                          _buildInfoRow(
-                            Icons.navigation_outlined,
-                            'Mesafe',
-                            '${request.distanceKm.toStringAsFixed(1)} km',
-                          ),
-                          const Divider(color: AppColors.border, height: 28),
-                          _buildInfoRow(
-                            Icons.location_on_outlined,
-                            'Hedef Sanayi',
-                            request.destinationIndustryZone ?? 'Bilinmiyor',
-                          ),
-                          const Divider(color: AppColors.border, height: 28),
-                          // Earning display banner
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2), width: 1),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Kabul Et Button with circular timer number
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _acceptRequest,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
                             ),
                             child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.payments_outlined, color: AppColors.primary, size: 22),
-                                const SizedBox(width: 10),
-                                const Text(
-                                  'Tahmini Kazanç', 
-                                  style: TextStyle(color: AppColors.primary, fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
-                                const Spacer(),
                                 Text(
-                                  PriceCalculator.formatPrice(request.price),
-                                  style: const TextStyle(color: AppColors.primary, fontSize: 22, fontWeight: FontWeight.w900),
+                                  _isLoading ? 'Kabul Ediliyor...' : 'Kabul Et',
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                                 ),
+                                if (!_isLoading) ...[
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white24,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      '$_timeLeft',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 36),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isLoading ? null : _rejectRequest,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(color: AppColors.error, width: 1.5),
-                            foregroundColor: AppColors.error,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          ),
-                          child: const Text('Reddet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: GreenButton(
-                          text: _isLoading ? 'Kabul Ediliyor...' : 'Kabul Et',
-                          onPressed: _isLoading ? null : _acceptRequest,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             );
           },
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.textSecondary, size: 20),
-        const SizedBox(width: 10),
-        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 15)),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Text(
-            value, 
-            textAlign: TextAlign.end,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.bold),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 }

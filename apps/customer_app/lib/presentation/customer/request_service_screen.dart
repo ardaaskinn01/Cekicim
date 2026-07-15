@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,16 +11,13 @@ import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/driver_model.dart';
 import 'package:shared_models/service_request_model.dart';
 import 'package:shared_models/request_status.dart';
-import 'package:shared_services/ankara_industry_zones.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/request_provider.dart';
-import '../widgets/driver_selection_card.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
-import 'package:shared_ui/price_calculator.dart';
 
 class RequestServiceScreen extends ConsumerStatefulWidget {
   const RequestServiceScreen({super.key});
@@ -36,7 +34,19 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   final _plateController = TextEditingController();
   XFile? _vehiclePhoto;
   
-  IndustryZone? _selectedZone;
+  // For pickup (Step 0)
+  final _pickupSearchController = TextEditingController();
+  List<Map<String, dynamic>> _pickupSearchResults = [];
+  bool _isSearchingPickup = false;
+  String? _pickupAddress;
+  bool _isPickupSelected = false;
+
+  // For dropoff (Step 1)
+  final _dropoffSearchController = TextEditingController();
+  List<Map<String, dynamic>> _dropoffSearchResults = [];
+  bool _isSearchingDropoff = false;
+  LatLng? _destinationLatLng;
+  String? _destinationAddress;
   
   List<DriverModel> _nearbyDrivers = [];
   List<String> _selectedDriverIds = [];
@@ -65,22 +75,12 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       if (queryParams.isNotEmpty) {
         final plate = queryParams['plate'];
         final vehicleType = queryParams['vehicleType'];
-        final zoneName = queryParams['zone'];
 
         if (plate != null) {
           _plateController.text = plate;
         }
         if (vehicleType != null && _vehicleTypes.contains(vehicleType)) {
           setState(() => _selectedVehicleType = vehicleType);
-        }
-        if (zoneName != null) {
-          try {
-            final matchedZone = AnkaraIndustryZones.zones.firstWhere(
-              (z) => z.name.toLowerCase() == zoneName.toLowerCase(),
-              orElse: () => AnkaraIndustryZones.zones.first,
-            );
-            setState(() => _selectedZone = matchedZone);
-          } catch (_) {}
         }
       }
     });
@@ -89,7 +89,36 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   @override
   void dispose() {
     _plateController.dispose();
+    _pickupSearchController.dispose();
+    _dropoffSearchController.dispose();
     super.dispose();
+  }
+
+  Future<List<Map<String, dynamic>>> _searchAddress(String query) async {
+    if (query.trim().isEmpty) return [];
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=tr'
+      );
+      final request = await client.getUrl(uri);
+      request.headers.set('User-Agent', 'CekiciApp/1.0');
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final List<dynamic> data = json.decode(responseBody);
+        return data.map((item) {
+          return {
+            'display_name': item['display_name'] as String,
+            'lat': double.parse(item['lat'] as String),
+            'lon': double.parse(item['lon'] as String),
+          };
+        }).toList();
+      }
+    } catch (e) {
+      debugPrint('Address search error: $e');
+    }
+    return [];
   }
 
   Future<void> _pickImage() async {
@@ -113,7 +142,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         customerId: currentUser?.id,
       );
       setState(() {
-        _nearbyDrivers = drivers.take(5).toList();
+        _nearbyDrivers = drivers;
         _selectedDriverIds = _nearbyDrivers.map((d) => d.id).toList();
       });
     } catch (e) {
@@ -127,13 +156,6 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   }
 
   Future<void> _submitRequest() async {
-    if (_selectedDriverIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen en az bir çekici seçin.'), backgroundColor: AppColors.error),
-      );
-      return;
-    }
-
     setState(() => _isLoading = true);
     try {
       final user = ref.read(currentUserProvider).value;
@@ -142,12 +164,12 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       final repo = ref.read(requestRepositoryProvider);
 
       double distance = 10.0;
-      if (_selectedZone != null) {
+      if (_destinationLatLng != null) {
         distance = LocationUtils.distanceBetween(
           _selectedLatLng.latitude,
           _selectedLatLng.longitude,
-          _selectedZone!.latitude,
-          _selectedZone!.longitude,
+          _destinationLatLng!.latitude,
+          _destinationLatLng!.longitude,
         );
       }
 
@@ -172,11 +194,11 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         customerId: user.id,
         customerLat: _selectedLatLng.latitude,
         customerLng: _selectedLatLng.longitude,
-        customerAddress: 'Ankara',
-        destinationLat: _selectedZone?.latitude,
-        destinationLng: _selectedZone?.longitude,
-        destinationAddress: _selectedZone?.name,
-        destinationIndustryZone: _selectedZone?.name,
+        customerAddress: _pickupAddress ?? 'Seçilen Konum',
+        destinationLat: _destinationLatLng?.latitude,
+        destinationLng: _destinationLatLng?.longitude,
+        destinationAddress: _destinationAddress ?? 'Seçilen Hedef',
+        destinationIndustryZone: _destinationAddress ?? 'Seçilen Hedef',
         carBrand: '',
         carModel: '',
         carColor: '',
@@ -238,15 +260,17 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen aracın fotoğrafını çekin.')));
         return;
       }
+      if (!_isPickupSelected) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen alınacak konumu aratıp seçin.')));
+        return;
+      }
       setState(() => _currentStep++);
     } else if (_currentStep == 1) {
-      if (_selectedZone == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen sanayi sitesi seçin.')));
+      if (_destinationLatLng == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen gidilecek konumu aratıp seçin.')));
         return;
       }
       _fetchDrivers();
-      setState(() => _currentStep++);
-    } else if (_currentStep == 2) {
       setState(() => _currentStep++);
     } else {
       _submitRequest();
@@ -261,7 +285,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         border: Border(bottom: BorderSide(color: AppColors.border, width: 0.5)),
       ),
       child: Row(
-        children: List.generate(4, (index) {
+        children: List.generate(3, (index) {
           final isCompleted = _currentStep > index;
           final isActive = _currentStep == index;
           
@@ -297,7 +321,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                   ),
                 ),
                 // Step Line Connection
-                if (index < 3)
+                if (index < 2)
                   Expanded(
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
@@ -317,7 +341,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<Position?>>(locationProvider, (prev, next) {
       final pos = next.value;
-      if (pos != null && _selectedLatLng == const LatLng(39.9208, 32.8541)) {
+      if (pos != null && _selectedLatLng == const LatLng(39.9208, 32.8541) && !_isPickupSelected) {
         setState(() {
           _selectedLatLng = LatLng(pos.latitude, pos.longitude);
         });
@@ -366,7 +390,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                     Expanded(
                       flex: 2,
                       child: GreenButton(
-                        text: _currentStep == 3 ? 'Alarmları Gönder' : 'Devam Et',
+                        text: _currentStep == 2 ? 'En Yakın Çekiciyi Ara' : 'Devam Et',
                         onPressed: _nextStep,
                       ),
                     ),
@@ -386,30 +410,82 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Konumunuz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Alınacak Konum *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 200,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: MapWidget(
-                  initialPosition: _selectedLatLng,
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('my_current_position'),
-                      position: _selectedLatLng,
-                      infoWindow: const InfoWindow(title: 'Benim Konumum'),
-                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                    ),
-                  },
-                  onTap: (latLng) {
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    controller: _pickupSearchController,
+                    label: 'Konum Ara',
+                    hint: 'Alınacağınız adresi yazıp aratın',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: () async {
+                    setState(() => _isSearchingPickup = true);
+                    final results = await _searchAddress(_pickupSearchController.text);
                     setState(() {
-                      _selectedLatLng = latLng;
+                      _pickupSearchResults = results;
+                      _isSearchingPickup = false;
                     });
                   },
+                  icon: _isSearchingPickup
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                ),
+              ],
+            ),
+            if (_pickupSearchResults.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Column(
+                  children: _pickupSearchResults.map((res) {
+                    return ListTile(
+                      title: Text(res['display_name'], style: const TextStyle(fontSize: 13)),
+                      onTap: () {
+                        setState(() {
+                          _selectedLatLng = LatLng(res['lat'], res['lon']);
+                          _pickupAddress = res['display_name'];
+                          _isPickupSelected = true;
+                          _pickupSearchResults = [];
+                          _pickupSearchController.text = res['display_name'];
+                        });
+                      },
+                    );
+                  }).toList(),
                 ),
               ),
-            ),
+            ],
+            if (_isPickupSelected) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 200,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: MapWidget(
+                    initialPosition: _selectedLatLng,
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('pickup_pos'),
+                        position: _selectedLatLng,
+                        infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress),
+                      ),
+                    },
+                    onTap: (latLng) {
+                      setState(() {
+                        _selectedLatLng = latLng;
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             const Text('Araç Türü *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
@@ -419,7 +495,6 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               children: _vehicleTypes.map((type) {
                 final isSelected = _selectedVehicleType == type;
                 
-                // Assign specific icons to each vehicle type
                 IconData icon;
                 switch (type) {
                   case 'Sedan / Hatchback':
@@ -568,169 +643,106 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Nereye Götürülecek?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Nereye Götürülecek? *', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            
-            // Industry Zones Map Selection
-            SizedBox(
-              height: 220,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: MapWidget(
-                  initialPosition: _selectedLatLng,
-                  showMyLocation: true,
-                  fitMarkers: true, // Automatically center and fit both user & target sanayi site
-                  markers: {
-                    // User's own position
-                    Marker(
-                      markerId: const MarkerId('my_current_position'),
-                      position: _selectedLatLng,
-                      infoWindow: const InfoWindow(title: 'Benim Konumum'),
-                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                    ),
-                    // If a zone is selected, show only that zone to focus on the route direction
-                    if (_selectedZone != null)
-                      Marker(
-                        markerId: MarkerId('zone_${_selectedZone!.id}'),
-                        position: LatLng(_selectedZone!.latitude, _selectedZone!.longitude),
-                        infoWindow: InfoWindow(title: _selectedZone!.name),
-                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-                      )
-                    else
-                      // If no zone selected, show all zones as red dots to select from
-                      ...AnkaraIndustryZones.zones.map((zone) {
-                        return Marker(
-                          markerId: MarkerId('zone_${zone.id}'),
-                          position: LatLng(zone.latitude, zone.longitude),
-                          infoWindow: InfoWindow(
-                            title: zone.name,
-                            snippet: 'Seçmek için dokunun',
-                          ),
-                          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-                          onTap: () {
-                            setState(() => _selectedZone = zone);
-                          },
-                        );
-                      }),
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    controller: _dropoffSearchController,
+                    label: 'Hedef Ara',
+                    hint: 'Gidilecek adresi yazıp aratın',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: () async {
+                    setState(() => _isSearchingDropoff = true);
+                    final results = await _searchAddress(_dropoffSearchController.text);
+                    setState(() {
+                      _dropoffSearchResults = results;
+                      _isSearchingDropoff = false;
+                    });
                   },
+                  icon: _isSearchingDropoff
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Icon(Icons.search),
+                ),
+              ],
+            ),
+            if (_dropoffSearchResults.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Card(
+                child: Column(
+                  children: _dropoffSearchResults.map((res) {
+                    return ListTile(
+                      title: Text(res['display_name'], style: const TextStyle(fontSize: 13)),
+                      onTap: () {
+                        setState(() {
+                          _destinationLatLng = LatLng(res['lat'], res['lon']);
+                          _destinationAddress = res['display_name'];
+                          _dropoffSearchResults = [];
+                          _dropoffSearchController.text = res['display_name'];
+                        });
+                      },
+                    );
+                  }).toList(),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            const Text('Sanayi Siteleri Listesi', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
-            const SizedBox(height: 10),
-            ...() {
-              // Get sorted zones based on user current position
-              final sortedZones = AnkaraIndustryZones.getSortedZones(_selectedLatLng.latitude, _selectedLatLng.longitude);
-              
-              return sortedZones.asMap().entries.map((entry) {
-                final index = entry.key;
-                final zone = entry.value;
-                final isNearest = index == 0; // The first item is the closest one
-                final isSelected = _selectedZone?.id == zone.id;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    side: BorderSide(
-                      color: isSelected 
-                          ? AppColors.primary 
-                          : (isNearest ? AppColors.primary.withValues(alpha: 0.4) : Colors.transparent), 
-                      width: 2
-                    ),
-                    borderRadius: BorderRadius.circular(12),
+            ],
+            if (_destinationLatLng != null) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 220,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: MapWidget(
+                    initialPosition: _destinationLatLng!,
+                    showMyLocation: true,
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('pickup_pos'),
+                        position: _selectedLatLng,
+                        infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                      ),
+                      Marker(
+                        markerId: const MarkerId('destination_pos'),
+                        position: _destinationLatLng!,
+                        infoWindow: InfoWindow(title: 'Gidilecek Yer', snippet: _destinationAddress),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                      ),
+                    },
                   ),
-                  child: ListTile(
-                    title: Row(
-                      children: [
-                        Expanded(
-                          child: Text(zone.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                        if (isNearest)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: AppColors.primary, width: 1),
-                            ),
-                            child: const Text(
-                              'Önerilen (En Yakın)',
-                              style: TextStyle(
-                                color: AppColors.primary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    subtitle: Text(zone.description),
-                    trailing: isSelected ? const Icon(Icons.check_circle, color: AppColors.primary) : null,
-                    onTap: () => setState(() => _selectedZone = zone),
-                  ),
-                );
-              });
-            }(),
+                ),
+              ),
+            ],
           ],
         );
       case 2:
-        if (_nearbyDrivers.isEmpty) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20.0),
-              child: Text(
-                'Yakınınızda uygun araç tipinde boşta çekici bulunamadı.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-            ),
+      default:
+        double dist = 10.0;
+        if (_destinationLatLng != null) {
+          dist = LocationUtils.distanceBetween(
+            _selectedLatLng.latitude,
+            _selectedLatLng.longitude,
+            _destinationLatLng!.latitude,
+            _destinationLatLng!.longitude,
           );
         }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Yakındaki Çekiciler', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Alarm göndermek istediğiniz çekicileri seçin.', style: TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            ..._nearbyDrivers.map((driver) {
-              final isSelected = _selectedDriverIds.contains(driver.id);
-              final dist = LocationUtils.distanceBetween(
-                _selectedLatLng.latitude,
-                _selectedLatLng.longitude,
-                driver.latitude ?? 0.0,
-                driver.longitude ?? 0.0,
-              );
-              // Calculate pricing distance (customer to target zone)
-              final targetDist = _selectedZone != null ? LocationUtils.distanceBetween(
-                _selectedLatLng.latitude,
-                _selectedLatLng.longitude,
-                _selectedZone!.latitude,
-                _selectedZone!.longitude,
-              ) : 1.0;
-              final targetPrice = PriceCalculator.calculatePrice(targetDist);
+        double price = 2000.0;
+        if (dist > 1.0) {
+          if (dist <= 15.0) {
+            price += (dist - 1.0) * 200.0;
+          } else {
+            price += (14.0 * 200.0) + (dist - 15.0) * 150.0;
+          }
+        }
 
-              return DriverSelectionCard(
-                driver: driver,
-                distanceKm: dist,
-                targetPrice: targetPrice,
-                isSelected: isSelected,
-                onChanged: (val) {
-                  setState(() {
-                    if (val == true) {
-                      _selectedDriverIds.add(driver.id);
-                    } else {
-                      _selectedDriverIds.remove(driver.id);
-                    }
-                  });
-                },
-              );
-            }).toList(),
-          ],
-        );
-      case 3:
-      default:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -744,15 +756,55 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Hedef:', style: TextStyle(color: AppColors.textSecondary)),
-                        Text('${_selectedZone?.name}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const Text('Başlangıç Konumu:', style: TextStyle(color: AppColors.textSecondary)),
+                        Expanded(
+                          child: Text(
+                            _pickupAddress ?? 'Seçilen Konum',
+                            textAlign: TextAlign.right,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ],
                     ),
                     const Divider(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Seçilen Çekici Sayısı:', style: TextStyle(color: AppColors.textSecondary)),
+                        const Text('Hedef Konum:', style: TextStyle(color: AppColors.textSecondary)),
+                        Expanded(
+                          child: Text(
+                            _destinationAddress ?? 'Seçilen Hedef',
+                            textAlign: TextAlign.right,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Mesafe:', style: TextStyle(color: AppColors.textSecondary)),
+                        Text('${dist.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Fiyat:', style: TextStyle(color: AppColors.textSecondary)),
+                        Text('₺${price.round()}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 16)),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Yakındaki Çekiciler (30 km):', style: TextStyle(color: AppColors.textSecondary)),
                         Text('${_selectedDriverIds.length} Çekici', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -761,8 +813,31 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            if (_selectedDriverIds.isEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Şu anda yakınınızda (30 km) aktif çekici bulunamadı. Talep oluşturulduğunda ilk aktif olan çekiciye bildirim gönderilecektir.',
+                        style: TextStyle(color: Colors.orange, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             const Text(
-              'Onayladığınızda seçtiğiniz çekicilere alarm gönderilecektir. İlk kabul eden çekici size yönlendirilecektir.',
+              'Onayladığınızda 30 km yarıçapındaki müsait çekicilere alarm gönderilecektir. İlk kabul eden çekici size yönlendirilecektir.',
               style: TextStyle(color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),

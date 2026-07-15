@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/request_status.dart';
 import 'package:shared_models/driver_model.dart';
@@ -66,7 +65,7 @@ class RequestRepository {
       try {
         final data = await _client
             .from('service_requests')
-            .select()
+            .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name)')
             .eq('id', requestId)
             .maybeSingle();
         if (data != null && !controller.isClosed) {
@@ -108,7 +107,19 @@ class RequestRepository {
             }).toList());
   }
 
+  Future<void> _cleanupStaleDrivers() async {
+    try {
+      final cutoff = DateTime.now().subtract(const Duration(minutes: 60)).toIso8601String();
+      await _client
+          .from('drivers')
+          .update({'is_available': false})
+          .eq('is_available', true)
+          .lt('location_updated_at', cutoff);
+    } catch (_) {}
+  }
+
   Future<List<DriverModel>> getAllAvailableDrivers() async {
+    await _cleanupStaleDrivers();
     final driversData = await _client
         .from('drivers')
         .select('*, profiles(*)')
@@ -127,7 +138,11 @@ class RequestRepository {
   }
 
   Future<ServiceRequestModel> getRequestById(String requestId) async {
-    final data = await _client.from('service_requests').select().eq('id', requestId).single();
+    final data = await _client
+        .from('service_requests')
+        .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name)')
+        .eq('id', requestId)
+        .single();
     return ServiceRequestModel.fromJson(data);
   }
 
@@ -138,6 +153,7 @@ class RequestRepository {
     String vehicleType, {
     String? customerId,
   }) async {
+    await _cleanupStaleDrivers();
     // Fetch blocked driver IDs for this customer (if provided)
     List<String> blockedDriverIds = [];
     List<String> blockingDriverIds = [];
@@ -260,13 +276,44 @@ class RequestRepository {
       'current_request_id': requestId,
       'is_available': false,
     }).eq('id', driverId);
+
+    // Notify other drivers that the request has been taken
+    try {
+      final List<dynamic> selectedIdsRaw = data['selected_driver_ids'] ?? [];
+      final selectedDriverIds = selectedIdsRaw.map((id) => id.toString()).toList();
+      final otherDriverIds = selectedDriverIds.where((id) => id != driverId).toList();
+
+      if (otherDriverIds.isNotEmpty) {
+        // 1. Update other pending offers to 'taken' status
+        await _client.from('pending_offers').update({
+          'status': 'taken',
+        }).eq('request_id', requestId).neq('driver_id', driverId);
+
+        // 2. Send push notifications using Deno Edge function
+        await _client.functions.invoke('send_driver_alarms', body: {
+          'request_id': requestId,
+          'driver_ids': otherDriverIds,
+          'notification_type': 'REQUEST_TAKEN',
+        });
+      }
+    } catch (e) {
+      debugPrint('Error notifying other drivers of accepted request: $e');
+    }
   }
 
-  Future<void> completeRequest(String requestId, String completionCode) async {
+  Future<void> verifyPickupCode(String requestId, String code) async {
     final request = await getRequestById(requestId);
-    if (request.completionCode != completionCode) {
-      throw Exception('Tamamlama kodu hatalı.');
+    if (request.completionCode != code) {
+      throw Exception('Biniş kodu hatalı.');
     }
+
+    await _client.from('service_requests').update({
+      'status': RequestStatus.inProgress.dbValue,
+    }).eq('id', requestId);
+  }
+
+  Future<void> completeRequest(String requestId) async {
+    final request = await getRequestById(requestId);
 
     await _client.from('service_requests').update({
       'status': RequestStatus.completed.dbValue,

@@ -98,14 +98,17 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         children: [
           locationAsync.when(
             loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
-            error: (err, st) => Center(child: Text('Konum yüklenemedi: $err')),
+            error: (err, st) => _buildLocationErrorState(err.toString()),
             data: (pos) {
-              if (pos == null) return const Center(child: Text('Konum bulunamadı.'));
+              if (pos == null) {
+                return _buildLocationErrorState('Konum bilgisi alınamadı.');
+              }
               final latLng = LatLng(pos.latitude, pos.longitude);
 
               return MapWidget(
                 initialPosition: latLng,
                 showMyLocation: true,
+                fitMarkers: false,
                 markers: {
                   Marker(
                     markerId: const MarkerId('driver_current_position'),
@@ -117,6 +120,32 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
               );
             },
           ),
+          if (isOnline)
+            Positioned(
+              top: 16,
+              left: 24,
+              right: 24,
+              child: Card(
+                color: Colors.orange.withValues(alpha: 0.95),
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.white),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '⚠️ Uygulamayı arka planda açık tut! Kapatırsan talep alamazsın.',
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           if (driver != null && !driver.isVerified)
             Positioned(
               top: 16,
@@ -216,6 +245,45 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLocationErrorState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.location_off_rounded, size: 64, color: AppColors.error),
+            const SizedBox(height: 16),
+            const Text(
+              'Konum Erişimi Başarısız',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                ref.invalidate(locationProvider);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Yeniden Dene'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

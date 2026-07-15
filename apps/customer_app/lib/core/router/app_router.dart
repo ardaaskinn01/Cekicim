@@ -6,11 +6,9 @@ import '../../providers/auth_provider.dart';
 import '../../presentation/splash_screen.dart';
 import '../../presentation/auth/login_screen.dart';
 import '../../presentation/auth/register_screen.dart';
-import '../../presentation/auth/role_selection_screen.dart';
 import '../../presentation/auth/forgot_password_screen.dart';
 import '../../presentation/auth/verify_otp_screen.dart';
 import '../../presentation/auth/reset_password_screen.dart';
-import '../../presentation/auth/customer_verification_screen.dart';
 import '../../presentation/customer/customer_home_screen.dart';
 import '../../presentation/customer/request_service_screen.dart';
 import '../../presentation/customer/history_screen.dart';
@@ -45,13 +43,21 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (isAuthenticated) {
-        final userModel = currentUserAsync.value;
-        if (userModel == null) return null;
+        if (currentUserAsync.hasValue) {
+          final userModel = currentUserAsync.value;
+          if (userModel == null) {
+            // Profile is missing, redirect to registration/complete profile screen
+            if (state.uri.path != '/register' && state.uri.path != '/verify-otp') {
+              return '/register';
+            }
+            return null;
+          }
 
-        if (userModel.role == UserRole.customer) {
-          if (isAuthRoute) return '/customer';
-        } else {
-          return '/login';
+          if (userModel.role == UserRole.customer) {
+            if (isAuthRoute) return '/customer';
+          } else {
+            return '/login';
+          }
         }
       }
 
@@ -65,8 +71,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/verify-otp',
         builder: (context, state) {
-          final email = state.uri.queryParameters['email'] ?? '';
-          return VerifyOtpScreen(email: email);
+          final phone = state.uri.queryParameters['phone'] ?? '';
+          return VerifyOtpScreen(phone: phone);
         },
       ),
       GoRoute(path: '/reset-password', builder: (context, state) => const ResetPasswordScreen()),

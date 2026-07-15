@@ -55,3 +55,4 @@ app.*.map.json
 .vercel
 .env*
 pubspec_overrides.yaml
+**/pubspec_overrides.yaml

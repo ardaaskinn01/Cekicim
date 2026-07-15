@@ -692,7 +692,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                         const SizedBox(height: 24),
                       ] else ...[
                         driverInfoWidget,
-                        if (request.status == RequestStatus.inProgress && request.completionCode != null) ...[
+                         if (request.status == RequestStatus.accepted && request.completionCode != null) ...[
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(16),
@@ -703,14 +703,14 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                             ),
                             child: Column(
                               children: [
-                                const Text('Hizmet Tamamlama Kodu', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                const Text('Yolcu Biniş Doğrulama Kodu', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                                 const SizedBox(height: 4),
                                 Text(
                                   request.completionCode!,
                                   style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 8, color: AppColors.primary),
                                 ),
                                 const SizedBox(height: 4),
-                                const Text('Lütfen bu kodu sürücüye iletin.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                const Text('Sürücü geldiğinde bu kodu vererek binişinizi onaylayın.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                               ],
                             ),
                           ),

@@ -119,11 +119,21 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
       final req = await ref.read(requestRepositoryProvider).getRequestById(widget.requestId);
 
       final driverPos = await Geolocator.getCurrentPosition();
+      
+      // Determine target coordinates based on status
+      double destLat = req.customerLat;
+      double destLng = req.customerLng;
+      
+      if (req.status == RequestStatus.inProgress) {
+        destLat = req.destinationLat ?? req.customerLat;
+        destLng = req.destinationLng ?? req.customerLng;
+      }
+
       final routeCoords = await _routingService.getRoute(
         originLat: driverPos.latitude,
         originLng: driverPos.longitude,
-        destLat: req.customerLat,
-        destLng: req.customerLng,
+        destLat: destLat,
+        destLng: destLng,
       );
 
       if (mounted) {
@@ -143,8 +153,8 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   }
 
   Future<void> _updateStatus(ServiceRequestModel request, RequestStatus nextStatus) async {
-    // If completing the request, navigate to code verification screen first
-    if (nextStatus == RequestStatus.completed) {
+    // If passenger is boarding, navigate to verification screen first
+    if (nextStatus == RequestStatus.inProgress) {
       context.push('/driver/complete/${request.id}');
       return;
     }
@@ -152,7 +162,11 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
     setState(() => _isActionLoading = true);
     try {
       final repo = ref.read(requestRepositoryProvider);
-      await repo.updateRequestStatus(request.id, nextStatus);
+      if (nextStatus == RequestStatus.completed) {
+        await repo.completeRequest(request.id);
+      } else {
+        await repo.updateRequestStatus(request.id, nextStatus);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -264,8 +278,12 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<ServiceRequestModel>>(requestStatusProvider(widget.requestId), (prev, next) {
       final request = next.value;
+      final prevRequest = prev?.value;
       final user = ref.read(currentUserProvider).value;
       if (request != null && user != null) {
+        if (prevRequest != null && prevRequest.status != request.status) {
+          _loadRoute();
+        }
         if (request.status == RequestStatus.cancelled && !_isCancellationDialogShown) {
           _isCancellationDialogShown = true;
           _trackingService.stopTracking();
@@ -300,6 +318,12 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
               ),
             );
           }
+        } else if (request.status == RequestStatus.completed) {
+          _trackingService.stopTracking();
+          _isTrackingStarted = false;
+          if (mounted) {
+            context.go('/driver/rate/${request.id}/${request.customerId}?name=${request.customerName ?? 'Müşteri'}');
+          }
         } else if (request.activeCallChannel != null && request.activeCallCallerId != user.id) {
           if (GoRouterState.of(context).uri.path != '/driver/call/${widget.requestId}') {
             _showIncomingCallDialog(context, request);
@@ -320,6 +344,12 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
         error: (err, st) => Center(child: Text('Yüklenemedi: $err')),
         data: (req) {
           final customerLatLng = LatLng(req.customerLat, req.customerLng);
+          final isPickup = req.status == RequestStatus.accepted;
+          final initialLatLng = isPickup 
+              ? customerLatLng 
+              : (req.destinationLat != null && req.destinationLng != null
+                  ? LatLng(req.destinationLat!, req.destinationLng!)
+                  : customerLatLng);
 
           // Bir sonraki aksiyon durumunu belirleme
           String buttonText = '';
@@ -335,13 +365,21 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
           return Stack(
             children: [
               MapWidget(
-                initialPosition: customerLatLng,
+                initialPosition: initialLatLng,
                 markers: {
                   Marker(
-                    markerId: const MarkerId('customer'),
+                    markerId: const MarkerId('pickup'),
                     position: customerLatLng,
-                    infoWindow: const InfoWindow(title: 'Müşteri Rota Hedefi'),
+                    infoWindow: const InfoWindow(title: 'Müşteri Alış Konumu (A)'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
                   ),
+                  if (req.destinationLat != null && req.destinationLng != null)
+                    Marker(
+                      markerId: const MarkerId('destination'),
+                      position: LatLng(req.destinationLat!, req.destinationLng!),
+                      infoWindow: const InfoWindow(title: 'Teslim Konumu (B)'),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                    ),
                 },
                 polylines: _routePoints.isNotEmpty
                     ? {
@@ -408,11 +446,14 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () => _openExternalNavigation(
-                                req.customerLat,
-                                req.customerLng,
-                                req.customerAddress ?? 'Müşteri Konumu',
-                              ),
+                              onPressed: () {
+                                final lat = isPickup ? req.customerLat : (req.destinationLat ?? req.customerLat);
+                                final lng = isPickup ? req.customerLng : (req.destinationLng ?? req.customerLng);
+                                final name = isPickup 
+                                    ? (req.customerAddress ?? 'Müşteri Konumu') 
+                                    : (req.destinationAddress ?? 'Teslim Konumu');
+                                _openExternalNavigation(lat, lng, name);
+                              },
                               icon: const Icon(Icons.navigation_outlined, color: AppColors.accent),
                               label: const Text('Yol Tarifi Al', style: TextStyle(color: AppColors.accent)),
                               style: OutlinedButton.styleFrom(

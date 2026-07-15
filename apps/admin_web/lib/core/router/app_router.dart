@@ -42,13 +42,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
-      if (isAuthenticated && isAuthRoute) {
-        final userModel = currentUserAsync.value;
-        if (userModel == null) return null;
-        if (userModel.role == UserRole.admin) {
-          return '/admin';
-        } else {
-          return '/login';
+      if (isAuthenticated) {
+        if (currentUserAsync.hasValue) {
+          final userModel = currentUserAsync.value;
+          if (userModel == null || userModel.role != UserRole.admin) {
+            return '/login';
+          }
+          if (isAuthRoute) {
+            return '/admin';
+          }
         }
       }
 

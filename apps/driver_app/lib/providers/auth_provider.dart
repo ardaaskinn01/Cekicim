@@ -19,7 +19,7 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   ref.watch(authStateProvider);
   final repo = ref.watch(authRepositoryProvider);
-  final user = await repo.getCurrentUser();
+  final user = await repo.getCurrentUser(UserRole.driver);
   if (user != null) {
     if (user.role != UserRole.driver) {
       await repo.signOut();
@@ -43,10 +43,53 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   Future<void> loadCurrentUser() async {
     state = const AsyncValue.loading();
     try {
-      final user = await _repository.getCurrentUser();
+      final user = await _repository.getCurrentUser(UserRole.driver);
       state = AsyncValue.data(user);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+    }
+  }
+
+  Future<void> sendSMSCode(String phone) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.signInWithPhone(phone);
+      state = const AsyncValue.data(null);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> verifySMSCode(String phone, String code) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.verifyPhoneOTP(phone, code);
+      final user = await _repository.getCurrentUser(UserRole.driver);
+      state = AsyncValue.data(user);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> completeProfile({
+    required String fullName,
+    required String phone,
+    String? vehiclePlate,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _repository.createUserProfile(
+        fullName: fullName,
+        phone: phone,
+        role: UserRole.driver,
+        vehiclePlate: vehiclePlate,
+      );
+      state = AsyncValue.data(user);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
     }
   }
 

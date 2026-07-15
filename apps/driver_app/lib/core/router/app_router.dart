@@ -46,26 +46,34 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (isAuthenticated) {
-        final userModel = currentUserAsync.value;
-        if (userModel == null) return null;
-
-        if (userModel.role == UserRole.driver) {
-          final isDriverModel = userModel is DriverModel;
-          final hasRejection = isDriverModel &&
-              userModel.rejectionReason != null &&
-              userModel.rejectionReason!.isNotEmpty;
-          final completedOnboarding = isDriverModel &&
-              userModel.isOnboardingCompleted &&
-              !hasRejection; // If rejected, onboarding is not completed successfully
-          final isOnboardingRoute = state.uri.path == '/driver/onboarding';
-
-          if (!completedOnboarding) {
-            if (!isOnboardingRoute) return '/driver/onboarding';
-          } else {
-            if (isOnboardingRoute || isAuthRoute) return '/driver';
+        if (currentUserAsync.hasValue) {
+          final userModel = currentUserAsync.value;
+          if (userModel == null) {
+            // Profile is missing, redirect to registration/complete profile screen
+            if (state.uri.path != '/register' && state.uri.path != '/verify-otp') {
+              return '/register';
+            }
+            return null;
           }
-        } else {
-          return '/login';
+
+          if (userModel.role == UserRole.driver) {
+            final isDriverModel = userModel is DriverModel;
+            final hasRejection = isDriverModel &&
+                userModel.rejectionReason != null &&
+                userModel.rejectionReason!.isNotEmpty;
+            final completedOnboarding = isDriverModel &&
+                userModel.isOnboardingCompleted &&
+                !hasRejection; // If rejected, onboarding is not completed successfully
+            final isOnboardingRoute = state.uri.path == '/driver/onboarding';
+
+            if (!completedOnboarding) {
+              if (!isOnboardingRoute) return '/driver/onboarding';
+            } else {
+              if (isOnboardingRoute || isAuthRoute) return '/driver';
+            }
+          } else {
+            return '/login';
+          }
         }
       }
 
@@ -79,8 +87,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/verify-otp',
         builder: (context, state) {
-          final email = state.uri.queryParameters['email'] ?? '';
-          return VerifyOtpScreen(email: email);
+          final phone = state.uri.queryParameters['phone'] ?? '';
+          return VerifyOtpScreen(phone: phone);
         },
       ),
       GoRoute(path: '/reset-password', builder: (context, state) => const ResetPasswordScreen()),

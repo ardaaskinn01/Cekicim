@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/extensions/request_status_extension.dart';
 import 'package:shared_models/service_request_model.dart';
-import 'package:shared_models/driver_model.dart';
 import 'package:shared_models/user_model.dart';
 import 'package:shared_models/dispute_model.dart';
 import 'package:shared_models/message_model.dart';
 import 'package:shared_services/supabase_service.dart';
 import 'package:shared_services/auth_repository.dart';
 import 'package:shared_services/dispute_repository.dart';
-import 'package:shared_services/rating_repository.dart';
 import '../../providers/auth_provider.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
@@ -37,7 +34,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   // Overview stats
   double _totalEarnings = 0.0;
   int _activeRequestsCount = 0;
-  int _completedRequestsCount = 0;
   int _pendingApprovalsCount = 0;
   int _unresolvedDisputesCount = 0;
 
@@ -81,7 +77,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       // 1. Fetch requests
       final requestsData = await client
           .from('service_requests')
-          .select()
+          .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name), ratings(*)')
           .order('created_at', ascending: false);
 
       _allRequests = (requestsData as List)
@@ -129,10 +125,6 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
       _activeRequestsCount = _allRequests
           .where((r) => r.status.dbValue != 'completed' && r.status.dbValue != 'cancelled')
-          .length;
-
-      _completedRequestsCount = _allRequests
-          .where((r) => r.status.dbValue == 'completed')
           .length;
 
       _pendingApprovalsCount = _unverifiedDrivers.length;
@@ -283,6 +275,127 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Future<void> _handleSignOut() async {
     await ref.read(authNotifierProvider.notifier).signOut();
     if (mounted) context.go('/login');
+  }
+
+  void _showRequestDetailsDialog(ServiceRequestModel req) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          title: const Text('Talep Detayları', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Talep ID: ${req.id}',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Customer Name (Big and prominent with rating)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Müşteri', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                          Text(
+                            req.customerName ?? 'Müşteri Bilinmiyor',
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      if (req.customerRatingFromDriver != null)
+                        Row(
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 20),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${req.customerRatingFromDriver!.toInt()}/5',
+                              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Driver Name (Big and prominent with rating)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Sürücü', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                          Text(
+                            req.driverName ?? (req.driverId != null ? 'Sürücü Atandı' : 'Bekliyor'),
+                            style: TextStyle(
+                              color: req.driverName != null ? AppColors.textPrimary : Colors.orange, 
+                              fontSize: 20, 
+                              fontWeight: FontWeight.bold
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (req.driverRatingFromCustomer != null)
+                        Row(
+                          children: [
+                            const Icon(Icons.star, color: Colors.amber, size: 20),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${req.driverRatingFromCustomer!.toInt()}/5',
+                              style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  const Divider(color: AppColors.border),
+                  const SizedBox(height: 16),
+
+                  _buildDetailItem('Araç Bilgisi', '${req.carBrand} ${req.carModel} (${req.carColor})'),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Plaka', req.carPlate),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Arıza Tipi', req.problemType),
+                  if (req.problemDescription != null && req.problemDescription!.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildDetailItem('Arıza Açıklaması', req.problemDescription!),
+                  ],
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Alınacak Adres', req.customerAddress ?? '-'),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Gidilecek Adres', req.destinationAddress ?? '-'),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Hedef Sanayi', req.destinationIndustryZone ?? '-'),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Mesafe / Fiyat', '${req.distanceKm.toStringAsFixed(1)} KM / ${req.price} TL'),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Durum', req.status.label),
+                  const SizedBox(height: 12),
+                  _buildDetailItem('Tarih', '${req.createdAt.day}.${req.createdAt.month}.${req.createdAt.year} ${req.createdAt.hour}:${req.createdAt.minute}'),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Kapat', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showImageZoom(String imageUrl) {
@@ -696,6 +809,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     itemBuilder: (context, index) {
                       final req = _allRequests[index];
                       return ListTile(
+                        onTap: () => _showRequestDetailsDialog(req),
                         contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                         leading: CircleAvatar(
                           backgroundColor: req.status.color.withValues(alpha: 0.12),
@@ -1528,7 +1642,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       final brand = r.carBrand.toLowerCase();
       final model = r.carModel.toLowerCase();
       final zone = (r.destinationIndustryZone ?? '').toLowerCase();
-      return brand.contains(query) || model.contains(query) || zone.contains(query);
+      final customer = (r.customerName ?? '').toLowerCase();
+      final driver = (r.driverName ?? '').toLowerCase();
+      final id = r.id.toLowerCase();
+      return brand.contains(query) || 
+             model.contains(query) || 
+             zone.contains(query) || 
+             customer.contains(query) || 
+             driver.contains(query) || 
+             id.contains(query);
     }).toList();
 
     return SingleChildScrollView(
@@ -1547,7 +1669,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                     filled: true,
                     fillColor: AppColors.cardBackground,
-                    hintText: 'Araç markası, modeli veya sanayi bölgesi ile ara...',
+                    hintText: 'Araç, müşteri, sürücü veya talep ID ile ara...',
                     hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   ),
@@ -1565,21 +1687,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 : SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: DataTable(
+                      showCheckboxColumn: false,
                       columns: const [
-                        DataColumn(label: Text('Araç')),
-                        DataColumn(label: Text('Arıza Tipi')),
-                        DataColumn(label: Text('Hedef Sanayi')),
-                        DataColumn(label: Text('Fiyat')),
+                        DataColumn(label: Text('Talep ID')),
+                        DataColumn(label: Text('Müşteri Adı')),
+                        DataColumn(label: Text('Sürücü Adı')),
                         DataColumn(label: Text('Durum')),
                         DataColumn(label: Text('Tarih')),
                       ],
                       rows: list.map((r) {
                         return DataRow(
+                          onSelectChanged: (_) => _showRequestDetailsDialog(r),
                           cells: [
-                            DataCell(Text('${r.carBrand} ${r.carModel}')),
-                            DataCell(Text(r.problemType ?? '-')),
-                            DataCell(Text(r.destinationIndustryZone ?? '-')),
-                            DataCell(Text('${r.price} TL')),
+                            DataCell(Text(r.id.length > 8 ? '${r.id.substring(0, 8)}...' : r.id)),
+                            DataCell(Text(r.customerName ?? 'Bilinmiyor')),
+                            DataCell(Text(r.driverName ?? (r.driverId != null ? 'Sürücü Atandı' : 'Bekliyor'))),
                             DataCell(Text(r.status.label, style: TextStyle(color: r.status.color, fontWeight: FontWeight.bold))),
                             DataCell(Text('${r.createdAt.day}.${r.createdAt.month}.${r.createdAt.year}')),
                           ],
