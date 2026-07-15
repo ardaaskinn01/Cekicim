@@ -87,7 +87,15 @@ Deno.serve(async (req) => {
             android: {
               priority: 'high',
               notification: {
-                sound: 'default',
+                sound: 'bg_alarm2',
+                channelId: 'cekici_alerts_v2',
+              },
+            },
+            apns: {
+              payload: {
+                aps: {
+                  sound: 'bg_alarm2.mp3',
+                },
               },
             },
           },
