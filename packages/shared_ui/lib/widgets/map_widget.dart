@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gesture_recognizers.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../app_colors.dart';
@@ -234,6 +236,11 @@ class _MapWidgetState extends State<MapWidget> {
       child: Stack(
         children: [
           GoogleMap(
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(
+                () => EagerGestureRecognizer(),
+              ),
+            },
             initialCameraPosition: CameraPosition(
               target: widget.initialPosition,
               zoom: 15.0, // Zoom closer for better address accuracy
