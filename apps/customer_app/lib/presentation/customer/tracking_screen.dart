@@ -729,7 +729,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                                     const CircularProgressIndicator(color: AppColors.accent),
                                     const SizedBox(height: 12),
                                     Text(
-                                      request.status == RequestStatus.pending ? 'En yakın çekiciler aranıyor...' : 'Seçilen çekicilerden onay bekleniyor...', 
+                                      request.status == RequestStatus.pending ? 'En yakın çekiciler aranıyor...' : 'Çekicilerden onay bekleniyor...', 
                                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)
                                     ),
                                     const SizedBox(height: 16),
