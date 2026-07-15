@@ -605,6 +605,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                   initialPosition: _selectedLatLng,
                   isSelectorMode: true,
                   fitMarkers: false,
+                  showMyLocation: true,
                   onCameraIdleLatLng: (latLng) async {
                     setState(() {
                       _selectedLatLng = latLng;

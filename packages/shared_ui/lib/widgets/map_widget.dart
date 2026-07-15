@@ -261,6 +261,15 @@ class _MapWidgetState extends State<MapWidget> {
               try {
                 _mapController!.setMapStyle(_darkSlateMapStyle);
               } catch (_) {}
+
+              if (widget.initialPosition != _currentCameraTarget) {
+                _currentCameraTarget = widget.initialPosition;
+                try {
+                  _mapController!.moveCamera(
+                    CameraUpdate.newLatLng(widget.initialPosition),
+                  );
+                } catch (_) {}
+              }
               
               if (widget.fitMarkers && widget.markers.isNotEmpty && !widget.isSelectorMode) {
                 _hasFittedMarkers = true;
