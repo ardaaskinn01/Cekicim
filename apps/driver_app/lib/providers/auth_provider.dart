@@ -19,18 +19,27 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   ref.watch(authStateProvider);
   final repo = ref.watch(authRepositoryProvider);
-  final user = await repo.getCurrentUser(UserRole.driver);
-  if (user != null) {
-    if (user.role != UserRole.driver) {
-      await repo.signOut();
-      return null;
+  try {
+    final user = await repo.getCurrentUser(UserRole.driver);
+    if (user != null) {
+      if (user.role != UserRole.driver) {
+        await repo.signOut();
+        return null;
+      }
+      // Run FCM setup in the background to prevent blocking critical UI routing
+      NotificationService().setupFCM(user.id).catchError((e) {
+        debugPrint('Error setting up FCM: $e');
+      });
     }
-    // Run FCM setup in the background to prevent blocking critical UI routing
-    NotificationService().setupFCM(user.id).catchError((e) {
-      debugPrint('Error setting up FCM: $e');
-    });
+    return user;
+  } catch (e) {
+    // JWT geçersiz veya kullanıcı silinmiş — oturumu temizle
+    debugPrint('currentUserProvider error (auto sign-out): $e');
+    try {
+      await repo.signOut();
+    } catch (_) {}
+    return null;
   }
-  return user;
 });
 
 class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
