@@ -55,6 +55,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         vehiclePlate: _plateController.text.trim(),
       );
 
+      // Invalidate provider cache to force router redirect recalculation
+      ref.invalidate(currentUserProvider);
+
       if (!mounted) return;
       context.go('/driver');
     } catch (e) {

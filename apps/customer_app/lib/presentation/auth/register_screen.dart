@@ -53,6 +53,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
       );
 
+      // Invalidate provider cache to force router redirect recalculation
+      ref.invalidate(currentUserProvider);
+
       if (!mounted) return;
       context.go('/customer');
     } catch (e) {
