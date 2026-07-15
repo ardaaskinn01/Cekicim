@@ -30,7 +30,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
     final activeRequestAsync = ref.watch(activeRequestProvider);
 
     final user = userAsync.value;
-    final currentPos = locationAsync.value;
+    final currentPos = locationAsync.valueOrNull;
     final activeRequest = activeRequestAsync.value;
 
     final initialLatLng = currentPos != null
