@@ -36,11 +36,22 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Get Firebase Service Account
-    const serviceAccountString = Deno.env.get('FIREBASE_SERVICE_ACCOUNT')
+    let serviceAccountString = Deno.env.get('FIREBASE_SERVICE_ACCOUNT')
     if (!serviceAccountString) {
       throw new Error('FIREBASE_SERVICE_ACCOUNT environment variable is not set')
     }
+    
+    // Trim spaces and surrounding single/double quotes that might have been added by CLI/OS shell escaping
+    serviceAccountString = serviceAccountString.trim();
+    if ((serviceAccountString.startsWith("'") && serviceAccountString.endsWith("'")) ||
+        (serviceAccountString.startsWith('"') && serviceAccountString.endsWith('"'))) {
+      serviceAccountString = serviceAccountString.substring(1, serviceAccountString.length - 1).trim();
+    }
+    
+    console.log("Parsed serviceAccountString length:", serviceAccountString.length)
+    console.log("Starts with:", serviceAccountString.substring(0, 15))
+    console.log("Ends with:", serviceAccountString.substring(serviceAccountString.length - 15))
+    
     const serviceAccount = JSON.parse(serviceAccountString)
 
     // Get Access Token
