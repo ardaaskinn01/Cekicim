@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
@@ -15,7 +16,8 @@ class VerifyOtpScreen extends ConsumerStatefulWidget {
 }
 
 class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
 
@@ -36,24 +38,36 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
     final code = _otpCode;
     if (code.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lütfen 6 haneli kodun tamamını giriniz.'), backgroundColor: AppColors.warning),
+        const SnackBar(
+          content: Text('Lütfen 6 haneli kodun tamamını giriniz.'),
+          backgroundColor: AppColors.warning,
+        ),
       );
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(authNotifierProvider.notifier).verifySMSCode(widget.phone, code);
+      await ref
+          .read(authNotifierProvider.notifier)
+          .verifySMSCode(widget.phone, code);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Giriş başarılı!'), backgroundColor: AppColors.success),
+        const SnackBar(
+          content: Text('Giriş başarılı!'),
+          backgroundColor: AppColors.success,
+        ),
       );
       context.go('/customer');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kod doğrulanamadı: ${e.toString().replaceAll('Exception: ', '')}'), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text(
+              'Kod doğrulanamadı: ${e.toString().replaceAll('Exception: ', '')}'),
+          backgroundColor: AppColors.error,
+        ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -66,7 +80,11 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       isLoading: _isLoading,
       message: 'Kod doğrulanıyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Kodu Doğrula')),
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('Kodu Doğrula'),
+          backgroundColor: AppColors.background,
+        ),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -78,41 +96,68 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                 const Text(
                   'Doğrulama Kodunu Giriniz',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${widget.phone} numarasına gönderilen 6 haneli doğrulama kodunu aşağıdaki kutucuklara yazınız.',
+                  '${widget.phone} numarasına gönderilen 6 haneli doğrulama kodunu giriniz.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 14),
                 ),
                 const SizedBox(height: 36),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(6, (index) {
                     return SizedBox(
-                      width: 45,
-                      height: 55,
+                      width: 46,
+                      height: 58,
                       child: TextField(
                         controller: _controllers[index],
                         focusNode: _focusNodes[index],
                         keyboardType: TextInputType.number,
                         textAlign: TextAlign.center,
                         maxLength: 1,
-                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.2,
+                        ),
                         decoration: InputDecoration(
                           counterText: '',
-                          contentPadding: EdgeInsets.zero,
+                          filled: true,
+                          fillColor: const Color(0xFF1E293B), // Slate 800
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 0),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: AppColors.border, width: 1.5),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: AppColors.border, width: 1.5),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: AppColors.accent, width: 2),
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                                color: AppColors.accent, width: 2.5),
                           ),
                         ),
                         onChanged: (val) {
+                          if (val.length > 1) {
+                            // paste paste — distribute across fields
+                            _controllers[index].text = val[val.length - 1];
+                            _controllers[index].selection =
+                                TextSelection.fromPosition(
+                              TextPosition(
+                                  offset: _controllers[index].text.length),
+                            );
+                          }
                           if (val.isNotEmpty && index < 5) {
                             _focusNodes[index + 1].requestFocus();
                           } else if (val.isEmpty && index > 0) {
@@ -128,7 +173,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                 ),
                 const SizedBox(height: 36),
                 GreenButton(
-                  text: 'Kodu Doğrula',
+                  text: 'Doğrula ve Devam Et',
                   onPressed: _handleVerify,
                   isLoading: _isLoading,
                 ),

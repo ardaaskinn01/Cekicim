@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
@@ -15,7 +16,8 @@ class VerifyOtpScreen extends ConsumerStatefulWidget {
 }
 
 class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
 
@@ -36,11 +38,16 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(authNotifierProvider.notifier).verifySMSCode(widget.phone, code);
+      await ref
+          .read(authNotifierProvider.notifier)
+          .verifySMSCode(widget.phone, code);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Giriş başarılı!'), backgroundColor: AppColors.success),
+        const SnackBar(
+          content: Text('Giriş başarılı!'),
+          backgroundColor: AppColors.success,
+        ),
       );
       context.go('/driver');
     } catch (e) {
@@ -62,7 +69,11 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       isLoading: _isLoading,
       message: 'Kod doğrulanıyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Kodu Doğrula')),
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('Kodu Doğrula'),
+          backgroundColor: AppColors.background,
+        ),
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
@@ -70,36 +81,62 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 24),
+                const Icon(Icons.security, size: 64, color: AppColors.accent),
+                const SizedBox(height: 16),
                 Text(
                   '${widget.phone}\nnumarasına gönderilen 6 haneli doğrulama kodunu giriniz.',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 14),
                 ),
                 const SizedBox(height: 32),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(6, (index) {
                     return SizedBox(
-                      width: 48,
+                      width: 46,
+                      height: 58,
                       child: TextField(
                         controller: _controllers[index],
                         focusNode: _focusNodes[index],
                         textAlign: TextAlign.center,
                         keyboardType: TextInputType.number,
                         maxLength: 1,
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.2,
+                        ),
                         decoration: InputDecoration(
                           counterText: '',
+                          filled: true,
+                          fillColor: const Color(0xFF1E293B),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 0),
                           enabledBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: AppColors.border),
-                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                                const BorderSide(color: AppColors.border, width: 1.5),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(
+                                color: AppColors.accent, width: 2.5),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         onChanged: (value) {
+                          if (value.length > 1) {
+                            _controllers[index].text = value[value.length - 1];
+                            _controllers[index].selection =
+                                TextSelection.fromPosition(
+                              TextPosition(
+                                  offset: _controllers[index].text.length),
+                            );
+                          }
                           if (value.isNotEmpty && index < 5) {
                             _focusNodes[index + 1].requestFocus();
                           }
@@ -108,6 +145,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                           }
                           if (value.isNotEmpty && index == 5) {
                             FocusScope.of(context).unfocus();
+                            _handleVerify();
                           }
                         },
                       ),
