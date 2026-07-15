@@ -134,6 +134,30 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     onPressed: _handleRegister,
                     isLoading: _isLoading,
                   ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () async {
+                      setState(() => _isLoading = true);
+                      try {
+                        await ref.read(authNotifierProvider.notifier).signOut();
+                        if (mounted) {
+                          context.go('/login');
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Çıkış yapılırken hata oluştu: $e')),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isLoading = false);
+                      }
+                    },
+                    child: const Text(
+                      'Giriş Ekranına Dön / Çıkış Yap',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                  ),
                 ],
               ),
             ),
