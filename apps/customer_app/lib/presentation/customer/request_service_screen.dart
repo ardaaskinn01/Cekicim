@@ -958,7 +958,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Yakındaki Çekiciler (30 km):', style: TextStyle(color: AppColors.textSecondary)),
+                        const Text('Yakındaki Çekiciler:', style: TextStyle(color: AppColors.textSecondary)),
                         Text('${_selectedDriverIds.length} Çekici', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -981,7 +981,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Şu anda yakınınızda (30 km) aktif çekici bulunamadı. Talep oluşturulduğunda ilk aktif olan çekiciye bildirim gönderilecektir.',
+                        'Şu anda yakınınızda aktif çekici bulunamadı. Talep oluşturulduğunda ilk aktif olan çekiciye bildirim gönderilecektir.',
                         style: TextStyle(color: Colors.orange, fontSize: 11),
                       ),
                     ),
@@ -991,7 +991,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               const SizedBox(height: 16),
             ],
             const Text(
-              'Onayladığınızda 30 km yarıçapındaki müsait çekicilere alarm gönderilecektir. İlk kabul eden çekici size yönlendirilecektir.',
+              'Onayladığınızda yakındaki müsait çekicilere alarm gönderilecektir. İlk kabul eden çekici size yönlendirilecektir.',
               style: TextStyle(color: AppColors.textSecondary),
               textAlign: TextAlign.center,
             ),
