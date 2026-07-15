@@ -9,6 +9,9 @@ class MapWidget extends StatefulWidget {
   final ArgumentCallback<LatLng>? onTap;
   final bool showMyLocation;
   final bool fitMarkers;
+  final ArgumentCallback<CameraPosition>? onCameraMove;
+  final ArgumentCallback<LatLng>? onCameraIdleLatLng;
+  final bool isSelectorMode;
 
   const MapWidget({
     super.key,
@@ -18,6 +21,9 @@ class MapWidget extends StatefulWidget {
     this.onTap,
     this.showMyLocation = true,
     this.fitMarkers = true, // Default to true to fit all pins nicely
+    this.onCameraMove,
+    this.onCameraIdleLatLng,
+    this.isSelectorMode = false,
   });
 
   @override
@@ -28,6 +34,13 @@ class _MapWidgetState extends State<MapWidget> {
   GoogleMapController? _mapController;
   bool _isMapReady = false;
   bool _hasFittedMarkers = false;
+  late LatLng _currentCameraTarget;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentCameraTarget = widget.initialPosition;
+  }
 
   static const String _darkSlateMapStyle = '''
   [
@@ -48,6 +61,9 @@ class _MapWidgetState extends State<MapWidget> {
   @override
   void didUpdateWidget(covariant MapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.initialPosition != oldWidget.initialPosition) {
+      _currentCameraTarget = widget.initialPosition;
+    }
     if (_mapController != null) {
       if (widget.fitMarkers && widget.markers.isNotEmpty && !_hasFittedMarkers) {
         _hasFittedMarkers = true;
@@ -215,22 +231,33 @@ class _MapWidgetState extends State<MapWidget> {
           GoogleMap(
             initialCameraPosition: CameraPosition(
               target: widget.initialPosition,
-              zoom: 12.5,
+              zoom: 15.0, // Zoom closer for better address accuracy
             ),
             markers: widget.markers,
             polylines: widget.polylines,
             onTap: widget.onTap,
             myLocationEnabled: widget.showMyLocation,
-            myLocationButtonEnabled: widget.showMyLocation,
+            myLocationButtonEnabled: false, // Hide default to avoid layout conflict
             zoomControlsEnabled: false,
             compassEnabled: true,
+            onCameraMove: (position) {
+              _currentCameraTarget = position.target;
+              if (widget.onCameraMove != null) {
+                widget.onCameraMove!(position);
+              }
+            },
+            onCameraIdle: () {
+              if (widget.onCameraIdleLatLng != null) {
+                widget.onCameraIdleLatLng!(_currentCameraTarget);
+              }
+            },
             onMapCreated: (controller) {
               _mapController = controller;
               try {
                 _mapController!.setMapStyle(_darkSlateMapStyle);
               } catch (_) {}
               
-              if (widget.fitMarkers && widget.markers.isNotEmpty) {
+              if (widget.fitMarkers && widget.markers.isNotEmpty && !widget.isSelectorMode) {
                 _hasFittedMarkers = true;
                 Future.delayed(const Duration(milliseconds: 300), () {
                   if (mounted) _zoomToFitMarkers();
@@ -239,7 +266,7 @@ class _MapWidgetState extends State<MapWidget> {
 
               // Safely open info windows for drawn markers after a short delay
               Future.delayed(const Duration(milliseconds: 500), () {
-                if (!mounted || _mapController == null) return;
+                if (!mounted || _mapController == null || widget.isSelectorMode) return;
                 try {
                   for (final marker in widget.markers) {
                     if (marker.markerId == const MarkerId('my_current_position') ||
@@ -258,6 +285,49 @@ class _MapWidgetState extends State<MapWidget> {
               }
             },
           ),
+          if (widget.isSelectorMode && _isMapReady)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 24), // Center offset
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.directions_car_filled,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
+                    Container(
+                      width: 3,
+                      height: 10,
+                      color: AppColors.primary,
+                    ),
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Colors.black38,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (!_isMapReady)
             Positioned.fill(
               child: _buildSkeletonLoader(),

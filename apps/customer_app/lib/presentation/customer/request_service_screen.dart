@@ -96,13 +96,46 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
   Future<List<Map<String, dynamic>>> _searchAddress(String query) async {
     if (query.trim().isEmpty) return [];
+    
+    // 1. Try Google Geocoding API first
+    const googleApiKey = 'AIzaSyAgKEFl5fFWgP4Oncf9ee6yNyceR49t4NI';
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(query)}&key=$googleApiKey&components=country:tr'
+      );
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final Map<String, dynamic> data = json.decode(responseBody);
+        
+        if (data['status'] == 'OK' && data['results'] != null) {
+          final List<dynamic> results = data['results'];
+          return results.map((item) {
+            final geometry = item['geometry']['location'];
+            return {
+              'display_name': item['formatted_address'] as String,
+              'lat': geometry['lat'] as double,
+              'lon': geometry['lng'] as double,
+            };
+          }).toList();
+        } else {
+          debugPrint('Google Geocoding non-OK status: ${data['status']}');
+        }
+      }
+    } catch (e) {
+      debugPrint('Google Geocoding error: $e');
+    }
+
+    // 2. Fallback to Nominatim with a distinct User-Agent to prevent 403 blocks
     try {
       final client = HttpClient();
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=tr'
       );
       final request = await client.getUrl(uri);
-      request.headers.set('User-Agent', 'CekiciApp/1.0');
+      request.headers.set('User-Agent', 'CekicimApp-CustomerPlatform/1.0 (ardaaskinn01@gmail.com)');
       final response = await request.close();
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
@@ -116,19 +149,40 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         }).toList();
       }
     } catch (e) {
-      debugPrint('Address search error: $e');
+      debugPrint('Address search fallback error: $e');
     }
     return [];
   }
 
   Future<String?> _reverseGeocode(double lat, double lon) async {
+    // 1. Try Google Reverse Geocoding API first
+    const googleApiKey = 'AIzaSyAgKEFl5fFWgP4Oncf9ee6yNyceR49t4NI';
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/geocode/json?latlng=$lat,$lon&key=$googleApiKey'
+      );
+      final request = await client.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final Map<String, dynamic> data = json.decode(responseBody);
+        if (data['status'] == 'OK' && data['results'] != null && (data['results'] as List).isNotEmpty) {
+          return data['results'][0]['formatted_address'] as String?;
+        }
+      }
+    } catch (e) {
+      debugPrint('Google Reverse Geocoding error: $e');
+    }
+
+    // 2. Fallback to Nominatim with a distinct User-Agent to prevent 403 blocks
     try {
       final client = HttpClient();
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1'
       );
       final request = await client.getUrl(uri);
-      request.headers.set('User-Agent', 'CekiciApp/1.0');
+      request.headers.set('User-Agent', 'CekicimApp-CustomerPlatform/1.0 (ardaaskinn01@gmail.com)');
       final response = await request.close();
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join();
@@ -136,7 +190,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         return data['display_name'] as String?;
       }
     } catch (e) {
-      debugPrint('Reverse geocoding error: $e');
+      debugPrint('Reverse geocoding fallback error: $e');
     }
     return null;
   }
@@ -544,19 +598,14 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             ],
             const SizedBox(height: 12),
             SizedBox(
-              height: 200,
+              height: 250, // Make it a bit larger for premium feeling
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 child: MapWidget(
                   initialPosition: _selectedLatLng,
-                  markers: {
-                    Marker(
-                      markerId: const MarkerId('pickup_pos'),
-                      position: _selectedLatLng,
-                      infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress ?? 'Haritadan Seçilen Konum'),
-                    ),
-                  },
-                  onTap: (latLng) async {
+                  isSelectorMode: true,
+                  fitMarkers: false,
+                  onCameraIdleLatLng: (latLng) async {
                     setState(() {
                       _selectedLatLng = latLng;
                       _isPickupSelected = true;
@@ -795,11 +844,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             ],
             const SizedBox(height: 16),
             SizedBox(
-              height: 220,
+              height: 250, // Make it a bit larger for premium feeling
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: MapWidget(
                   initialPosition: _destinationLatLng ?? _selectedLatLng,
+                  isSelectorMode: true,
+                  fitMarkers: false,
                   showMyLocation: true,
                   markers: {
                     Marker(
@@ -808,15 +859,8 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                       infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress),
                       icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                     ),
-                    if (_destinationLatLng != null)
-                      Marker(
-                        markerId: const MarkerId('destination_pos'),
-                        position: _destinationLatLng!,
-                        infoWindow: InfoWindow(title: 'Gidilecek Yer', snippet: _destinationAddress),
-                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-                      ),
                   },
-                  onTap: (latLng) async {
+                  onCameraIdleLatLng: (latLng) async {
                     setState(() {
                       _destinationLatLng = latLng;
                     });
