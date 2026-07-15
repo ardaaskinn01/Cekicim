@@ -210,6 +210,18 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       );
                   },
                 ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 1,
+        onTap: (index) {
+          if (index == 0) context.go('/customer');
+          if (index == 2) context.go('/customer/profile');
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Geçmiş'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+        ],
+      ),
     );
   }
 }

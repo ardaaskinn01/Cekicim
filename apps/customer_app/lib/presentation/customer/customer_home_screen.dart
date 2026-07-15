@@ -99,11 +99,10 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
+        currentIndex: 0,
         onTap: (index) {
-          setState(() => _selectedIndex = index);
-          if (index == 1) context.push('/customer/history');
-          if (index == 2) context.push('/customer/profile');
+          if (index == 1) context.go('/customer/history');
+          if (index == 2) context.go('/customer/profile');
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Ana Sayfa'),

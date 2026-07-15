@@ -174,9 +174,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ],
             ),
-          ),
         ),
       ),
-    );
-  }
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: 2,
+        onTap: (index) {
+          if (index == 0) context.go('/customer');
+          if (index == 1) context.go('/customer/history');
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Geçmiş'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+        ],
+      ),
+    ),
+  );
+}
 }
