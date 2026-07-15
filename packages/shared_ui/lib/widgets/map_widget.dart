@@ -14,6 +14,7 @@ class MapWidget extends StatefulWidget {
   final ArgumentCallback<CameraPosition>? onCameraMove;
   final ArgumentCallback<LatLng>? onCameraIdleLatLng;
   final bool isSelectorMode;
+  final void Function(double zoom)? onZoomChanged;
 
   const MapWidget({
     super.key,
@@ -26,6 +27,7 @@ class MapWidget extends StatefulWidget {
     this.onCameraMove,
     this.onCameraIdleLatLng,
     this.isSelectorMode = false,
+    this.onZoomChanged,
   });
 
   @override
@@ -256,6 +258,9 @@ class _MapWidgetState extends State<MapWidget> {
               _currentCameraTarget = position.target;
               if (widget.onCameraMove != null) {
                 widget.onCameraMove!(position);
+              }
+              if (widget.onZoomChanged != null) {
+                widget.onZoomChanged!(position.zoom);
               }
             },
             onCameraIdle: () {

@@ -73,9 +73,11 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
             if (mounted) context.push('/driver/offer/$reqId');
           });
         }
-      } else {
+      } else if (list != null && list.isEmpty) {
         // List is empty — reset so next offer can be navigated to
         _lastNavigatedOfferId = null;
+        // Force invalidate the stream so future offers are picked up fresh
+        ref.invalidate(pendingOffersProvider);
       }
     });
 

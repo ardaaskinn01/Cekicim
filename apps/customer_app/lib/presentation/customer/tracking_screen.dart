@@ -107,6 +107,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
   bool _isRealtimeSubscribed = false;
 
   BitmapDescriptor? _driverIcon;
+  double _currentZoom = 15.0;
+  bool _isPanelVisible = true;
 
   @override
   void initState() {
@@ -124,9 +126,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
       });
   }
 
-  Future<void> _loadCustomMarker() async {
+  Future<void> _loadCustomMarker({double zoom = 15.0}) async {
+    final int size = zoom < 12 ? 36 : (zoom < 14 ? 48 : 60);
     try {
-      final icon = await _getBytesFromCanvas(100, 100, Icons.rv_hookup, AppColors.success);
+      final icon = await _getBytesFromCanvas(size, size, Icons.rv_hookup, AppColors.success);
       if (mounted) {
         setState(() {
           _driverIcon = icon;
@@ -527,12 +530,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                           request.status == RequestStatus.inProgress) &&
                       driver.iban != null) ...
                     [
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.all(14),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
                         ),
                         child: Column(
@@ -540,29 +543,27 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.account_balance, color: AppColors.primary, size: 16),
+                                const Icon(Icons.account_balance, color: AppColors.primary, size: 14),
                                 const SizedBox(width: 6),
                                 const Text(
                                   'Ödeme Bilgisi',
-                                  style: TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                                 const Spacer(),
-                                const Icon(Icons.lock_outline, color: AppColors.primary, size: 14),
-                                const SizedBox(width: 4),
-                                const Text('Güvenli', style: TextStyle(color: AppColors.primary, fontSize: 10)),
+                                const Icon(Icons.lock_outline, color: AppColors.primary, size: 12),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 6),
                             if (driver.ibanOwnerName != null)
                               Text(
                                 driver.ibanOwnerName!,
                                 style: const TextStyle(
                                   color: AppColors.textPrimary,
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 14,
+                                  fontSize: 12,
                                 ),
                               ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Row(
                               children: [
                                 Expanded(
@@ -571,13 +572,13 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                                     style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontFamily: 'monospace',
-                                      fontSize: 14,
-                                      letterSpacing: 1.2,
+                                      fontSize: 12,
+                                      letterSpacing: 1.0,
                                     ),
                                   ),
                                 ),
-                                IconButton(
-                                  onPressed: () {
+                                GestureDetector(
+                                  onTap: () {
                                     Clipboard.setData(ClipboardData(text: driver.iban!));
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -587,16 +588,12 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                                       ),
                                     );
                                   },
-                                  icon: const Icon(Icons.copy, color: AppColors.accent, size: 18),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(),
+                                  child: const Padding(
+                                    padding: EdgeInsets.only(left: 8),
+                                    child: Icon(Icons.copy, color: AppColors.accent, size: 15),
+                                  ),
                                 ),
                               ],
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'Hizmet bedelini tamamlanma sonrası bu hesaba transfer ediniz.',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
                             ),
                           ],
                         ),
@@ -616,10 +613,17 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                 markers: markers,
                 polylines: polylines,
                 showMyLocation: false,
+                onZoomChanged: (zoom) {
+                  if ((zoom - _currentZoom).abs() > 0.8) {
+                    _currentZoom = zoom;
+                    _loadCustomMarker(zoom: zoom);
+                  }
+                },
               ),
+              // Sol üst: geri butonu
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(12.0),
                   child: Row(
                     children: [
                       Container(
@@ -674,61 +678,104 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                 left: 0,
                 right: 0,
                 bottom: 0,
-                child: GlassContainer(
-                  padding: const EdgeInsets.all(24),
-                  borderRadius: 24,
-                  opacity: 0.85,
-                  border: const Border(top: BorderSide(color: AppColors.border, width: 1.5)),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance) ...[
-                        const CircularProgressIndicator(color: AppColors.accent),
-                        const SizedBox(height: 16),
-                        Text(
-                          request.status == RequestStatus.pending ? 'En yakın çekiciler aranıyor...' : 'Seçilen çekicilerden onay bekleniyor...', 
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                        ),
-                        const SizedBox(height: 24),
-                      ] else ...[
-                        driverInfoWidget,
-                         if (request.status == RequestStatus.accepted && request.completionCode != null) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.primary),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text('Yolcu Biniş Doğrulama Kodu', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                const SizedBox(height: 4),
-                                Text(
-                                  request.completionCode!,
-                                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 8, color: AppColors.primary),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text('Sürücü geldiğinde bu kodu vererek binişinizi onaylayın.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                              ],
-                            ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Toggle button — ortada, yuvarlak, arkaplanı saydam
+                    Center(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _isPanelVisible = !_isPanelVisible),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          margin: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.border),
                           ),
-                        ],
-                        const SizedBox(height: 24),
-                      ],
-                      if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance || request.status == RequestStatus.accepted)
-                        OutlinedButton(
-                          onPressed: () => _cancelRequest(request),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
-                            minimumSize: const Size.fromHeight(50),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _isPanelVisible ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                                color: AppColors.textSecondary,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _isPanelVisible ? 'Gizle' : 'Bilgileri Göster',
+                                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                              ),
+                            ],
                           ),
-                          child: const Text('Talebi İptal Et'),
                         ),
-                    ],
-                  ),
+                      ),
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 280),
+                      curve: Curves.easeInOut,
+                      child: _isPanelVisible
+                          ? GlassContainer(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              borderRadius: 24,
+                              opacity: 0.85,
+                              border: const Border(top: BorderSide(color: AppColors.border, width: 1.5)),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance) ...[
+                                    const CircularProgressIndicator(color: AppColors.accent),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      request.status == RequestStatus.pending ? 'En yakın çekiciler aranıyor...' : 'Seçilen çekicilerden onay bekleniyor...', 
+                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)
+                                    ),
+                                    const SizedBox(height: 16),
+                                  ] else ...[
+                                    driverInfoWidget,
+                                    if (request.status == RequestStatus.accepted && request.completionCode != null) ...[
+                                      const SizedBox(height: 10),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surface,
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(color: AppColors.primary),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.qr_code_2, color: AppColors.primary, size: 16),
+                                            const SizedBox(width: 8),
+                                            const Text('Doğrulama Kodu:', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              request.completionCode!,
+                                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 6, color: AppColors.primary),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                  ],
+                                  if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance || request.status == RequestStatus.accepted)
+                                    OutlinedButton(
+                                      onPressed: () => _cancelRequest(request),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.error,
+                                        side: const BorderSide(color: AppColors.error),
+                                        minimumSize: const Size.fromHeight(46),
+                                      ),
+                                      child: const Text('Talebi İptal Et'),
+                                    ),
+                                ],
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ],
                 ),
               ),
             ],

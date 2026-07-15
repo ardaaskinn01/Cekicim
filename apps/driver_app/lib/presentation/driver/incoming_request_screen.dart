@@ -25,7 +25,9 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   bool _isLoading = false;
   bool _hasLoadedRequest = false; // Guard: don't redirect until first real data arrives
   bool _navigationPending = false; // Guard: prevent duplicate go('/driver')
+  bool _loadingTimedOut = false;
   Timer? _timer;
+  Timer? _loadingTimeoutTimer;
   int _timeLeft = 15; // 15 seconds to accept
 
   List<LatLng> _routePoints = [];
@@ -36,6 +38,12 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   void initState() {
     super.initState();
     _startTimer();
+    // If stream doesn't resolve within 5 seconds, show retry UI
+    _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted && !_hasLoadedRequest) {
+        setState(() => _loadingTimedOut = true);
+      }
+    });
   }
 
   void _startTimer() {
@@ -69,6 +77,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _loadingTimeoutTimer?.cancel();
     super.dispose();
   }
 
@@ -172,7 +181,52 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: requestAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+          loading: () {
+            if (_loadingTimedOut) {
+              return Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off_rounded, color: AppColors.textSecondary, size: 48),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Talep yüklenemedi.',
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Bağlantı sorunu yaşanıyor olabilir.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _loadingTimedOut = false;
+                          _loadingTimeoutTimer?.cancel();
+                          _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
+                            if (mounted && !_hasLoadedRequest) setState(() => _loadingTimedOut = true);
+                          });
+                        });
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tekrar Dene'),
+                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () {
+                        _timer?.cancel();
+                        if (mounted) context.go('/driver');
+                      },
+                      child: const Text('Ana Sayfaya Dön', style: TextStyle(color: AppColors.textSecondary)),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          },
           error: (err, st) => Center(child: Text('Hata: $err', style: const TextStyle(color: Colors.white))),
           data: (request) {
             final user = ref.watch(currentUserProvider).value;
