@@ -26,6 +26,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    final currentPhone = Supabase.instance.client.auth.currentUser?.phone ?? '';
+    _phoneController.text = currentPhone;
+  }
+
+  @override
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
@@ -40,11 +47,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final phone = Supabase.instance.client.auth.currentUser?.phone ?? '';
-
       await ref.read(authNotifierProvider.notifier).completeProfile(
         fullName: _fullNameController.text.trim(),
-        phone: phone,
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
       );
 
       if (!mounted) return;
@@ -89,7 +95,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Uygulamayı kullanmaya başlamak için lütfen adınızı giriniz.',
+                    'Uygulamayı kullanmaya başlamak için lütfen bilgilerinizi tamamlayın.',
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   ),
                   const SizedBox(height: 24),
@@ -98,6 +104,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: 'Ad Soyad',
                     prefixIcon: Icons.person_outline,
                     validator: (val) => val == null || val.trim().isEmpty ? 'Ad soyad gereklidir' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  AppTextField(
+                    controller: _phoneController,
+                    label: 'Telefon Numarası',
+                    prefixIcon: Icons.phone_android_outlined,
+                    keyboardType: TextInputType.phone,
+                    validator: (val) => val == null || val.trim().isEmpty ? 'Telefon numarası gereklidir' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  AppTextField(
+                    controller: _emailController,
+                    label: 'E-posta Adresi (İsteğe bağlı)',
+                    prefixIcon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (val) {
+                      if (val != null && val.trim().isNotEmpty) {
+                        if (!val.contains('@') || !val.contains('.')) {
+                          return 'Geçersiz e-posta adresi';
+                        }
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 32),
                   GreenButton(

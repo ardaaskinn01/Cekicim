@@ -76,6 +76,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   Future<void> completeProfile({
     required String fullName,
     required String phone,
+    String? email,
     String? vehiclePlate,
   }) async {
     state = const AsyncValue.loading();
@@ -85,6 +86,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
         phone: phone,
         role: UserRole.customer,
         vehiclePlate: vehiclePlate,
+        email: email,
       );
       state = AsyncValue.data(user);
     } catch (e, st) {

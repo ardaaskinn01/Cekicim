@@ -191,6 +191,7 @@ class AuthRepository {
     required String phone,
     required UserRole role,
     String? vehiclePlate,
+    String? email,
   }) async {
     final user = _client.auth.currentUser;
     if (user == null) {
@@ -211,7 +212,7 @@ class AuthRepository {
     // Insert profile
     await _client.from('profiles').insert({
       'id': user.id,
-      'email': user.email ?? '$normalizedPhone@phone.user',
+      'email': email ?? user.email ?? '$normalizedPhone@phone.user',
       'full_name': fullName,
       'phone': normalizedPhone,
       'role': role.dbValue,
