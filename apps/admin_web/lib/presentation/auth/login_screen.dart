@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_models/user_role.dart';
 import 'package:shared_ui/app_colors.dart';
 
 import '../../providers/auth_provider.dart';
@@ -49,6 +50,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // Verify OTP
         final code = _otpController.text.trim();
         await ref.read(authNotifierProvider.notifier).verifySMSCode(phone, code);
+        
+        // Let's verify if the logged in user is actually an admin!
+        final currentUser = await ref.read(currentUserProvider.future);
+        if (currentUser == null || currentUser.role != UserRole.admin) {
+          throw Exception('Bu telefon numarası yetkili bir yönetici (admin) hesabına ait değil!');
+        }
         
         if (!mounted) return;
         context.go('/admin');

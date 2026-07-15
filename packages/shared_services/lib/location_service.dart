@@ -113,13 +113,35 @@ class LocationService {
       );
     }
 
-    final realPos = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
-    );
-
-    return _mockToAnkara(realPos);
+    try {
+      final realPos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+        timeLimit: const Duration(seconds: 4),
+      );
+      return _mockToAnkara(realPos);
+    } catch (e) {
+      // Fallback if location request times out or fails (e.g. emulator issue)
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null) {
+        return _mockToAnkara(lastKnown);
+      }
+      return Position(
+        latitude: ankaraLat + _stableSeedOffsetLat,
+        longitude: ankaraLng + _stableSeedOffsetLng,
+        timestamp: DateTime.now(),
+        accuracy: 10,
+        altitude: 0,
+        altitudeAccuracy: 0,
+        heading: 0,
+        headingAccuracy: 0,
+        speed: 0,
+        speedAccuracy: 0,
+        floor: null,
+        isMocked: true,
+      );
+    }
   }
 
   Stream<Position> watchPosition() {

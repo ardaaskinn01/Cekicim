@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/user_model.dart';
@@ -16,14 +17,28 @@ final authStateProvider = StreamProvider<AuthState>((ref) {
 final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   ref.watch(authStateProvider);
   final repo = ref.watch(authRepositoryProvider);
-  final user = await repo.getCurrentUser(UserRole.admin);
-  if (user != null) {
+  try {
+    final user = await repo.getCurrentUser(UserRole.admin);
+    if (user == null) {
+      final session = SupabaseService.instance.client.auth.currentSession;
+      if (session != null) {
+        debugPrint('currentUserProvider: User has session but no admin profile. Signing out.');
+        await repo.signOut();
+      }
+      return null;
+    }
     if (user.role != UserRole.admin) {
       await repo.signOut();
       return null;
     }
+    return user;
+  } catch (e) {
+    debugPrint('currentUserProvider error (auto sign-out): $e');
+    try {
+      await repo.signOut();
+    } catch (_) {}
+    return null;
   }
-  return user;
 });
 
 class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
