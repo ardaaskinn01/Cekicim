@@ -127,7 +127,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
   }
 
   Future<void> _loadCustomMarker({double zoom = 15.0}) async {
-    final int size = zoom < 12 ? 36 : (zoom < 14 ? 48 : 60);
+    final int size = zoom < 12 ? 18 : (zoom < 14 ? 24 : 30);
     try {
       final icon = await _getBytesFromCanvas(size, size, Icons.rv_hookup, AppColors.success);
       if (mounted) {
