@@ -337,6 +337,13 @@ class RequestRepository {
       'cancelled_at': DateTime.now().toIso8601String(),
     }).eq('id', requestId);
 
+    // Cancel all pending offers for this request to notify drivers
+    try {
+      await _client.from('pending_offers').update({
+        'status': 'cancelled',
+      }).eq('request_id', requestId);
+    } catch (_) {}
+
     if (request.driverId != null) {
       await _client.from('drivers').update({
         'current_request_id': null,
@@ -351,6 +358,13 @@ class RequestRepository {
       'cancellation_reason': reason,
       'cancelled_at': DateTime.now().toIso8601String(),
     }).eq('id', requestId);
+
+    // Cancel all pending offers for this request to notify drivers
+    try {
+      await _client.from('pending_offers').update({
+        'status': 'cancelled',
+      }).eq('request_id', requestId);
+    } catch (_) {}
 
     await _client.from('drivers').update({
       'current_request_id': null,

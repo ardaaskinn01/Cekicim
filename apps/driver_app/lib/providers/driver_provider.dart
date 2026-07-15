@@ -131,11 +131,19 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
 
   void _startLocationSharing() {
     _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    
+    Future<void> updateLoc() async {
       try {
         final pos = await _locationService.getCurrentLocation();
         await _requestRepo.updateDriverLocation(_driverId, pos.latitude, pos.longitude);
       } catch (_) {}
+    }
+
+    // Update location immediately on resume/activation
+    updateLoc();
+
+    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      await updateLoc();
     });
   }
 
