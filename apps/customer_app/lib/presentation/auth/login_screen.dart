@@ -98,7 +98,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Hesabınıza Giriş Yapın',
+                        'Telefon numaranız ile giriş yapın veya yeni hesap oluşturun',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                       ),
@@ -119,26 +119,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         text: 'Giriş Yap / Kod Gönder',
                         onPressed: _handleLogin,
                         isLoading: _isLoading,
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Hesabınız yok mu? ',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                          GestureDetector(
-                            onTap: () => context.push('/register'),
-                            child: const Text(
-                              'Kayıt Olun',
-                              style: TextStyle(
-                                color: AppColors.accent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),

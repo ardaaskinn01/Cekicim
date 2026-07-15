@@ -78,7 +78,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Çekicim ile hizmet vermeye başlamak için giriş yapın.',
+                    'Sürücü girişi yapmak veya yeni hesap oluşturmak için telefon numaranızı girin.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   ),
@@ -99,20 +99,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     text: 'Giriş Yap / Kod Gönder',
                     onPressed: _handleLogin,
                     isLoading: _isLoading,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Hesabınız yok mu?', style: TextStyle(color: AppColors.textSecondary)),
-                      TextButton(
-                        onPressed: () => context.go('/register'),
-                        child: const Text(
-                          'Sürücü Ol',
-                          style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),

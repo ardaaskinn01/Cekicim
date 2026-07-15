@@ -31,7 +31,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isSplashing = state.uri.path == '/splash';
       final isAuthRoute = state.uri.path.startsWith('/login') ||
-          state.uri.path.startsWith('/register') ||
           state.uri.path.startsWith('/forgot-password') ||
           state.uri.path.startsWith('/verify-otp') ||
           state.uri.path.startsWith('/reset-password');
