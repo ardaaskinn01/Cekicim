@@ -114,6 +114,10 @@ class AuthRepository {
   }
 
   Future<UserModel?> getCurrentUser(UserRole expectedRole) async {
+    if (_client.auth.currentSession == null) {
+      return null;
+    }
+
     User? user;
     try {
       final response = await _client.auth.getUser();
