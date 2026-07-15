@@ -25,6 +25,13 @@ class RequestRepository {
     }).eq('id', driverId);
   }
 
+  Future<void> resetDriverAvailability(String driverId) async {
+    await _client.from('drivers').update({
+      'current_request_id': null,
+      'is_available': true,
+    }).eq('id', driverId);
+  }
+
   Stream<DriverModel> watchDriverLocation(String driverId) {
     return _client
         .from('drivers')

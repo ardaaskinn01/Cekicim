@@ -288,6 +288,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
           _isCancellationDialogShown = true;
           _trackingService.stopTracking();
           _isTrackingStarted = false;
+          ref.read(requestRepositoryProvider).resetDriverAvailability(user.id).catchError((_) {});
           if (mounted) {
             showDialog(
               context: context,
