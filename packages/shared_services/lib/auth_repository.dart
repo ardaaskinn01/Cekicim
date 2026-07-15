@@ -114,7 +114,18 @@ class AuthRepository {
   }
 
   Future<UserModel?> getCurrentUser(UserRole expectedRole) async {
-    final user = _client.auth.currentUser;
+    User? user;
+    try {
+      final response = await _client.auth.getUser();
+      user = response.user;
+    } catch (e) {
+      debugPrint('getCurrentUser: session validation failed, signing out: $e');
+      try {
+        await signOut();
+      } catch (_) {}
+      return null;
+    }
+
     if (user == null) return null;
 
     final profileData = await _client
