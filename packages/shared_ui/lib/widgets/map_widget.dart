@@ -69,9 +69,14 @@ class _MapWidgetState extends State<MapWidget> {
         _hasFittedMarkers = true;
         _zoomToFitMarkers();
       } else if (!widget.fitMarkers && widget.initialPosition != oldWidget.initialPosition) {
-        _mapController!.animateCamera(
-          CameraUpdate.newLatLng(widget.initialPosition),
-        );
+        // Only animate if the camera is not already at the initialPosition (e.g. from search/current location clicks)
+        final double latDiff = (widget.initialPosition.latitude - _currentCameraTarget.latitude).abs();
+        final double lngDiff = (widget.initialPosition.longitude - _currentCameraTarget.longitude).abs();
+        if (latDiff > 0.00001 || lngDiff > 0.00001) {
+          _mapController!.animateCamera(
+            CameraUpdate.newLatLng(widget.initialPosition),
+          );
+        }
       }
     }
   }
