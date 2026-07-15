@@ -121,6 +121,73 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     return [];
   }
 
+  Future<String?> _reverseGeocode(double lat, double lon) async {
+    try {
+      final client = HttpClient();
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?lat=$lat&lon=$lon&format=json&addressdetails=1'
+      );
+      final request = await client.getUrl(uri);
+      request.headers.set('User-Agent', 'CekiciApp/1.0');
+      final response = await request.close();
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final Map<String, dynamic> data = json.decode(responseBody);
+        return data['display_name'] as String?;
+      }
+    } catch (e) {
+      debugPrint('Reverse geocoding error: $e');
+    }
+    return null;
+  }
+
+  Future<void> _useCurrentLocationForPickup() async {
+    setState(() => _isLoading = true);
+    try {
+      final position = await Geolocator.getCurrentPosition();
+      final latLng = LatLng(position.latitude, position.longitude);
+      final address = await _reverseGeocode(latLng.latitude, latLng.longitude);
+      
+      setState(() {
+        _selectedLatLng = latLng;
+        _pickupAddress = address ?? 'Konumum (${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)})';
+        _isPickupSelected = true;
+        _pickupSearchController.text = _pickupAddress!;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Konum bilgisi alınamadı: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _useCurrentLocationForDropoff() async {
+    setState(() => _isLoading = true);
+    try {
+      final position = await Geolocator.getCurrentPosition();
+      final latLng = LatLng(position.latitude, position.longitude);
+      final address = await _reverseGeocode(latLng.latitude, latLng.longitude);
+      
+      setState(() {
+        _destinationLatLng = latLng;
+        _destinationAddress = address ?? 'Konumum (${latLng.latitude.toStringAsFixed(4)}, ${latLng.longitude.toStringAsFixed(4)})';
+        _dropoffSearchController.text = _destinationAddress!;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Konum bilgisi alınamadı: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.camera);
@@ -441,6 +508,19 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ],
             ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: _useCurrentLocationForPickup,
+                  icon: const Icon(Icons.my_location, color: AppColors.primary, size: 18),
+                  label: const Text(
+                    'Şu Anki Konumumu Kullan',
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
             if (_pickupSearchResults.isNotEmpty) ...[
               const SizedBox(height: 8),
               Card(
@@ -462,30 +542,36 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ),
             ],
-            if (_isPickupSelected) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 200,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: MapWidget(
-                    initialPosition: _selectedLatLng,
-                    markers: {
-                      Marker(
-                        markerId: const MarkerId('pickup_pos'),
-                        position: _selectedLatLng,
-                        infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress),
-                      ),
-                    },
-                    onTap: (latLng) {
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 200,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: MapWidget(
+                  initialPosition: _selectedLatLng,
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('pickup_pos'),
+                      position: _selectedLatLng,
+                      infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress ?? 'Haritadan Seçilen Konum'),
+                    ),
+                  },
+                  onTap: (latLng) async {
+                    setState(() {
+                      _selectedLatLng = latLng;
+                      _isPickupSelected = true;
+                    });
+                    final address = await _reverseGeocode(latLng.latitude, latLng.longitude);
+                    if (address != null && mounted) {
                       setState(() {
-                        _selectedLatLng = latLng;
+                        _pickupAddress = address;
+                        _pickupSearchController.text = address;
                       });
-                    },
-                  ),
+                    }
+                  },
                 ),
               ),
-            ],
+            ),
             const SizedBox(height: 20),
             const Text('Araç Türü *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
@@ -674,6 +760,19 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ],
             ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton.icon(
+                  onPressed: _useCurrentLocationForDropoff,
+                  icon: const Icon(Icons.my_location, color: AppColors.primary, size: 18),
+                  label: const Text(
+                    'Şu Anki Konumumu Kullan',
+                    style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
             if (_dropoffSearchResults.isNotEmpty) ...[
               const SizedBox(height: 8),
               Card(
@@ -694,33 +793,44 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ),
             ],
-            if (_destinationLatLng != null) ...[
-              const SizedBox(height: 16),
-              SizedBox(
-                height: 220,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: MapWidget(
-                    initialPosition: _destinationLatLng!,
-                    showMyLocation: true,
-                    markers: {
-                      Marker(
-                        markerId: const MarkerId('pickup_pos'),
-                        position: _selectedLatLng,
-                        infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress),
-                        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-                      ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 220,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: MapWidget(
+                  initialPosition: _destinationLatLng ?? _selectedLatLng,
+                  showMyLocation: true,
+                  markers: {
+                    Marker(
+                      markerId: const MarkerId('pickup_pos'),
+                      position: _selectedLatLng,
+                      infoWindow: InfoWindow(title: 'Alınacak Konum', snippet: _pickupAddress),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                    ),
+                    if (_destinationLatLng != null)
                       Marker(
                         markerId: const MarkerId('destination_pos'),
                         position: _destinationLatLng!,
                         infoWindow: InfoWindow(title: 'Gidilecek Yer', snippet: _destinationAddress),
                         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
                       ),
-                    },
-                  ),
+                  },
+                  onTap: (latLng) async {
+                    setState(() {
+                      _destinationLatLng = latLng;
+                    });
+                    final address = await _reverseGeocode(latLng.latitude, latLng.longitude);
+                    if (address != null && mounted) {
+                      setState(() {
+                        _destinationAddress = address;
+                        _dropoffSearchController.text = address;
+                      });
+                    }
+                  },
                 ),
               ),
-            ],
+            ),
           ],
         );
       case 2:
