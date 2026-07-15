@@ -154,17 +154,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       setState(() => _isLoading = true);
                       try {
                         await ref.read(authNotifierProvider.notifier).signOut();
-                        if (mounted) {
+                        if (context.mounted) {
                           context.go('/login');
                         }
                       } catch (e) {
-                        if (mounted) {
+                        if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(content: Text('Çıkış yapılırken hata oluştu: $e')),
                           );
                         }
                       } finally {
-                        if (mounted) setState(() => _isLoading = false);
+                        if (context.mounted) setState(() => _isLoading = false);
                       }
                     },
                     child: const Text(

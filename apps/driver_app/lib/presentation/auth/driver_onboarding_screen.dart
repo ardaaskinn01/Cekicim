@@ -447,14 +447,13 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
       await repo.updateUserProfile(updatedDriver);
 
+      if (!mounted) return;
+
       // Invalidate the future provider so that GoRouter gets the updated user model
       ref.invalidate(currentUserProvider);
       
-      // Wait for it to fetch the updated user from Supabase and refresh the cache
-      await ref.read(currentUserProvider.future);
-
-      // Refresh auth notifier state and wait for it to complete
-      await ref.read(authNotifierProvider.notifier).loadCurrentUser();
+      // Refresh auth notifier state
+      ref.read(authNotifierProvider.notifier).loadCurrentUser();
     } catch (e, stack) {
       debugPrint('Onboarding submit error: $e');
       debugPrint('Onboarding submit stack: $stack');

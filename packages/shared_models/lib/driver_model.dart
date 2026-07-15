@@ -126,6 +126,7 @@ class DriverModel extends UserModel {
       'iban': iban,
       'iban_owner_name': ibanOwnerName,
       'rejection_reason': rejectionReason,
+      'is_onboarding_completed': isOnboardingCompleted,
     };
   }
 
