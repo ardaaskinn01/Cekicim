@@ -9,12 +9,67 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 /// Top-level background message handler — must be a top-level function.
 /// Android requires this for background/terminated FCM messages.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // System shows the notification automatically from FCM payload.
-  // No UI work allowed here.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (_) {}
+
+  try {
+    final notification = message.notification;
+    final title = notification?.title ?? message.data['title'] ?? '🚨 Yeni Yol Yardım Talebi!';
+    final body = notification?.body ?? message.data['body'] ?? 'Yakınınızda yeni bir talep var. Hemen inceleyin!';
+
+    final localNotifications = FlutterLocalNotificationsPlugin();
+    
+    // Initialize inside background isolate
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    await localNotifications.initialize(
+      const InitializationSettings(android: androidSettings, iOS: iosSettings),
+    );
+
+    const androidDetails = AndroidNotificationDetails(
+      'cekici_alerts_v2',
+      'Çekici Bildirimleri',
+      channelDescription: 'Yeni teklif ve yol yardım bildirim kanalı',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      sound: RawResourceAndroidNotificationSound('bg_alarm2'),
+      playSound: true,
+      fullScreenIntent: true,
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentSound: true,
+      sound: 'bg_alarm2.mp3',
+    );
+
+    const notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      notificationDetails,
+    );
+  } catch (e) {
+    debugPrint('Background message handle error: $e');
+  }
 }
 
 void main() async {
