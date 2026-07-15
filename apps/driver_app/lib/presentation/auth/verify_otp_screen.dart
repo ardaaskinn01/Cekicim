@@ -22,6 +22,25 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Attach backspace listeners to each focus node
+    for (int i = 0; i < 6; i++) {
+      final idx = i;
+      _focusNodes[idx].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace &&
+            _controllers[idx].text.isEmpty &&
+            idx > 0) {
+          _focusNodes[idx - 1].requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
+    }
+  }
+
+  @override
   void dispose() {
     for (var c in _controllers) {
       c.dispose();
@@ -118,8 +137,8 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 14, horizontal: 0),
                           enabledBorder: OutlineInputBorder(
-                            borderSide:
-                                const BorderSide(color: AppColors.border, width: 1.5),
+                            borderSide: const BorderSide(
+                                color: AppColors.border, width: 1.5),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           focusedBorder: OutlineInputBorder(
@@ -130,7 +149,8 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                         ),
                         onChanged: (value) {
                           if (value.length > 1) {
-                            _controllers[index].text = value[value.length - 1];
+                            _controllers[index].text =
+                                value[value.length - 1];
                             _controllers[index].selection =
                                 TextSelection.fromPosition(
                               TextPosition(
@@ -140,9 +160,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                           if (value.isNotEmpty && index < 5) {
                             _focusNodes[index + 1].requestFocus();
                           }
-                          if (value.isEmpty && index > 0) {
-                            _focusNodes[index - 1].requestFocus();
-                          }
+                          // when last digit filled, auto-submit
                           if (value.isNotEmpty && index == 5) {
                             FocusScope.of(context).unfocus();
                             _handleVerify();

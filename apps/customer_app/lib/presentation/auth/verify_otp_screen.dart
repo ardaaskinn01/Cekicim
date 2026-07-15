@@ -22,6 +22,25 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Attach backspace listeners to each focus node
+    for (int i = 0; i < 6; i++) {
+      final idx = i;
+      _focusNodes[idx].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace &&
+            _controllers[idx].text.isEmpty &&
+            idx > 0) {
+          _focusNodes[idx - 1].requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
+    }
+  }
+
+  @override
   void dispose() {
     for (var c in _controllers) {
       c.dispose();
@@ -134,7 +153,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                         decoration: InputDecoration(
                           counterText: '',
                           filled: true,
-                          fillColor: const Color(0xFF1E293B), // Slate 800
+                          fillColor: const Color(0xFF1E293B),
                           contentPadding: const EdgeInsets.symmetric(
                               vertical: 14, horizontal: 0),
                           enabledBorder: OutlineInputBorder(
@@ -150,7 +169,6 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                         ),
                         onChanged: (val) {
                           if (val.length > 1) {
-                            // paste paste — distribute across fields
                             _controllers[index].text = val[val.length - 1];
                             _controllers[index].selection =
                                 TextSelection.fromPosition(
@@ -160,9 +178,8 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                           }
                           if (val.isNotEmpty && index < 5) {
                             _focusNodes[index + 1].requestFocus();
-                          } else if (val.isEmpty && index > 0) {
-                            _focusNodes[index - 1].requestFocus();
                           }
+                          // backspace on non-empty → handled by onKeyEvent
                           if (_otpCode.length == 6) {
                             _handleVerify();
                           }

@@ -209,15 +209,15 @@ class AuthRepository {
       }
     }
 
-    // Insert profile
-    await _client.from('profiles').insert({
+    // Upsert profile (handles re-registration without duplicate key errors)
+    await _client.from('profiles').upsert({
       'id': user.id,
       'email': email ?? user.email ?? '$normalizedPhone@phone.user',
       'full_name': fullName,
       'phone': normalizedPhone,
       'role': role.dbValue,
       'is_verified': false,
-    });
+    }, onConflict: 'id');
 
     final userModel = UserModel(
       id: user.id,
@@ -230,11 +230,11 @@ class AuthRepository {
 
     // If driver, insert driver record
     if (role == UserRole.driver && vehiclePlate != null) {
-      await _client.from('drivers').insert({
+      await _client.from('drivers').upsert({
         'id': user.id,
         'vehicle_plate': vehiclePlate,
         'is_onboarding_completed': false,
-      });
+      }, onConflict: 'id');
 
       return DriverModel(
         id: user.id,
