@@ -110,7 +110,9 @@ Deno.serve(async (req) => {
           body: JSON.stringify(messageBody),
         })
 
-        return response.json()
+        const resJson = await response.json()
+        console.log(`FCM response for token ${token.substring(0, 10)}... :`, JSON.stringify(resJson))
+        return resJson
       })
     )
 
@@ -119,7 +121,8 @@ Deno.serve(async (req) => {
       status: 200,
     })
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error("send_driver_alarms error:", err);
+    return new Response(JSON.stringify({ error: err.message || err }), {
       headers: { 'Content-Type': 'application/json' },
       status: 500,
     })
