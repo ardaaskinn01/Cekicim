@@ -75,49 +75,73 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       final client = SupabaseService.instance.client;
 
       // 1. Fetch requests
-      final requestsData = await client
-          .from('service_requests')
-          .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name), ratings(*)')
-          .order('created_at', ascending: false);
-
-      _allRequests = (requestsData as List)
-          .map((json) => ServiceRequestModel.fromJson(json))
-          .toList();
+      try {
+        final requestsData = await client
+            .from('service_requests')
+            .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name), ratings(*)')
+            .order('created_at', ascending: false);
+        _allRequests = (requestsData as List)
+            .map((json) => ServiceRequestModel.fromJson(json))
+            .toList();
+      } catch (e) {
+        debugPrint('[AdminPanel] service_requests load error: $e');
+      }
 
       // 2. Fetch unverified drivers (onboarding completed but not verified)
-      // Show drivers who have a vehicle plate AND either IBAN or a driver license uploaded
-      final unverifiedData = await client
-          .from('drivers')
-          .select('*, profiles(*)')
-          .eq('is_verified', false)
-          .neq('vehicle_plate', '')
-          .or('iban.not.is.null,driver_license_url.not.is.null');
-
-      _unverifiedDrivers = List<Map<String, dynamic>>.from(unverifiedData);
+      try {
+        final unverifiedData = await client
+            .from('drivers')
+            .select('*, profiles(*)')
+            .eq('is_verified', false)
+            .neq('vehicle_plate', '');
+        _unverifiedDrivers = (unverifiedData as List)
+            .where((d) => d['iban'] != null || d['driver_license_url'] != null)
+            .map((d) => Map<String, dynamic>.from(d))
+            .toList();
+        debugPrint('[AdminPanel] unverified drivers: ${_unverifiedDrivers.length}');
+      } catch (e) {
+        debugPrint('[AdminPanel] unverified drivers load error: $e');
+      }
 
       // 3. Fetch all drivers
-      final allDriversData = await client
-          .from('drivers')
-          .select('*, profiles(*)');
-      _allDrivers = List<Map<String, dynamic>>.from(allDriversData);
+      try {
+        final allDriversData = await client
+            .from('drivers')
+            .select('*, profiles(*)');
+        _allDrivers = List<Map<String, dynamic>>.from(allDriversData);
+      } catch (e) {
+        debugPrint('[AdminPanel] all drivers load error: $e');
+      }
 
       // 4. Fetch all customers (profiles with role customer)
-      final customersData = await client
-          .from('profiles')
-          .select()
-          .eq('role', 'customer');
-      _allCustomers = (customersData as List)
-          .map((json) => UserModel.fromJson(json))
-          .toList();
+      try {
+        final customersData = await client
+            .from('profiles')
+            .select()
+            .eq('role', 'customer');
+        _allCustomers = (customersData as List)
+            .map((json) => UserModel.fromJson(json))
+            .toList();
+      } catch (e) {
+        debugPrint('[AdminPanel] customers load error: $e');
+      }
 
       // 5. Fetch all disputes
-      _allDisputes = await DisputeRepository().getAllDisputes();
+      try {
+        _allDisputes = await DisputeRepository().getAllDisputes();
+      } catch (e) {
+        debugPrint('[AdminPanel] disputes load error: $e');
+      }
 
       // 6. Fetch all ratings
-      final ratingsData = await client
-          .from('ratings')
-          .select('*, rater:profiles!rater_id(*), rated:profiles!rated_id(*)');
-      _allRatings = List<Map<String, dynamic>>.from(ratingsData);
+      try {
+        final ratingsData = await client
+            .from('ratings')
+            .select('*, rater:profiles!rater_id(*), rated:profiles!rated_id(*)');
+        _allRatings = List<Map<String, dynamic>>.from(ratingsData);
+      } catch (e) {
+        debugPrint('[AdminPanel] ratings load error: $e');
+      }
 
       // Recalculate statistics
       _totalEarnings = _allRequests
@@ -141,7 +165,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       if (_allDisputes.isNotEmpty && _selectedDispute == null) {
         _selectDispute(_allDisputes.first);
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AdminPanel] _loadDashboardData top-level error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
