@@ -195,10 +195,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
-      await client.from('drivers').update({
-        'is_verified': true,
-        'rejection_reason': null,
-      }).eq('id', driverId);
+      // Use SECURITY DEFINER RPC to bypass RLS for admin operations
+      await client.rpc('admin_verify_driver', params: {'driver_id': driverId});
 
       _selectedDriverApproval = null;
       await _loadDashboardData();
@@ -211,7 +209,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Onaylama hatası: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -223,10 +221,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
-      await client.from('drivers').update({
-        'is_verified': false,
-        'rejection_reason': reason,
-      }).eq('id', driverId);
+      // Use SECURITY DEFINER RPC to bypass RLS for admin operations
+      await client.rpc('admin_reject_driver', params: {'driver_id': driverId, 'reason': reason});
 
       _selectedDriverApproval = null;
       await _loadDashboardData();
@@ -239,7 +235,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Ret hatası: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -279,7 +275,8 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
-      await client.from('profiles').update({'is_suspended': block}).eq('id', userId);
+      // Use SECURITY DEFINER RPC to bypass RLS for admin operations
+      await client.rpc('admin_toggle_user_block', params: {'target_user_id': userId, 'should_block': block});
       await _loadDashboardData();
 
       if (mounted) {
@@ -290,7 +287,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('Engelleme hatası: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
