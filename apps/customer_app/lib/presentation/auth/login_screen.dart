@@ -54,74 +54,66 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       isLoading: _isLoading,
       message: 'Giriş yapılıyor...',
       child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.background, Color(0xFF0D1C0D)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-          child: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppColors.surface,
-                          border: Border.all(color: AppColors.border, width: 2),
-                        ),
-                        child: const Icon(
-                          Icons.local_shipping_rounded,
-                          size: 64,
-                          color: AppColors.accent,
-                        ),
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.surface,
+                        border: Border.all(color: AppColors.border, width: 2),
                       ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'ÇEKİCİM',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 3,
-                          color: AppColors.textPrimary,
-                        ),
+                      child: const Icon(
+                        Icons.local_shipping_rounded,
+                        size: 64,
+                        color: AppColors.accent,
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Telefon numaranız ile giriş yapın veya yeni hesap oluşturun',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'ÇEKİCİM',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 3,
+                        color: AppColors.textPrimary,
                       ),
-                      const SizedBox(height: 36),
-                      AppTextField(
-                        controller: _phoneController,
-                        label: 'Telefon Numarası',
-                        hint: '05... veya +905...',
-                        prefixIcon: Icons.phone_outlined,
-                        keyboardType: TextInputType.phone,
-                        validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'Telefon numarası gereklidir';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      GreenButton(
-                        text: 'Giriş Yap / Kod Gönder',
-                        onPressed: _handleLogin,
-                        isLoading: _isLoading,
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Telefon numaranız ile giriş yapın veya yeni hesap oluşturun',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 36),
+                    AppTextField(
+                      controller: _phoneController,
+                      label: 'Telefon Numarası',
+                      hint: '05... veya +905...',
+                      prefixIcon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) return 'Telefon numarası gereklidir';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    GreenButton(
+                      text: 'Giriş Yap / Kod Gönder',
+                      onPressed: _handleLogin,
+                      isLoading: _isLoading,
+                    ),
+                  ],
                 ),
               ),
             ),
