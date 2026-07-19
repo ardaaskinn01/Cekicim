@@ -23,7 +23,7 @@ BEGIN
     new.id,
     new.email, -- E-posta artık boş (NULL) olabilir
     new.phone,
-    COALESCE(new.raw_user_meta_data->>'full_name', 'Yeni Kullanıcı'),
+    COALESCE(new.raw_user_meta_data->>'full_name', ''),
     COALESCE(new.raw_user_meta_data->>'role', 'customer')::public.user_role, -- Text tipini user_role enum tipine cast ediyoruz
     false
   ) 
