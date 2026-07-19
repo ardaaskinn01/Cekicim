@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
               body: body,
             },
             data: {
-              requestId: request_id,
+              request_id: request_id, // snake_case yapıldı
               type: type,
             },
             android: {
@@ -103,9 +103,18 @@ Deno.serve(async (req) => {
               },
             },
             apns: {
+              headers: {
+                'apns-priority': '10',
+              },
               payload: {
                 aps: {
+                  alert: {
+                    title: title,
+                    body: body,
+                  },
                   sound: 'bg_alarm2.mp3',
+                  'content-available': 1,
+                  'mutable-content': 1,
                 },
               },
             },

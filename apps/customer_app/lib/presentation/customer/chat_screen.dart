@@ -164,8 +164,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                         child: Text(
                           message.content,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : AppColors.textPrimary,
                             fontSize: 15,
                             height: 1.3,
                           ),

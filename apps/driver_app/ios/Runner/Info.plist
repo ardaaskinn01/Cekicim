@@ -54,6 +54,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
+		<string>remote-notification</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Müşteri ile sesli görüşme yapabilmeniz için mikrofon erişimi gereklidir.</string>

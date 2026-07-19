@@ -51,7 +51,7 @@ dependencies:
   shared_services:
     path: ../../packages/shared_services
   shared_ui:
-    path: ../../packages/shared_ui
+    path: ../../packages/shared_ui_light
   image_picker: ^1.2.1
   firebase_core: ^3.11.0
   firebase_messaging: ^15.1.0

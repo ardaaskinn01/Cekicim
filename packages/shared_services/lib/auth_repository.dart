@@ -139,7 +139,17 @@ class AuthRepository {
         .eq('role', expectedRole.dbValue)
         .maybeSingle();
 
-    if (profileData == null) return null;
+    if (profileData == null) {
+      return UserModel(
+        id: user.id,
+        email: user.email ?? '',
+        fullName: '',
+        phone: user.phone ?? '',
+        role: expectedRole,
+        createdAt: DateTime.now(),
+        isProfileComplete: false,
+      );
+    }
 
     final metadataVerified = user.userMetadata?['is_verified'] as bool? ?? false;
     final profileDataCopy = Map<String, dynamic>.from(profileData);

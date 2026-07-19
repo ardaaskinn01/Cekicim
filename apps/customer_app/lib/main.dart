@@ -49,7 +49,7 @@ class CekiciApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Çekici',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
       routerConfig: router,
     );
   }

@@ -13,6 +13,7 @@ class UserModel {
   final int totalRatings;
 
   final bool isSuspended;
+  final bool isProfileComplete;
 
   UserModel({
     required this.id,
@@ -26,6 +27,7 @@ class UserModel {
     this.rating = 5.0,
     this.totalRatings = 0,
     this.isSuspended = false,
+    this.isProfileComplete = true,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -43,6 +45,7 @@ class UserModel {
       rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
       totalRatings: json['total_ratings'] as int? ?? 0,
       isSuspended: json['is_suspended'] as bool? ?? false,
+      isProfileComplete: (json['full_name'] as String? ?? '').isNotEmpty,
     );
   }
 
@@ -59,6 +62,7 @@ class UserModel {
       'rating': rating,
       'total_ratings': totalRatings,
       'is_suspended': isSuspended,
+      'is_profile_complete': isProfileComplete,
     };
   }
 
@@ -74,6 +78,7 @@ class UserModel {
     double? rating,
     int? totalRatings,
     bool? isSuspended,
+    bool? isProfileComplete,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -87,6 +92,7 @@ class UserModel {
       rating: rating ?? this.rating,
       totalRatings: totalRatings ?? this.totalRatings,
       isSuspended: isSuspended ?? this.isSuspended,
+      isProfileComplete: isProfileComplete ?? this.isProfileComplete,
     );
   }
 }

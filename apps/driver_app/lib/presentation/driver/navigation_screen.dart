@@ -476,6 +476,37 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                           minimumSize: const Size.fromHeight(48),
                         ),
                       ),
+                      if (req.vehiclePhotoUrl != null && req.vehiclePhotoUrl!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => Dialog(
+                                backgroundColor: Colors.black87,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    req.vehiclePhotoUrl!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Text('Fotoğraf yüklenemedi.', style: TextStyle(color: Colors.white)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.photo_outlined, color: AppColors.accent, size: 18),
+                          label: const Text('Arıza Fotoğrafını Gör', style: TextStyle(color: AppColors.accent, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.accent),
+                            minimumSize: const Size.fromHeight(44),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       if (nextStatus != null)
                         GreenButton(

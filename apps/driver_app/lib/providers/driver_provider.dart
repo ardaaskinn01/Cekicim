@@ -25,6 +25,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
   Timer? _locationTimer;
   Timer? _backgroundOfflineTimer;
   bool _wasOnlineBeforeBackground = false;
+  DateTime? _backgroundTime;
 
   DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(false) {
     if (_driverId.isNotEmpty) {
@@ -84,30 +85,28 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
     if (_driverId.isEmpty) return;
 
     if (lifecycleState == AppLifecycleState.paused || lifecycleState == AppLifecycleState.inactive) {
-      // App entered background
       if (state) {
         _wasOnlineBeforeBackground = true;
-        // Start 60 minutes timer to set offline in the database
+        _backgroundTime = DateTime.now(); // Arka plana geçiş zamanı
+        
         _backgroundOfflineTimer?.cancel();
-        _backgroundOfflineTimer = Timer(const Duration(minutes: 60), () async {
+        _backgroundOfflineTimer = Timer(const Duration(minutes: 120), () async {
           try {
             await _requestRepo.updateDriverOnlineStatus(_driverId, false);
-            debugPrint('Heartbeat: Marked offline due to 60 minutes background inactivity.');
+            debugPrint('Heartbeat: Marked offline due to 120 minutes background inactivity.');
           } catch (_) {}
         });
       }
     } else if (lifecycleState == AppLifecycleState.resumed) {
-      // App returned to foreground
       _backgroundOfflineTimer?.cancel();
+      _backgroundTime = null; // Zamanı sıfırla
       if (_wasOnlineBeforeBackground) {
         _wasOnlineBeforeBackground = false;
-        // Automatically set online in database again
         _requestRepo.updateDriverOnlineStatus(_driverId, true).then((_) {
           state = true;
           _startLocationSharing();
         }).catchError((_) {});
       } else {
-        // Just sync status to be safe
         _initStatus();
       }
     }
@@ -143,6 +142,19 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
     updateLoc();
 
     _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      // Arka plan kontrolü
+      if (_wasOnlineBeforeBackground && _backgroundTime != null) {
+        final backgroundMinutes = DateTime.now().difference(_backgroundTime!).inMinutes;
+        if (backgroundMinutes >= 120) {
+          _stopLocationSharing();
+          _backgroundOfflineTimer?.cancel();
+          _backgroundTime = null;
+          _wasOnlineBeforeBackground = false;
+          await _requestRepo.updateDriverOnlineStatus(_driverId, false);
+          state = false;
+          return;
+        }
+      }
       await updateLoc();
     });
   }

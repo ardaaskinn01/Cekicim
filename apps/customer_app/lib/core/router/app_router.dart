@@ -19,12 +19,25 @@ import '../../presentation/customer/chat_screen.dart';
 import '../../presentation/customer/voip_call_screen.dart';
 import '../../presentation/customer/customer_disputes_screen.dart';
 
+import 'package:flutter/foundation.dart';
+
+class RouterRefreshListenable extends ChangeNotifier {
+  RouterRefreshListenable(Ref ref) {
+    ref.listen(authStateProvider, (_, __) => notifyListeners());
+    ref.listen(currentUserProvider, (_, __) => notifyListeners());
+  }
+}
+
+final routerRefreshListenableProvider = Provider<RouterRefreshListenable>((ref) {
+  return RouterRefreshListenable(ref);
+});
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final currentUserAsync = ref.watch(currentUserProvider);
+  final listenable = ref.watch(routerRefreshListenableProvider);
 
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: listenable,
     redirect: (context, state) {
       final isSplashing = state.uri.path == '/splash';
       final isAuthRoute = state.uri.path.startsWith('/login') ||
@@ -34,7 +47,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isSplashing) return null;
 
-      final session = authState.value?.session;
+      final session = ref.read(authStateProvider).value?.session;
       final isAuthenticated = session != null;
 
       if (!isAuthenticated && !isAuthRoute) {
@@ -42,9 +55,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (isAuthenticated) {
+        final currentUserAsync = ref.read(currentUserProvider);
+        if (currentUserAsync.isLoading) {
+          return null; // Stay on current screen while loading profile
+        }
+
         if (currentUserAsync.hasValue) {
           final userModel = currentUserAsync.value;
-          if (userModel == null) {
+          if (userModel == null || !userModel.isProfileComplete) {
             // Profile is missing, redirect to registration/complete profile screen
             if (state.uri.path != '/register' && state.uri.path != '/verify-otp') {
               return '/register';
@@ -53,7 +71,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           }
 
           if (userModel.role == UserRole.customer) {
-            if (isAuthRoute) return '/customer';
+            if (isAuthRoute || state.uri.path == '/register') return '/customer';
           } else {
             return '/login';
           }

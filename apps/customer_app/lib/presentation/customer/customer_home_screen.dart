@@ -66,7 +66,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                   GlassContainer(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     borderRadius: 30,
-                    opacity: 0.75,
+                    opacity: 0.88,
                     child: Row(
                       children: [
                         const CircleAvatar(
@@ -77,7 +77,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                         const SizedBox(width: 10),
                         Text(
                           'Merhaba, ${user?.fullName ?? 'Müşteri'}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700, 
+                            fontSize: 13, 
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ],
                     ),

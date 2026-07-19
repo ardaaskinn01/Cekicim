@@ -242,12 +242,36 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickVehiclePhoto() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.camera);
-    if (pickedFile != null) {
-      setState(() => _vehiclePhoto = pickedFile);
-    }
+    final result = await showModalBottomSheet<XFile?>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Wrap(children: [
+          ListTile(
+            leading: const Icon(Icons.camera_alt, color: AppColors.primary),
+            title: const Text('Kamerayı Kullan'),
+            onTap: () async {
+              final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+              if (ctx.mounted) Navigator.pop(ctx, img);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library, color: AppColors.primary),
+            title: const Text('Galeriden Seç'),
+            onTap: () async {
+              final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+              if (ctx.mounted) Navigator.pop(ctx, img);
+            },
+          ),
+        ]),
+      ),
+    );
+    if (result != null) setState(() => _vehiclePhoto = result);
   }
 
   Future<void> _fetchDrivers() async {
@@ -709,32 +733,35 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             const SizedBox(height: 20),
             const Text('Araç Fotoğrafı *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            InkWell(
-              onTap: _pickImage,
-              child: Container(
-                height: 140,
-                width: double.infinity,
+            // Fotoğraf seçme kartı — daha belirgin ve önizlemeli
+            GestureDetector(
+              onTap: _pickVehiclePhoto,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                height: _vehiclePhoto != null ? 200 : 100,
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: AppColors.border,
-                    width: 1.5,
+                    color: _vehiclePhoto != null ? AppColors.primary : AppColors.border,
+                    width: _vehiclePhoto != null ? 2 : 1,
                   ),
                 ),
                 child: _vehiclePhoto != null
                     ? Stack(
+                        fit: StackFit.expand,
                         children: [
-                          Positioned.fill(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(16),
-                              child: Image.file(File(_vehiclePhoto!.path), fit: BoxFit.cover),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(11),
+                            child: Image.file(
+                              File(_vehiclePhoto!.path),
+                              fit: BoxFit.cover,
                             ),
                           ),
                           Positioned(
-                            right: 8,
                             top: 8,
-                            child: InkWell(
+                            right: 8,
+                            child: GestureDetector(
                               onTap: () => setState(() => _vehiclePhoto = null),
                               child: Container(
                                 padding: const EdgeInsets.all(6),
@@ -742,7 +769,28 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                                   color: Colors.black54,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.close, size: 18, color: Colors.white),
+                                child: const Icon(Icons.close, color: Colors.white, size: 18),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [Colors.black54, Colors.transparent],
+                                ),
+                                borderRadius: BorderRadius.vertical(bottom: Radius.circular(11)),
+                              ),
+                              child: const Text(
+                                'Fotoğrafı değiştirmek için dokunun',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.white, fontSize: 12),
                               ),
                             ),
                           ),
@@ -751,23 +799,16 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.camera_alt_outlined, size: 32, color: AppColors.primary),
-                          ),
-                          const SizedBox(height: 10),
+                          const Icon(Icons.add_a_photo_outlined, size: 36, color: AppColors.textSecondary),
+                          const SizedBox(height: 8),
                           const Text(
-                            'Aracın Fotoğrafını Çekmek İçin Dokunun', 
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold),
+                            'Arıza Fotoğrafı Ekle',
+                            style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           const Text(
-                            'Çekici sürücüsünün aracınızı tanımasını kolaylaştırır.', 
-                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                            'Çekici sürücüsü bu fotoğrafı görecek',
+                            style: TextStyle(color: AppColors.textHint, fontSize: 12),
                           ),
                         ],
                       ),

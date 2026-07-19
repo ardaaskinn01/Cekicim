@@ -63,6 +63,13 @@ class NotificationService {
         sound: true,
       );
 
+      // ÖNEMLİ: Uygulama ön plandayken alarm çalması ve bildirim göstermesi için:
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
       // On iOS, we MUST verify the APNs token is available before calling getToken()
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         final apnsToken = await messaging.getAPNSToken();
@@ -98,7 +105,7 @@ class NotificationService {
 
       // Handle background taps
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        final requestId = message.data['request_id'] as String?;
+        final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
         if (requestId != null && onNotificationTapped != null) {
           onNotificationTapped!(requestId);
         }
@@ -107,7 +114,7 @@ class NotificationService {
       // Handle terminated taps
       messaging.getInitialMessage().then((RemoteMessage? message) {
         if (message != null) {
-          final requestId = message.data['request_id'] as String?;
+          final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
           if (requestId != null && onNotificationTapped != null) {
             onNotificationTapped!(requestId);
           }
@@ -131,9 +138,14 @@ class NotificationService {
       fullScreenIntent: true,
     );
 
+    // iOS Ön planda ses ve banner gösterim parametreleri güncellendi
     const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
       presentSound: true,
+      presentBanner: true,
       sound: 'bg_alarm2.mp3',
+      interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
     const notificationDetails = NotificationDetails(

@@ -12,7 +12,9 @@ class DriverModel extends UserModel {
   
   // Verification documents
   final String? driverLicenseUrl;
+  @deprecated
   final String? srcCertificateUrl;
+  @deprecated
   final String? psychotechnicUrl;
   final String? vehicleRegistrationUrl;
   final String? taxPlateUrl;
@@ -40,6 +42,7 @@ class DriverModel extends UserModel {
     required super.createdAt,
     super.avatarUrl,
     super.isSuspended = false,
+    super.isProfileComplete = true,
     required this.vehiclePlate,
     this.vehicleType = 'small',
     this.isAvailable = false,
@@ -75,6 +78,7 @@ class DriverModel extends UserModel {
       createdAt: user.createdAt,
       avatarUrl: user.avatarUrl,
       isSuspended: user.isSuspended,
+      isProfileComplete: user.isProfileComplete,
       vehiclePlate: driverJson['vehicle_plate'] as String? ?? '',
       vehicleType: driverJson['vehicle_type'] as String? ?? 'small',
       isAvailable: driverJson['is_available'] as bool? ?? false,
@@ -162,6 +166,7 @@ class DriverModel extends UserModel {
     String? ibanOwnerName,
     String? rejectionReason,
     bool? isSuspended,
+    bool? isProfileComplete,
   }) {
     return DriverModel(
       id: id ?? this.id,
@@ -194,6 +199,7 @@ class DriverModel extends UserModel {
       iban: iban ?? this.iban,
       ibanOwnerName: ibanOwnerName ?? this.ibanOwnerName,
       rejectionReason: rejectionReason ?? this.rejectionReason,
+      isProfileComplete: isProfileComplete ?? this.isProfileComplete,
     );
   }
 }

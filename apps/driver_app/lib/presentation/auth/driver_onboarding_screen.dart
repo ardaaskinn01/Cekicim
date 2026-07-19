@@ -24,8 +24,6 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
   // Step 1 Files
   XFile? _driverLicense;
-  XFile? _srcCertificate;
-  XFile? _psychotechnic;
   XFile? _vehicleRegistration;
   XFile? _taxPlate;
   XFile? _criminalRecord;
@@ -108,12 +106,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
           case 'license':
             _driverLicense = image;
             break;
-          case 'src':
-            _srcCertificate = image;
-            break;
-          case 'psychotechnic':
-            _psychotechnic = image;
-            break;
+
           case 'registration':
             _vehicleRegistration = image;
             break;
@@ -195,8 +188,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                       setState(() {
                         switch (docType) {
                           case 'license': _driverLicense = null; break;
-                          case 'src': _srcCertificate = null; break;
-                          case 'psychotechnic': _psychotechnic = null; break;
+
                           case 'registration': _vehicleRegistration = null; break;
                           case 'tax_plate': _taxPlate = null; break;
                           case 'criminal': _criminalRecord = null; break;
@@ -358,25 +350,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      String? srcUrl = mockUrl;
-      if (_srcCertificate != null) {
-        srcUrl = await repo.uploadDriverDocument(
-          driverId: driver.id,
-          documentType: 'src',
-          fileName: 'src.jpg',
-          fileBytes: await _srcCertificate!.readAsBytes(),
-        );
-      }
 
-      String? psychoUrl = mockUrl;
-      if (_psychotechnic != null) {
-        psychoUrl = await repo.uploadDriverDocument(
-          driverId: driver.id,
-          documentType: 'psychotechnic',
-          fileName: 'psychotechnic.jpg',
-          fileBytes: await _psychotechnic!.readAsBytes(),
-        );
-      }
 
       String? taxUrl = mockUrl;
       if (_taxPlate != null) {
@@ -432,8 +406,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         driverLicenseUrl: licenseUrl,
         vehicleRegistrationUrl: registrationUrl,
         criminalRecordUrl: criminalUrl,
-        srcCertificateUrl: srcUrl,
-        psychotechnicUrl: psychoUrl,
+
         taxPlateUrl: taxUrl,
         vehiclePhotos: vehiclePhotos,
         equipments: selectedEquipments,
@@ -607,8 +580,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
             _buildDocTile('Sürücü Belgesi (Ehliyet)', _driverLicense, 'license'),
             _buildDocTile('Araç Ruhsatı', _vehicleRegistration, 'registration'),
             _buildDocTile('Adli Sicil Kaydı (E-Devlet)', _criminalRecord, 'criminal'),
-            _buildDocTile('SRC Belgesi', _srcCertificate, 'src', isRequired: false),
-            _buildDocTile('Psikoteknik Belgesi', _psychotechnic, 'psychotechnic', isRequired: false),
+
             _buildDocTile('Vergi Levhası / Oda Kaydı', _taxPlate, 'tax_plate', isRequired: false),
           ],
         );

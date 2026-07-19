@@ -116,7 +116,7 @@ class RequestRepository {
 
   Future<void> _cleanupStaleDrivers() async {
     try {
-      final cutoff = DateTime.now().subtract(const Duration(minutes: 60)).toIso8601String();
+      final cutoff = DateTime.now().subtract(const Duration(minutes: 120)).toIso8601String();
       await _client
           .from('drivers')
           .update({'is_available': false})

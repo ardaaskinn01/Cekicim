@@ -1456,7 +1456,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 3: DRIVERS
   Widget _buildDriversTab() {
-    final isMobile = MediaQuery.of(context).size.width < 750;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     final query = _driverSearchController.text.toLowerCase().trim();
     final list = _allDrivers.where((d) {
       final prof = d['profiles'] as Map<String, dynamic>;
@@ -1492,59 +1492,65 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           const SizedBox(height: 24),
 
-          Card(
-            color: AppColors.cardBackground,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-            child: list.isEmpty
-                ? _buildEmptyState('Eşleşen sürücü bulunamadı.')
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Ad Soyad')),
-                        DataColumn(label: Text('Telefon')),
-                        DataColumn(label: Text('Araç Plakası')),
-                        DataColumn(label: Text('Puan')),
-                        DataColumn(label: Text('Evrak Onay')),
-                        DataColumn(label: Text('İşlem')),
-                      ],
-                      rows: list.map((d) {
-                        final prof = d['profiles'] as Map<String, dynamic>;
-                        final isVerified = d['is_verified'] as bool? ?? false;
-                        final isSuspended = prof['is_suspended'] as bool? ?? false;
-                        final rating = (d['rating'] as num?)?.toDouble() ?? 5.0;
+          isMobile
+              ? Column(
+                  children: list.isEmpty
+                      ? [_buildEmptyState('Eşleşen sürücü bulunamadı.')]
+                      : list.map((d) => _buildDriverMobileCard(d)).toList(),
+                )
+              : Card(
+                  color: AppColors.cardBackground,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+                  child: list.isEmpty
+                      ? _buildEmptyState('Eşleşen sürücü bulunamadı.')
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            columns: const [
+                              DataColumn(label: Text('Ad Soyad')),
+                              DataColumn(label: Text('Telefon')),
+                              DataColumn(label: Text('Araç Plakası')),
+                              DataColumn(label: Text('Puan')),
+                              DataColumn(label: Text('Evrak Onay')),
+                              DataColumn(label: Text('İşlem')),
+                            ],
+                            rows: list.map((d) {
+                              final prof = d['profiles'] as Map<String, dynamic>;
+                              final isVerified = d['is_verified'] as bool? ?? false;
+                              final isSuspended = prof['is_suspended'] as bool? ?? false;
+                              final rating = (d['rating'] as num?)?.toDouble() ?? 5.0;
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(prof['full_name'] ?? 'Bilinmiyor')),
-                            DataCell(Text(prof['phone'] ?? '-')),
-                            DataCell(Text(d['vehicle_plate'] ?? '-')),
-                            DataCell(Row(
-                              children: [
-                                const Icon(Icons.star, color: Colors.amber, size: 16),
-                                const SizedBox(width: 4),
-                                Text(rating.toStringAsFixed(1)),
-                              ],
-                            )),
-                            DataCell(Icon(
-                              isVerified ? Icons.verified : Icons.warning_amber_rounded,
-                              color: isVerified ? AppColors.success : AppColors.warning,
-                            )),
-                            DataCell(
-                              TextButton(
-                                onPressed: () => _toggleUserBlock(prof['id'], !isSuspended),
-                                child: Text(
-                                  isSuspended ? 'Engeli Kaldır' : 'Engelle',
-                                  style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-          ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(prof['full_name'] ?? 'Bilinmiyor')),
+                                  DataCell(Text(prof['phone'] ?? '-')),
+                                  DataCell(Text(d['vehicle_plate'] ?? '-')),
+                                  DataCell(Row(
+                                    children: [
+                                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(rating.toStringAsFixed(1)),
+                                    ],
+                                  )),
+                                  DataCell(Icon(
+                                    isVerified ? Icons.verified : Icons.warning_amber_rounded,
+                                    color: isVerified ? AppColors.success : AppColors.warning,
+                                  )),
+                                  DataCell(
+                                    TextButton(
+                                      onPressed: () => _toggleUserBlock(prof['id'], !isSuspended),
+                                      child: Text(
+                                        isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                                        style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                ),
         ],
       ),
     );
@@ -1552,7 +1558,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 4: CUSTOMERS
   Widget _buildCustomersTab() {
-    final isMobile = MediaQuery.of(context).size.width < 750;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     final query = _customerSearchController.text.toLowerCase().trim();
     final list = _allCustomers.where((c) {
       return c.fullName.toLowerCase().contains(query) || c.email.toLowerCase().contains(query);
@@ -1584,51 +1590,57 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           const SizedBox(height: 24),
 
-          Card(
-            color: AppColors.cardBackground,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-            child: list.isEmpty
-                ? _buildEmptyState('Müşteri bulunamadı.')
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Ad Soyad')),
-                        DataColumn(label: Text('E-posta')),
-                        DataColumn(label: Text('Telefon')),
-                        DataColumn(label: Text('Puan')),
-                        DataColumn(label: Text('İşlem')),
-                      ],
-                      rows: list.map((c) {
-                        final isSuspended = c.isSuspended;
+          isMobile
+              ? Column(
+                  children: list.isEmpty
+                      ? [_buildEmptyState('Müşteri bulunamadı.')]
+                      : list.map((c) => _buildCustomerMobileCard(c)).toList(),
+                )
+              : Card(
+                  color: AppColors.cardBackground,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+                  child: list.isEmpty
+                      ? _buildEmptyState('Müşteri bulunamadı.')
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            columns: const [
+                              DataColumn(label: Text('Ad Soyad')),
+                              DataColumn(label: Text('E-posta')),
+                              DataColumn(label: Text('Telefon')),
+                              DataColumn(label: Text('Puan')),
+                              DataColumn(label: Text('İşlem')),
+                            ],
+                            rows: list.map((c) {
+                              final isSuspended = c.isSuspended;
 
-                        return DataRow(
-                          cells: [
-                            DataCell(Text(c.fullName)),
-                            DataCell(Text(c.email)),
-                            DataCell(Text(c.phone ?? '-')),
-                            DataCell(Row(
-                              children: [
-                                const Icon(Icons.star, color: Colors.amber, size: 16),
-                                const SizedBox(width: 4),
-                                Text(c.rating.toStringAsFixed(1)),
-                              ],
-                            )),
-                            DataCell(
-                              TextButton(
-                                onPressed: () => _toggleUserBlock(c.id, !isSuspended),
-                                child: Text(
-                                  isSuspended ? 'Engeli Kaldır' : 'Engelle',
-                                  style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-          ),
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text(c.fullName)),
+                                  DataCell(Text(c.email)),
+                                  DataCell(Text(c.phone ?? '-')),
+                                  DataCell(Row(
+                                    children: [
+                                      const Icon(Icons.star, color: Colors.amber, size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(c.rating.toStringAsFixed(1)),
+                                    ],
+                                  )),
+                                  DataCell(
+                                    TextButton(
+                                      onPressed: () => _toggleUserBlock(c.id, !isSuspended),
+                                      child: Text(
+                                        isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                                        style: TextStyle(color: isSuspended ? AppColors.accent : AppColors.error),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                ),
         ],
       ),
     );
@@ -1636,7 +1648,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // TAB 5: REQUESTS
   Widget _buildRequestsTab() {
-    final isMobile = MediaQuery.of(context).size.width < 750;
+    final isMobile = MediaQuery.of(context).size.width < 900;
     final query = _requestSearchController.text.toLowerCase().trim();
     final list = _allRequests.where((r) {
       final brand = r.carBrand.toLowerCase();
@@ -1679,37 +1691,43 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           const SizedBox(height: 24),
 
-          Card(
-            color: AppColors.cardBackground,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-            child: list.isEmpty
-                ? _buildEmptyState('Talep bulunamadı.')
-                : SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: DataTable(
-                      showCheckboxColumn: false,
-                      columns: const [
-                        DataColumn(label: Text('Talep ID')),
-                        DataColumn(label: Text('Müşteri Adı')),
-                        DataColumn(label: Text('Sürücü Adı')),
-                        DataColumn(label: Text('Durum')),
-                        DataColumn(label: Text('Tarih')),
-                      ],
-                      rows: list.map((r) {
-                        return DataRow(
-                          onSelectChanged: (_) => _showRequestDetailsDialog(r),
-                          cells: [
-                            DataCell(Text(r.id.length > 8 ? '${r.id.substring(0, 8)}...' : r.id)),
-                            DataCell(Text(r.customerName ?? 'Bilinmiyor')),
-                            DataCell(Text(r.driverName ?? (r.driverId != null ? 'Sürücü Atandı' : 'Bekliyor'))),
-                            DataCell(Text(r.status.label, style: TextStyle(color: r.status.color, fontWeight: FontWeight.bold))),
-                            DataCell(Text('${r.createdAt.day}.${r.createdAt.month}.${r.createdAt.year}')),
-                          ],
-                        );
-                      }).toList(),
-                    ),
-                  ),
-          ),
+          isMobile
+              ? Column(
+                  children: list.isEmpty
+                      ? [_buildEmptyState('Talep bulunamadı.')]
+                      : list.map((r) => _buildRequestMobileCard(r)).toList(),
+                )
+              : Card(
+                  color: AppColors.cardBackground,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+                  child: list.isEmpty
+                      ? _buildEmptyState('Talep bulunamadı.')
+                      : SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: DataTable(
+                            showCheckboxColumn: false,
+                            columns: const [
+                              DataColumn(label: Text('Talep ID')),
+                              DataColumn(label: Text('Müşteri Adı')),
+                              DataColumn(label: Text('Sürücü Adı')),
+                              DataColumn(label: Text('Durum')),
+                              DataColumn(label: Text('Tarih')),
+                            ],
+                            rows: list.map((r) {
+                              return DataRow(
+                                onSelectChanged: (_) => _showRequestDetailsDialog(r),
+                                cells: [
+                                  DataCell(Text(r.id.length > 8 ? '${r.id.substring(0, 8)}...' : r.id)),
+                                  DataCell(Text(r.customerName ?? 'Bilinmiyor')),
+                                  DataCell(Text(r.driverName ?? (r.driverId != null ? 'Sürücü Atandı' : 'Bekliyor'))),
+                                  DataCell(Text(r.status.label, style: TextStyle(color: r.status.color, fontWeight: FontWeight.bold))),
+                                  DataCell(Text('${r.createdAt.day}.${r.createdAt.month}.${r.createdAt.year}')),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                ),
         ],
       ),
     );
@@ -1901,8 +1919,110 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Widget _buildLiveMapTab() {
+    final isMobile = MediaQuery.of(context).size.width < 900;
     final activeRequests = _allRequests.where((r) => r.status.dbValue != 'completed' && r.status.dbValue != 'cancelled').toList();
     final availableDrivers = _allDrivers.where((d) => d['is_available'] == true).toList();
+
+    Widget buildDriversList() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.drive_eta, color: Colors.green),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Müsait Çekiciler',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('${availableDrivers.length} Sürücü Çevrimiçi & Hazır', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          const SizedBox(height: 24),
+          if (availableDrivers.isEmpty)
+            const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Şu an aktif çevrimiçi sürücü bulunmuyor.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13))))
+          else if (isMobile)
+            Column(
+              children: availableDrivers.map((d) => _buildDriverCardItem(d)).toList(),
+            )
+          else
+            Expanded(
+              child: ListView(
+                children: availableDrivers.map((d) => _buildDriverCardItem(d)).toList(),
+              ),
+            ),
+        ],
+      );
+    }
+
+    Widget buildRequestsList() {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.local_shipping, color: AppColors.accent),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Aktif Operasyonlar',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('${activeRequests.length} Kurtarma Talebi İşlemde', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          const SizedBox(height: 24),
+          if (activeRequests.isEmpty)
+            const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Şu an aktif kurtarma talebi bulunmuyor.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13))))
+          else if (isMobile)
+            Column(
+              children: activeRequests.map((r) => _buildRequestCardItem(r)).toList(),
+            )
+          else
+            Expanded(
+              child: ListView(
+                children: activeRequests.map((r) => _buildRequestCardItem(r)).toList(),
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (isMobile) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Card(
+              color: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: buildDriversList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              color: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: buildRequestsList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.all(32.0),
@@ -1917,70 +2037,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: Colors.green.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                          child: const Icon(Icons.drive_eta, color: Colors.green),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Müsait Çekiciler',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text('${availableDrivers.length} Sürücü Çevrimiçi & Hazır', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                    const SizedBox(height: 24),
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          if (availableDrivers.isEmpty)
-                            const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Şu an aktif çevrimiçi sürücü bulunmuyor.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)))),
-                          ...availableDrivers.map((d) {
-                            final profile = d['profiles'] as Map?;
-                            final name = profile?['full_name'] ?? 'Sürücü';
-                            final phone = profile?['phone'] ?? 'Telefon Yok';
-                            final plate = d['vehicle_plate'] ?? 'Plaka Yok';
-                            final score = d['rating'] as num? ?? 5.0;
-
-                            return Card(
-                              color: AppColors.surface,
-                              margin: const EdgeInsets.only(bottom: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
-                              child: ListTile(
-                                leading: const CircleAvatar(
-                                  backgroundColor: AppColors.border,
-                                  child: Icon(Icons.person, color: AppColors.textPrimary),
-                                ),
-                                title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Plaka: $plate | Tel: $phone', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.star, color: Colors.amber, size: 14),
-                                        const SizedBox(width: 4),
-                                        Text(score.toStringAsFixed(1), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                child: buildDriversList(),
               ),
             ),
           ),
@@ -1993,56 +2050,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                          child: const Icon(Icons.local_shipping, color: AppColors.accent),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Aktif Operasyonlar',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Text('${activeRequests.length} Kurtarma Talebi İşlemde', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                    const SizedBox(height: 24),
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          if (activeRequests.isEmpty)
-                            const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Şu an aktif kurtarma talebi bulunmuyor.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)))),
-                          ...activeRequests.map((r) => Card(
-                            color: AppColors.surface,
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: r.status.color.withValues(alpha: 0.5))),
-                            child: ListTile(
-                              title: Text(r.carPlate, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(r.destinationIndustryZone ?? 'Hedef OSB Seçilmedi', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                                  Text('Ücret: ${r.price.toInt()} TL', style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              trailing: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(color: r.status.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                                child: Text(r.status.label, style: TextStyle(color: r.status.color, fontSize: 10, fontWeight: FontWeight.bold)),
-                              ),
-                            ),
-                          )),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                child: buildRequestsList(),
               ),
             ),
           ),
@@ -2052,65 +2060,467 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   }
 
   Widget _buildRatingsTab() {
+    final isMobile = MediaQuery.of(context).size.width < 900;
+
     return Padding(
-      padding: const EdgeInsets.all(32.0),
+      padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
       child: Card(
         color: AppColors.cardBackground,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isMobile)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Değerlendirme Geçmişi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    const SizedBox(height: 4),
+                    Text('${_allRatings.length} Değerlendirme', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ],
+                )
+              else
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Puanlama ve Kullanıcı Değerlendirme Geçmişi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    Text('${_allRatings.length} Değerlendirme Kaydedildi', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              const SizedBox(height: 24),
+              Expanded(
+                child: isMobile
+                    ? ListView.builder(
+                        itemCount: _allRatings.length,
+                        itemBuilder: (context, idx) {
+                          return _buildRatingMobileCard(_allRatings[idx]);
+                        },
+                      )
+                    : SingleChildScrollView(
+                        child: DataTable(
+                          columns: const [
+                            DataColumn(label: Text('Tarih', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Değerlendiren', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Değerlendirilen', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Puan', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
+                            DataColumn(label: Text('Yorum', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
+                          ],
+                          rows: _allRatings.map((r) {
+                            final date = r['created_at'] != null ? DateTime.parse(r['created_at'] as String) : DateTime.now();
+                            final rater = (r['rater'] as Map?)?['full_name'] ?? 'Bilinmeyen Kullanıcı';
+                            final rated = (r['rated'] as Map?)?['full_name'] ?? 'Bilinmeyen Kullanıcı';
+                            final score = r['score'] as int? ?? 5;
+                            final comment = r['comment'] as String? ?? '-';
+
+                            return DataRow(
+                              cells: [
+                                DataCell(Text('${date.day}/${date.month}/${date.year}')),
+                                DataCell(Text(rater)),
+                                DataCell(Text(rated)),
+                                DataCell(Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: List.generate(5, (index) {
+                                    return Icon(
+                                      Icons.star_rounded,
+                                      color: index < score ? Colors.amber : AppColors.textSecondary.withValues(alpha: 0.3),
+                                      size: 16,
+                                    );
+                                  }),
+                                )),
+                                DataCell(Text(comment)),
+                              ],
+                            );
+                          }).toList(),
+                        ).customStyle,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriverMobileCard(Map<String, dynamic> d) {
+    final prof = d['profiles'] as Map<String, dynamic>;
+    final isVerified = d['is_verified'] as bool? ?? false;
+    final isSuspended = prof['is_suspended'] as bool? ?? false;
+    final rating = (d['rating'] as num?)?.toDouble() ?? 5.0;
+
+    return Card(
+      color: AppColors.cardBackground,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    prof['full_name'] ?? 'Bilinmiyor',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Icon(
+                      isVerified ? Icons.verified : Icons.warning_amber_rounded,
+                      color: isVerified ? AppColors.success : AppColors.warning,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isVerified ? 'Onaylı' : 'Onaysız',
+                      style: TextStyle(
+                        color: isVerified ? AppColors.success : AppColors.warning,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Telefon: ${prof['phone'] ?? '-'}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Araç Plakası: ${d['vehicle_plate'] ?? '-'}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () => _toggleUserBlock(prof['id'], !isSuspended),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(50, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                    style: TextStyle(
+                      color: isSuspended ? AppColors.accent : AppColors.error,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerMobileCard(UserModel c) {
+    final isSuspended = c.isSuspended;
+
+    return Card(
+      color: AppColors.cardBackground,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              c.fullName,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'E-posta: ${c.email}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Telefon: ${c.phone ?? '-'}',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.star, color: Colors.amber, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      c.rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton(
+                  onPressed: () => _toggleUserBlock(c.id, !isSuspended),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(50, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                    style: TextStyle(
+                      color: isSuspended ? AppColors.accent : AppColors.error,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestMobileCard(ServiceRequestModel r) {
+    return Card(
+      color: AppColors.cardBackground,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: InkWell(
+        onTap: () => _showRequestDetailsDialog(r),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Puanlama ve Kullanıcı Değerlendirme Geçmişi', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  Text('${_allRatings.length} Değerlendirme Kaydedildi', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                  Text(
+                    r.id.length > 8 ? 'ID: ${r.id.substring(0, 8)}...' : 'ID: ${r.id}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: r.status.color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: r.status.color.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      r.status.label,
+                      style: TextStyle(color: r.status.color, fontWeight: FontWeight.bold, fontSize: 11),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Tarih', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Değerlendiren', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Değerlendirilen', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Puan', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
-                      DataColumn(label: Text('Yorum', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
-                    ],
-                    rows: _allRatings.map((r) {
-                      final date = r['created_at'] != null ? DateTime.parse(r['created_at'] as String) : DateTime.now();
-                      final rater = (r['rater'] as Map?)?['full_name'] ?? 'Bilinmeyen Kullanıcı';
-                      final rated = (r['rated'] as Map?)?['full_name'] ?? 'Bilinmeyen Kullanıcı';
-                      final score = r['score'] as int? ?? 5;
-                      final comment = r['comment'] as String? ?? '-';
-
-                      return DataRow(
-                        cells: [
-                          DataCell(Text('${date.day}/${date.month}/${date.year}')),
-                          DataCell(Text(rater)),
-                          DataCell(Text(rated)),
-                          DataCell(Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: List.generate(5, (index) {
-                              return Icon(
-                                Icons.star_rounded,
-                                color: index < score ? Colors.amber : AppColors.textSecondary.withValues(alpha: 0.3),
-                                size: 16,
-                              );
-                            }),
-                          )),
-                          DataCell(Text(comment)),
-                        ],
-                      );
-                    }).toList(),
-                  ).customStyle,
-                ),
+              const SizedBox(height: 12),
+              Text(
+                'Müşteri: ${r.customerName ?? 'Bilinmiyor'}',
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Sürücü: ${r.driverName ?? (r.driverId != null ? 'Sürücü Atandı' : 'Bekliyor')}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Araç: ${r.carBrand} ${r.carModel} (${r.carPlate})',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${r.createdAt.day}.${r.createdAt.month}.${r.createdAt.year} ${r.createdAt.hour.toString().padLeft(2, '0')}:${r.createdAt.minute.toString().padLeft(2, '0')}',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  Text(
+                    '${r.price.toInt()} TL',
+                    style: const TextStyle(color: AppColors.accent, fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingMobileCard(Map<String, dynamic> r) {
+    final date = r['created_at'] != null ? DateTime.parse(r['created_at'] as String) : DateTime.now();
+    final rater = (r['rater'] as Map?)?['full_name'] ?? 'Bilinmeyen Kullanıcı';
+    final rated = (r['rated'] as Map?)?['full_name'] ?? 'Bilinmeyen Kullanıcı';
+    final score = r['score'] as int? ?? 5;
+    final comment = r['comment'] as String? ?? '-';
+
+    return Card(
+      color: AppColors.cardBackground,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${date.day}/${date.month}/${date.year}',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      Icons.star_rounded,
+                      color: index < score ? Colors.amber : AppColors.textSecondary.withValues(alpha: 0.3),
+                      size: 16,
+                    );
+                  }),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Değerlendiren: $rater',
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Değerlendirilen: $rated',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            if (comment != '-') ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Text(
+                  comment,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontStyle: FontStyle.italic),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriverCardItem(Map<String, dynamic> d) {
+    final profile = d['profiles'] as Map?;
+    final name = profile?['full_name'] ?? 'Sürücü';
+    final phone = profile?['phone'] ?? 'Telefon Yok';
+    final plate = d['vehicle_plate'] ?? 'Plaka Yok';
+    final score = d['rating'] as num? ?? 5.0;
+
+    return Card(
+      color: AppColors.surface,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: AppColors.border)),
+      child: ListTile(
+        leading: const CircleAvatar(
+          backgroundColor: AppColors.border,
+          child: Icon(Icons.person, color: AppColors.textPrimary),
+        ),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Plaka: $plate | Tel: $phone', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.star, color: Colors.amber, size: 14),
+                const SizedBox(width: 4),
+                Text(score.toStringAsFixed(1), style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRequestCardItem(ServiceRequestModel r) {
+    return Card(
+      color: AppColors.surface,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: r.status.color.withValues(alpha: 0.5))),
+      child: ListTile(
+        title: Text(r.carPlate, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(r.destinationIndustryZone ?? 'Hedef OSB Seçilmedi', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            Text('Ücret: ${r.price.toInt()} TL', style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(color: r.status.color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+          child: Text(r.status.label, style: TextStyle(color: r.status.color, fontSize: 10, fontWeight: FontWeight.bold)),
         ),
       ),
     );

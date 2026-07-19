@@ -52,8 +52,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
 
     const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
       presentSound: true,
+      presentBanner: true,
       sound: 'bg_alarm2.mp3',
+      interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
     const notificationDetails = NotificationDetails(
