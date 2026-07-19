@@ -1041,7 +1041,7 @@ packages:
   shared_ui:
     dependency: "direct main"
     description:
-      path: "../../packages/shared_ui"
+      path: "../../packages/shared_ui_light"
       relative: true
     source: path
     version: "1.0.0"

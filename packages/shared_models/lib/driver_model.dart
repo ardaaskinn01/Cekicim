@@ -5,7 +5,6 @@ class DriverModel extends UserModel {
   final String vehiclePlate;
   final String vehicleType;
   final bool isAvailable;
-  final bool isVerified;
   final double? latitude;
   final double? longitude;
   final int totalServices;
@@ -46,7 +45,7 @@ class DriverModel extends UserModel {
     required this.vehiclePlate,
     this.vehicleType = 'small',
     this.isAvailable = false,
-    this.isVerified = false,
+    super.isVerified = false,
     this.latitude,
     this.longitude,
     super.rating = 0.0,
