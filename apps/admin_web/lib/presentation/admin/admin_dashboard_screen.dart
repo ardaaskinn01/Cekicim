@@ -85,12 +85,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           .toList();
 
       // 2. Fetch unverified drivers (onboarding completed but not verified)
+      // Show drivers who have a vehicle plate AND either IBAN or a driver license uploaded
       final unverifiedData = await client
           .from('drivers')
           .select('*, profiles(*)')
           .eq('is_verified', false)
           .neq('vehicle_plate', '')
-          .not('iban', 'is', null);
+          .or('iban.not.is.null,driver_license_url.not.is.null');
 
       _unverifiedDrivers = List<Map<String, dynamic>>.from(unverifiedData);
 

@@ -312,18 +312,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                             ),
                             const SizedBox(height: 12),
                             _buildDocumentStatusRow(
-                              'SRC Belgesi', 
-                              driver.srcCertificateUrl != null,
-                              driver.isVerified,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDocumentStatusRow(
-                              'Psikoteknik Raporu', 
-                              driver.psychotechnicUrl != null,
-                              driver.isVerified,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildDocumentStatusRow(
                               'Ruhsat & Plaka Belgesi', 
                               driver.vehicleRegistrationUrl != null,
                               driver.isVerified,
