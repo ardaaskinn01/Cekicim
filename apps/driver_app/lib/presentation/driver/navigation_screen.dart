@@ -411,34 +411,59 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                FutureBuilder<UserModel?>(
+                                  future: AuthRepository().getUserProfile(req.customerId),
+                                  builder: (context, userSnapshot) {
+                                    final name = userSnapshot.data?.fullName ?? 'Müşteri Yükleniyor...';
+                                    return Text(
+                                      name,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 4),
+                                Text('Telefon: ${req.customerPhone ?? 'Belirtilmedi'}', style: const TextStyle(color: AppColors.textSecondary)),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              FutureBuilder<UserModel?>(
-                                future: AuthRepository().getUserProfile(req.customerId),
-                                builder: (context, userSnapshot) {
-                                  final name = userSnapshot.data?.fullName ?? 'Müşteri Yükleniyor...';
-                                  return Text(
-                                    name,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 4),
-                              Text('Telefon: ${req.customerPhone ?? 'Belirtilmedi'}', style: const TextStyle(color: AppColors.textSecondary)),
+                              if (req.price != null) ...[
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '₺${req.price!.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              if (req.customerPhone != null) ...[
+                                IconButton(
+                                  icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
+                                  onPressed: () => context.push('/driver/chat/${req.id}'),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  icon: const Icon(Icons.phone_in_talk, color: AppColors.accent, size: 28),
+                                  onPressed: () => context.push('/driver/call/${req.id}?initiator=true'),
+                                ),
+                              ],
                             ],
                           ),
-                          if (req.customerPhone != null) ...[
-                            IconButton(
-                              icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
-                              onPressed: () => context.push('/driver/chat/${req.id}'),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.phone_in_talk, color: AppColors.accent, size: 28),
-                              onPressed: () => context.push('/driver/call/${req.id}?initiator=true'),
-                            ),
-                          ],
                         ],
                       ),
                       const SizedBox(height: 16),
