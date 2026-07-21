@@ -451,7 +451,7 @@ class RequestRepository {
     await _client.storage.from('request-photos').uploadBinary(
       path,
       Uint8List.fromList(fileBytes),
-      fileOptions: const FileOptions(upsert: true),
+      fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
     );
     return _client.storage.from('request-photos').getPublicUrl(path);
   }
