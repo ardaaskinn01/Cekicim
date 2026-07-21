@@ -363,7 +363,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         carPlate: _plateController.text.trim(),
         problemType: 'Diğer',
         vehicleType: _selectedVehicleType,
-        vehiclePhotoUrl: 'https://placeholder.com/image.jpg',
+        vehiclePhotoUrl: null,
         selectedDriverIds: _selectedDriverIds,
         distanceKm: distance,
         price: price,
@@ -375,11 +375,10 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
       final requestId = await repo.createRequest(tempRequest);
 
-      String photoUrl = 'https://placeholder.com/image.jpg';
       if (_vehiclePhoto != null) {
         try {
           final bytes = await _vehiclePhoto!.readAsBytes();
-          photoUrl = await repo.uploadRequestPhoto(
+          final photoUrl = await repo.uploadRequestPhoto(
             requestId: requestId,
             fileName: _vehiclePhoto!.name,
             fileBytes: bytes,
