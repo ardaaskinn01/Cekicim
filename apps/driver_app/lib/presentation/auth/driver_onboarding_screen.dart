@@ -56,6 +56,36 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
   final _ibanController = TextEditingController();
   final _ibanOwnerController = TextEditingController();
   final _ibanFormKey = GlobalKey<FormState>();
+  bool _isDataPrefilled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_isDataPrefilled) {
+      final user = ref.read(currentUserProvider).value;
+      if (user is DriverModel) {
+        _isDataPrefilled = true;
+        if (user.iban != null && user.iban!.isNotEmpty) {
+          _ibanController.text = user.iban!;
+        }
+        if (user.ibanOwnerName != null && user.ibanOwnerName!.isNotEmpty) {
+          _ibanOwnerController.text = user.ibanOwnerName!;
+        } else if (user.fullName.isNotEmpty) {
+          _ibanOwnerController.text = user.fullName;
+        }
+        if (user.equipments.isNotEmpty) {
+          for (var eq in user.equipments) {
+            if (_equipments.containsKey(eq)) {
+              _equipments[eq] = true;
+            }
+          }
+        }
+        if (user.supportedVehicleTypes.isNotEmpty) {
+          selectedVehicleTypes = List.from(user.supportedVehicleTypes);
+        }
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -318,10 +348,12 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
               vehiclePlate: Supabase.instance.client.auth.currentUser?.userMetadata?['vehicle_plate'] as String? ?? '06ANK06',
             );
 
-      // Assign mock URLs if files are not uploaded for testing
+      // Assign existing document URLs if available, fallback to mockUrl if completely missing
       final mockUrl = 'https://picsum.photos/800/600';
       
-      String licenseUrl = mockUrl;
+      String licenseUrl = (driver.driverLicenseUrl != null && driver.driverLicenseUrl!.isNotEmpty)
+          ? driver.driverLicenseUrl!
+          : mockUrl;
       if (_driverLicense != null) {
         licenseUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
@@ -331,7 +363,9 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      String registrationUrl = mockUrl;
+      String registrationUrl = (driver.vehicleRegistrationUrl != null && driver.vehicleRegistrationUrl!.isNotEmpty)
+          ? driver.vehicleRegistrationUrl!
+          : mockUrl;
       if (_vehicleRegistration != null) {
         registrationUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
@@ -341,7 +375,9 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      String criminalUrl = mockUrl;
+      String criminalUrl = (driver.criminalRecordUrl != null && driver.criminalRecordUrl!.isNotEmpty)
+          ? driver.criminalRecordUrl!
+          : mockUrl;
       if (_criminalRecord != null) {
         criminalUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
@@ -351,9 +387,9 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-
-
-      String? taxUrl = mockUrl;
+      String? taxUrl = (driver.taxPlateUrl != null && driver.taxPlateUrl!.isNotEmpty)
+          ? driver.taxPlateUrl!
+          : mockUrl;
       if (_taxPlate != null) {
         taxUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
@@ -363,8 +399,10 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      // Mock vehicle photos
-      List<String> vehiclePhotos = [mockUrl, mockUrl, mockUrl, mockUrl];
+      List<String> vehiclePhotos = List.from(driver.vehiclePhotos);
+      while (vehiclePhotos.length < 4) {
+        vehiclePhotos.add(mockUrl);
+      }
       if (_photoFront != null) {
         vehiclePhotos[0] = await repo.uploadDriverDocument(
           driverId: driver.id,

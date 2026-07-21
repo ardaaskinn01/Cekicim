@@ -136,7 +136,6 @@ class AuthRepository {
         .from('profiles')
         .select()
         .eq('id', user.id)
-        .eq('role', expectedRole.dbValue)
         .maybeSingle();
 
     if (profileData == null) {
@@ -234,41 +233,68 @@ class AuthRepository {
       }
     }
 
-    // Upsert profile (handles re-registration without duplicate key errors)
+    // Check if profile already exists to preserve existing verification & name status
+    final existingProfile = await _client
+        .from('profiles')
+        .select('is_verified, full_name, phone, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    final isAlreadyVerified = existingProfile != null && (existingProfile['is_verified'] as bool? ?? false);
+    final existingName = existingProfile != null ? existingProfile['full_name'] as String? : null;
+
     await _client.from('profiles').upsert({
       'id': user.id,
       'email': email ?? user.email ?? '$normalizedPhone@phone.user',
-      'full_name': fullName,
+      'full_name': (fullName.isNotEmpty) ? fullName : (existingName ?? ''),
       'phone': normalizedPhone,
       'role': role.dbValue,
-      'is_verified': false,
+      'is_verified': isAlreadyVerified,
     }, onConflict: 'id');
 
     final userModel = UserModel(
       id: user.id,
       email: user.email ?? '$normalizedPhone@phone.user',
-      fullName: fullName,
+      fullName: (fullName.isNotEmpty) ? fullName : (existingName ?? ''),
       phone: normalizedPhone,
       role: role,
       createdAt: DateTime.now(),
+      isVerified: isAlreadyVerified,
     );
 
-    // If driver, insert driver record
-    if (role == UserRole.driver && vehiclePlate != null) {
+    // If driver, check existing driver record to preserve onboarding completion & document status
+    if (role == UserRole.driver) {
+      final existingDriver = await _client
+          .from('drivers')
+          .select('is_onboarding_completed, vehicle_plate, is_verified')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      final isOnboardingDone = existingDriver != null && (existingDriver['is_onboarding_completed'] as bool? ?? false);
+      final driverVerified = existingDriver != null && (existingDriver['is_verified'] as bool? ?? false);
+      final existingPlate = existingDriver != null ? existingDriver['vehicle_plate'] as String? : null;
+
       await _client.from('drivers').upsert({
         'id': user.id,
-        'vehicle_plate': vehiclePlate,
-        'is_onboarding_completed': false,
+        'vehicle_plate': (vehiclePlate != null && vehiclePlate.isNotEmpty)
+            ? vehiclePlate
+            : (existingPlate ?? ''),
+        'is_onboarding_completed': isOnboardingDone,
+        'is_verified': driverVerified,
       }, onConflict: 'id');
 
       return DriverModel(
         id: user.id,
         email: user.email ?? '$normalizedPhone@phone.user',
-        fullName: fullName,
+        fullName: (fullName.isNotEmpty) ? fullName : (existingName ?? ''),
         phone: normalizedPhone,
         role: role,
         createdAt: DateTime.now(),
-        vehiclePlate: vehiclePlate,
+        vehiclePlate: (vehiclePlate != null && vehiclePlate.isNotEmpty)
+            ? vehiclePlate
+            : (existingPlate ?? ''),
+        isOnboardingCompleted: isOnboardingDone,
+        isVerified: driverVerified,
       );
     }
 
