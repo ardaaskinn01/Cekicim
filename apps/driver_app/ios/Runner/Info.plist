@@ -62,6 +62,10 @@
 	<string>Müşteri ile sesli görüşme yapabilmeniz için mikrofon erişimi gereklidir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Gerektiğinde araç veya yol durumunun fotoğrafını çekebilmeniz için kamera erişimi gereklidir.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Araç ve evrak fotoğraflarını galeriden seçebilmeniz için fotoğraf kitaplığına erişim gereklidir.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Fotoğraf kaydedebilmek için galeriye erişim gereklidir.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>

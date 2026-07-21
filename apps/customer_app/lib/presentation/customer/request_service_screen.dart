@@ -378,9 +378,10 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       if (_vehiclePhoto != null) {
         try {
           final bytes = await _vehiclePhoto!.readAsBytes();
+          final cleanFileName = 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
           final photoUrl = await repo.uploadRequestPhoto(
             requestId: requestId,
-            fileName: _vehiclePhoto!.name,
+            fileName: cleanFileName,
             fileBytes: bytes,
           );
           await repo.updateRequestPhotoUrl(requestId, photoUrl);
