@@ -433,7 +433,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (req.price != null) ...[
+                              if (req.price > 0) ...[
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
@@ -441,7 +441,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(
-                                    '₺${req.price!.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                                    '₺${req.price.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 16,
