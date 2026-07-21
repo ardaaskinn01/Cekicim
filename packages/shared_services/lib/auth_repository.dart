@@ -132,21 +132,51 @@ class AuthRepository {
 
     if (user == null) return null;
 
-    final profileData = await _client
+    Map<String, dynamic>? profileData = await _client
         .from('profiles')
         .select()
         .eq('id', user.id)
         .maybeSingle();
 
+    // Fallback: If profile is not found by Auth user.id, search by phone number (last 10 digits)
+    if (profileData == null && user.phone != null && user.phone!.trim().isNotEmpty) {
+      final phoneStr = user.phone!.trim();
+      final digits = phoneStr.replaceAll(RegExp(r'\D'), '');
+      final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+
+      final matches = await _client
+          .from('profiles')
+          .select()
+          .ilike('phone', '%$last10')
+          .limit(1);
+
+      if (matches.isNotEmpty) {
+        profileData = Map<String, dynamic>.from(matches.first);
+        final oldId = profileData['id'] as String;
+        if (oldId != user.id) {
+          try {
+            await _client.from('profiles').update({'id': user.id}).eq('id', oldId);
+            if (expectedRole == UserRole.driver) {
+              await _client.from('drivers').update({'id': user.id}).eq('id', oldId);
+            }
+            profileData['id'] = user.id;
+          } catch (e) {
+            debugPrint('Failed to migrate profile ID to Auth user ID: $e');
+          }
+        }
+      }
+    }
+
     if (profileData == null) {
+      final metadataName = (user.userMetadata?['full_name'] ?? user.userMetadata?['name']) as String? ?? '';
       return UserModel(
         id: user.id,
         email: user.email ?? '',
-        fullName: '',
+        fullName: metadataName,
         phone: user.phone ?? '',
         role: expectedRole,
         createdAt: DateTime.now(),
-        isProfileComplete: false,
+        isProfileComplete: metadataName.isNotEmpty,
       );
     }
 
