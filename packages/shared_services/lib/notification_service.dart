@@ -70,12 +70,21 @@ class NotificationService {
         sound: true,
       );
 
-      // On iOS, we MUST verify the APNs token is available before calling getToken()
+      // On iOS, retry fetching APNs token up to 10 seconds before requesting FCM token
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        final apnsToken = await messaging.getAPNSToken();
-        if (apnsToken == null) {
-          debugPrint('APNS token is not available yet. Skipping FCM token retrieval.');
-          return;
+        String? apnsToken;
+        int attempts = 0;
+        while (apnsToken == null && attempts < 10) {
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken == null) {
+            attempts++;
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        }
+        if (apnsToken != null) {
+          debugPrint('APNS token retrieved successfully: $apnsToken');
+        } else {
+          debugPrint('APNS token not available after 10s wait. Proceeding to attempt FCM token.');
         }
       }
 

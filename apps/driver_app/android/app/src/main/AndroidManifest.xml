@@ -50,6 +50,11 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyAgKEFl5fFWgP4Oncf9ee6yNyceR49t4NI" />
 
+        <!-- FCM Default Notification Channel -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="cekici_alerts_v2" />
+
         <!-- Geolocator Foreground Service -->
         <service
             android:name="com.baseflow.geolocator.GeolocatorLocationService"

@@ -27,6 +27,12 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   void initState() {
     super.initState();
     _startVerificationPolling();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(currentUserProvider).value;
+      if (user != null) {
+        NotificationService().setupFCM(user.id);
+      }
+    });
   }
 
   @override
