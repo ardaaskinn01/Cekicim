@@ -116,7 +116,12 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   leading: const Icon(Icons.photo_library, color: AppColors.primary),
                   title: const Text('Galeriden Seç', style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () async {
-                    final img = await _picker.pickImage(source: ImageSource.gallery);
+                    final img = await _picker.pickImage(
+                      source: ImageSource.gallery,
+                      imageQuality: 80,
+                      maxWidth: 1080,
+                      maxHeight: 1920,
+                    );
                     if (context.mounted) Navigator.pop(context, img);
                   },
                 ),
@@ -124,7 +129,12 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   leading: const Icon(Icons.camera_alt, color: AppColors.primary),
                   title: const Text('Kamerayla Çek', style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () async {
-                    final img = await _picker.pickImage(source: ImageSource.camera);
+                    final img = await _picker.pickImage(
+                      source: ImageSource.camera,
+                      imageQuality: 80,
+                      maxWidth: 1080,
+                      maxHeight: 1920,
+                    );
                     if (context.mounted) Navigator.pop(context, img);
                   },
                 ),

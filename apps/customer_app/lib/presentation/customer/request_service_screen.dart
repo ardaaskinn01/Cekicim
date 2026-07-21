@@ -279,7 +279,12 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             leading: const Icon(Icons.camera_alt, color: AppColors.primary),
             title: const Text('Kamerayı Kullan'),
             onTap: () async {
-              final img = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
+              final img = await picker.pickImage(
+                source: ImageSource.camera,
+                imageQuality: 80,
+                maxWidth: 1080,
+                maxHeight: 1920,
+              );
               if (ctx.mounted) Navigator.pop(ctx, img);
             },
           ),
@@ -287,7 +292,12 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             leading: const Icon(Icons.photo_library, color: AppColors.primary),
             title: const Text('Galeriden Seç'),
             onTap: () async {
-              final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+              final img = await picker.pickImage(
+                source: ImageSource.gallery,
+                imageQuality: 80,
+                maxWidth: 1080,
+                maxHeight: 1920,
+              );
               if (ctx.mounted) Navigator.pop(ctx, img);
             },
           ),
