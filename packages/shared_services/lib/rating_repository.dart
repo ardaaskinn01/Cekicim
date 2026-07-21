@@ -10,7 +10,9 @@ class RatingRepository {
       await _client.from('ratings').insert(rating.toJson());
     } on PostgrestException catch (e) {
       if (e.code == '23505') {
-        throw Exception('Bu talep için zaten değerlendirme yaptınız.');
+        // Zaten değerlendirme yapılmışsa hata verip ekranı kilitlemek yerine sessizce devam et
+        debugPrint('submitRating: rating already submitted for request ${rating.requestId}');
+        return;
       }
       throw Exception('Değerlendirme kaydedilemedi: ${e.message}');
     } catch (e) {

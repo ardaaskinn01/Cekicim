@@ -71,6 +71,7 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
   }
 
   Future<void> _submitRating() async {
+    if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
       final user = ref.read(currentUserProvider).value;
@@ -97,8 +98,13 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final errMsg = e.toString().replaceAll('Exception: ', '');
+        if (errMsg.contains('zaten değerlendirme')) {
+          context.go('/driver');
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text(errMsg), backgroundColor: AppColors.error),
         );
       }
     } finally {

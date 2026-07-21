@@ -39,6 +39,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
   }
 
   Future<void> _submitRating() async {
+    if (_isLoading) return;
     setState(() => _isLoading = true);
     try {
       final user = ref.read(currentUserProvider).value;
@@ -68,8 +69,13 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
       context.go('/customer');
     } catch (e) {
       if (!mounted) return;
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      if (errMsg.contains('zaten değerlendirme')) {
+        context.go('/customer');
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+        SnackBar(content: Text(errMsg), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
