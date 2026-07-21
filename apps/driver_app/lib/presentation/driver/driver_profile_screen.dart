@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_services/rating_repository.dart';
+import 'package:shared_services/iban_input_formatter.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/driver_model.dart';
 import 'package:shared_ui/price_calculator.dart';
@@ -251,11 +252,12 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     prefixIcon: Icons.account_balance,
                     keyboardType: TextInputType.text,
                     textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [IbanInputFormatter()],
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) return 'IBAN gereklidir';
-                      final clean = val.replaceAll(' ', '');
+                      final clean = val.replaceAll(' ', '').toUpperCase();
                       if (!clean.startsWith('TR')) return "Türkiye IBAN'ı TR ile başlamalıdır.";
-                      if (clean.length != 26) return 'IBAN 26 karakter olmalıdır (TR + 24 rakam).';
+                      if (clean.length != 26) return 'IBAN tam 26 karakter olmalıdır (TR + 24 rakam).';
                       return null;
                     },
                   ),

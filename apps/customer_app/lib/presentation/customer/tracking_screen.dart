@@ -832,7 +832,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
 
   /// IBAN'ı okunabilir formatta gösterir (TR00 0000 0000 ...)
   String _formatIban(String iban) {
-    final clean = iban.replaceAll(' ', '');
+    String clean = iban.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toUpperCase();
+    if (clean.length > 26) {
+      clean = clean.substring(0, 26);
+    }
     final buffer = StringBuffer();
     for (int i = 0; i < clean.length; i++) {
       if (i > 0 && i % 4 == 0) buffer.write(' ');

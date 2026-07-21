@@ -14,6 +14,8 @@ class AppTextField extends StatefulWidget {
   final int maxLines;
   final int? maxLength;
 
+  final List<TextInputFormatter>? inputFormatters;
+
   const AppTextField({
     super.key,
     this.controller,
@@ -27,6 +29,7 @@ class AppTextField extends StatefulWidget {
     this.onChanged,
     this.maxLines = 1,
     this.maxLength,
+    this.inputFormatters,
   });
 
   @override
@@ -47,6 +50,7 @@ class _AppTextFieldState extends State<AppTextField> {
       onChanged: widget.onChanged,
       maxLines: widget.maxLines,
       maxLength: widget.maxLength,
+      inputFormatters: widget.inputFormatters,
       style: const TextStyle(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: widget.label,

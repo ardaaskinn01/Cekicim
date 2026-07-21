@@ -8,6 +8,7 @@ import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
 import 'package:shared_models/driver_model.dart';
+import 'package:shared_services/iban_input_formatter.dart';
 import '../../providers/auth_provider.dart';
 
 class DriverOnboardingScreen extends ConsumerStatefulWidget {
@@ -739,6 +740,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                     controller: _ibanController,
                     keyboardType: TextInputType.text,
                     textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [IbanInputFormatter()],
                     style: const TextStyle(color: AppColors.textPrimary, letterSpacing: 1.5, fontWeight: FontWeight.w600),
                     decoration: InputDecoration(
                       hintText: 'TR00 0000 0000 0000 0000 0000 00',
@@ -758,9 +760,9 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'IBAN zorunludur.';
-                      final clean = v.replaceAll(' ', '');
+                      final clean = v.replaceAll(' ', '').toUpperCase();
                       if (!clean.startsWith('TR')) return "Türkiye IBAN'ı TR ile başlamalıdır.";
-                      if (clean.length != 26) return 'IBAN 26 karakter olmalıdır (TR + 24 rakam).';
+                      if (clean.length != 26) return 'IBAN tam 26 karakter olmalıdır (TR + 24 rakam).';
                       return null;
                     },
                   ),
