@@ -347,6 +347,21 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       // Generate a random 4-digit completion code
       final random = (1000 + (DateTime.now().microsecondsSinceEpoch % 9000)).toString();
 
+      String? photoUrl;
+      if (_vehiclePhoto != null) {
+        try {
+          final bytes = await _vehiclePhoto!.readAsBytes();
+          final cleanFileName = 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
+          photoUrl = await repo.uploadRequestPhoto(
+            requestId: user.id,
+            fileName: cleanFileName,
+            fileBytes: bytes,
+          );
+        } catch (storageError) {
+          debugPrint('Storage upload error: $storageError');
+        }
+      }
+
       final tempRequest = ServiceRequestModel(
         id: '',
         customerId: user.id,
@@ -363,7 +378,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         carPlate: _plateController.text.trim(),
         problemType: 'Diğer',
         vehicleType: _selectedVehicleType,
-        vehiclePhotoUrl: null,
+        vehiclePhotoUrl: photoUrl,
         selectedDriverIds: _selectedDriverIds,
         distanceKm: distance,
         price: price,
@@ -374,21 +389,6 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       );
 
       final requestId = await repo.createRequest(tempRequest);
-
-      if (_vehiclePhoto != null) {
-        try {
-          final bytes = await _vehiclePhoto!.readAsBytes();
-          final cleanFileName = 'photo_${DateTime.now().millisecondsSinceEpoch}.jpg';
-          final photoUrl = await repo.uploadRequestPhoto(
-            requestId: requestId,
-            fileName: cleanFileName,
-            fileBytes: bytes,
-          );
-          await repo.updateRequestPhotoUrl(requestId, photoUrl);
-        } catch (storageError) {
-          debugPrint('Storage upload error: $storageError');
-        }
-      }
 
       await repo.sendAlarmToDrivers(requestId, _selectedDriverIds);
 
