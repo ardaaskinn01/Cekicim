@@ -76,12 +76,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
       // 1. Fetch requests
       try {
-        final requestsData = await client
-            .from('service_requests')
-            .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name), ratings(*)')
-            .order('created_at', ascending: false);
+        dynamic requestsData;
+        try {
+          requestsData = await client
+              .from('service_requests')
+              .select('*, customer:profiles!service_requests_customer_id_fkey(full_name), driver:profiles!service_requests_driver_id_fkey(full_name), ratings(*)')
+              .order('created_at', ascending: false);
+        } catch (joinErr) {
+          debugPrint('[AdminPanel] Join query failed, falling back to simple select: $joinErr');
+          requestsData = await client
+              .from('service_requests')
+              .select('*')
+              .order('created_at', ascending: false);
+        }
         _allRequests = (requestsData as List)
-            .map((json) => ServiceRequestModel.fromJson(json))
+            .map((json) => ServiceRequestModel.fromJson(Map<String, dynamic>.from(json)))
             .toList();
       } catch (e) {
         debugPrint('[AdminPanel] service_requests load error: $e');
