@@ -81,7 +81,11 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
           }
         }
         if (user.supportedVehicleTypes.isNotEmpty) {
-          selectedVehicleTypes = List.from(user.supportedVehicleTypes);
+          for (var vt in user.supportedVehicleTypes) {
+            if (_supportedVehicleTypes.containsKey(vt)) {
+              _supportedVehicleTypes[vt] = true;
+            }
+          }
         }
       }
     }
