@@ -45,6 +45,12 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>audio</string>
+		<string>voip</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Çekici çağırabilmeniz ve konumunuzu harita üzerinde görebilmeniz için konumunuza erişmemiz gerekiyor.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -55,5 +61,9 @@
 	<string>Çekici sürücüsü ile sesli görüşme yapabilmeniz için mikrofon erişimi gereklidir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Gerektiğinde arıza veya kaza yerinin fotoğrafını çekebilmeniz için kamera erişimi gereklidir.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
 </dict>
 </plist>

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/price_calculator.dart';
@@ -83,9 +84,14 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
 
   Future<void> _acceptRequest() async {
     setState(() => _isLoading = true);
+    _timer?.cancel(); // Stop countdown timer
     try {
       final user = ref.read(currentUserProvider).value;
       if (user == null) throw Exception('Kullanıcı bulunamadı.');
+
+      // Cancel the local notification that triggered this screen
+      final notifPlugin = FlutterLocalNotificationsPlugin();
+      await notifPlugin.cancelAll();
 
       await ref.read(requestNotifierProvider.notifier).acceptRequest(widget.requestId, user.id);
       

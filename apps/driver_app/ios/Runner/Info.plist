@@ -55,10 +55,16 @@
 	<array>
 		<string>location</string>
 		<string>remote-notification</string>
+		<string>audio</string>
+		<string>voip</string>
 	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Müşteri ile sesli görüşme yapabilmeniz için mikrofon erişimi gereklidir.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Gerektiğinde araç veya yol durumunun fotoğrafını çekebilmeniz için kamera erişimi gereklidir.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
 </dict>
 </plist>
