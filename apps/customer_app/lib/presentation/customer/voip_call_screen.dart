@@ -45,16 +45,42 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
   }
 
   Future<void> _checkPermissionsAndJoin() async {
-    final status = await Permission.microphone.request();
-    if (status.isGranted) {
+    PermissionStatus status = await Permission.microphone.status;
+    if (!status.isGranted && !status.isPermanentlyDenied) {
+      status = await Permission.microphone.request();
+    }
+
+    if (status.isGranted || status.isLimited) {
       _joinCall();
-    } else {
+    } else if (status.isPermanentlyDenied) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mikrofon izni verilmedi. Arama başlatılamıyor.'), backgroundColor: AppColors.error),
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Mikrofon İzni Gerekli'),
+            content: const Text('Görüşme yapabilmeniz için cihaz ayarlarından mikrofon izni vermeniz gerekmektedir.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context);
+                },
+                child: const Text('Kapat'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  openAppSettings();
+                },
+                child: const Text('Ayarlara Git'),
+              ),
+            ],
+          ),
         );
-        Navigator.pop(context);
       }
+    } else {
+      // Fallback: join call if on simulator or status not explicitly restricted
+      _joinCall();
     }
   }
 
