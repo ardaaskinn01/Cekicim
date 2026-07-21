@@ -359,6 +359,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
           );
         } catch (storageError) {
           debugPrint('Storage upload error: $storageError');
+          throw Exception('Arıza fotoğrafı yüklenirken hata oluştu: $storageError');
         }
       }
 
