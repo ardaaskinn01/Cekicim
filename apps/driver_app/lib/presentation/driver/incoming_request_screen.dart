@@ -10,6 +10,7 @@ import 'package:shared_models/request_status.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_services/routing_service.dart';
+import 'package:shared_services/alarm_audio_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 
@@ -38,6 +39,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   @override
   void initState() {
     super.initState();
+    AlarmAudioService().startAlarm();
     _startTimer();
     // If stream doesn't resolve within 5 seconds, show retry UI
     _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
@@ -77,6 +79,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
 
   @override
   void dispose() {
+    AlarmAudioService().stopAlarm();
     _timer?.cancel();
     _loadingTimeoutTimer?.cancel();
     super.dispose();
@@ -89,9 +92,10 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
       final user = ref.read(currentUserProvider).value;
       if (user == null) throw Exception('Kullanıcı bulunamadı.');
 
-      // Cancel the local notification that triggered this screen
+      // Cancel the local notification and stop alarm sound
       final notifPlugin = FlutterLocalNotificationsPlugin();
       await notifPlugin.cancelAll();
+      await AlarmAudioService().stopAlarm();
 
       await ref.read(requestNotifierProvider.notifier).acceptRequest(widget.requestId, user.id);
       
@@ -110,6 +114,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
 
   Future<void> _timeoutRequest() async {
     _timer?.cancel();
+    AlarmAudioService().stopAlarm();
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {

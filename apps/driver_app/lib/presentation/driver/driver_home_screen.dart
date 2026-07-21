@@ -10,6 +10,7 @@ import '../../providers/location_provider.dart';
 import '../../providers/driver_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_services/notification_service.dart';
+import 'package:shared_services/alarm_audio_service.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -64,7 +65,8 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         // Only navigate if we haven't already navigated for this offer
         if (_lastNavigatedOfferId != reqId) {
           _lastNavigatedOfferId = reqId;
-          // Play alarm sound when offer arrives while app is in foreground
+          // Play alarm sound and start looping audio when offer arrives while app is in foreground
+          AlarmAudioService().startAlarm();
           NotificationService().showLocalNotification(
             '🚨 Yeni Yol Yardım Talebi!',
             'Yakınınızda yeni bir talep var. Hemen inceleyin!',

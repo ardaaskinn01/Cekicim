@@ -105,6 +105,8 @@ Deno.serve(async (req) => {
             apns: {
               headers: {
                 'apns-priority': '10',
+                'apns-push-type': 'alert',
+                'apns-topic': 'com.aasoft.cekici.driver',
               },
               payload: {
                 aps: {
