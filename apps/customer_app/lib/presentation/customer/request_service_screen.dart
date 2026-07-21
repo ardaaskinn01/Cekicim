@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -40,6 +41,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   bool _isSearchingPickup = false;
   String? _pickupAddress;
   bool _isPickupSelected = false;
+  String? _pickupSearchError;
 
   // For dropoff (Step 1)
   final _dropoffSearchController = TextEditingController();
@@ -47,6 +49,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   bool _isSearchingDropoff = false;
   LatLng? _destinationLatLng;
   String? _destinationAddress;
+  String? _dropoffSearchError;
   
   List<DriverModel> _nearbyDrivers = [];
   List<String> _selectedDriverIds = [];
@@ -86,6 +89,19 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     });
   }
 
+  double _calculatePrice(double dist) {
+    double price = 2000.0;
+    if (dist > 1.0) {
+      if (dist <= 15.0) {
+        price += (dist - 1.0) * 200.0;
+      } else {
+        price += (14.0 * 200.0) + (dist - 15.0) * 150.0;
+      }
+    }
+    // Round to nearest 100 TL step (e.g., 2140 -> 2100 TL)
+    return (price / 100).round() * 100.0;
+  }
+
   @override
   void dispose() {
     _plateController.dispose();
@@ -96,20 +112,22 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
   Future<List<Map<String, dynamic>>> _searchAddress(String query) async {
     if (query.trim().isEmpty) return [];
-    
-    // 1. Try Google Geocoding API first
+
     const googleApiKey = 'AIzaSyAgKEFl5fFWgP4Oncf9ee6yNyceR49t4NI';
+    const timeout = Duration(seconds: 8);
+
+    // 1. Try Google Geocoding API with 8-second timeout
     try {
       final client = HttpClient();
+      client.connectionTimeout = timeout;
       final uri = Uri.parse(
-        'https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(query)}&key=$googleApiKey&components=country:tr'
+        'https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(query)}&key=$googleApiKey&components=country:tr',
       );
-      final request = await client.getUrl(uri);
-      final response = await request.close();
+      final request = await client.getUrl(uri).timeout(timeout);
+      final response = await request.close().timeout(timeout);
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
+        final responseBody = await response.transform(utf8.decoder).join().timeout(timeout);
         final Map<String, dynamic> data = json.decode(responseBody);
-        
         if (data['status'] == 'OK' && data['results'] != null) {
           final List<dynamic> results = data['results'];
           return results.map((item) {
@@ -120,25 +138,27 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               'lon': geometry['lng'] as double,
             };
           }).toList();
-        } else {
-          debugPrint('Google Geocoding non-OK status: ${data['status']}');
         }
       }
+    } on TimeoutException {
+      throw Exception('network_timeout');
     } catch (e) {
+      if (e.toString().contains('network_timeout')) rethrow;
       debugPrint('Google Geocoding error: $e');
     }
 
-    // 2. Fallback to Nominatim with a distinct User-Agent to prevent 403 blocks
+    // 2. Fallback to Nominatim with 8-second timeout
     try {
       final client = HttpClient();
+      client.connectionTimeout = timeout;
       final uri = Uri.parse(
-        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=tr'
+        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=tr',
       );
-      final request = await client.getUrl(uri);
+      final request = await client.getUrl(uri).timeout(timeout);
       request.headers.set('User-Agent', 'CekicimApp-CustomerPlatform/1.0 (ardaaskinn01@gmail.com)');
-      final response = await request.close();
+      final response = await request.close().timeout(timeout);
       if (response.statusCode == 200) {
-        final responseBody = await response.transform(utf8.decoder).join();
+        final responseBody = await response.transform(utf8.decoder).join().timeout(timeout);
         final List<dynamic> data = json.decode(responseBody);
         return data.map((item) {
           return {
@@ -148,7 +168,10 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
           };
         }).toList();
       }
+    } on TimeoutException {
+      throw Exception('network_timeout');
     } catch (e) {
+      if (e.toString().contains('network_timeout')) rethrow;
       debugPrint('Address search fallback error: $e');
     }
     return [];
@@ -318,18 +341,8 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         );
       }
 
-      // Calculate price dynamically:
-      // - First 1 km: 2000 TL (Base fee)
-      // - Between 1 km and 15 km: +200 TL/km
-      // - Beyond 15 km: +150 TL/km
-      double price = 2000.0;
-      if (distance > 1.0) {
-        if (distance <= 15.0) {
-          price += (distance - 1.0) * 200.0;
-        } else {
-          price += (14.0 * 200.0) + (distance - 15.0) * 150.0;
-        }
-      }
+      // Calculate price dynamically (rounded to nearest 100 TL)
+      final price = _calculatePrice(distance);
 
       // Generate a random 4-digit completion code
       final random = (1000 + (DateTime.now().microsecondsSinceEpoch % 9000)).toString();
@@ -568,13 +581,30 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  onPressed: () async {
-                    setState(() => _isSearchingPickup = true);
-                    final results = await _searchAddress(_pickupSearchController.text);
+                  onPressed: _isSearchingPickup ? null : () async {
+                    if (_pickupSearchController.text.trim().isEmpty) return;
                     setState(() {
-                      _pickupSearchResults = results;
-                      _isSearchingPickup = false;
+                      _isSearchingPickup = true;
+                      _pickupSearchError = null;
+                      _pickupSearchResults = [];
                     });
+                    try {
+                      final results = await _searchAddress(_pickupSearchController.text);
+                      if (mounted) {
+                        setState(() {
+                          _pickupSearchResults = results;
+                          _pickupSearchError = results.isEmpty ? 'empty' : null;
+                          _isSearchingPickup = false;
+                        });
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        setState(() {
+                          _pickupSearchError = 'network';
+                          _isSearchingPickup = false;
+                        });
+                      }
+                    }
                   },
                   icon: _isSearchingPickup
                       ? const SizedBox(
@@ -586,6 +616,28 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ],
             ),
+            if (_pickupSearchError == 'network')
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: const [
+                    Icon(Icons.wifi_off, color: AppColors.error, size: 16),
+                    SizedBox(width: 6),
+                    Text('Ağ bağlantısını kontrol edin', style: TextStyle(color: AppColors.error, fontSize: 13)),
+                  ],
+                ),
+              ),
+            if (_pickupSearchError == 'empty')
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: const [
+                    Icon(Icons.search_off, color: AppColors.textSecondary, size: 16),
+                    SizedBox(width: 6),
+                    Text('Sonuç bulunamadı', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                  ],
+                ),
+              ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -612,6 +664,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                           _pickupAddress = res['display_name'];
                           _isPickupSelected = true;
                           _pickupSearchResults = [];
+                          _pickupSearchError = null;
                           _pickupSearchController.text = res['display_name'];
                         });
                       },
@@ -833,13 +886,30 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  onPressed: () async {
-                    setState(() => _isSearchingDropoff = true);
-                    final results = await _searchAddress(_dropoffSearchController.text);
+                  onPressed: _isSearchingDropoff ? null : () async {
+                    if (_dropoffSearchController.text.trim().isEmpty) return;
                     setState(() {
-                      _dropoffSearchResults = results;
-                      _isSearchingDropoff = false;
+                      _isSearchingDropoff = true;
+                      _dropoffSearchError = null;
+                      _dropoffSearchResults = [];
                     });
+                    try {
+                      final results = await _searchAddress(_dropoffSearchController.text);
+                      if (mounted) {
+                        setState(() {
+                          _dropoffSearchResults = results;
+                          _dropoffSearchError = results.isEmpty ? 'empty' : null;
+                          _isSearchingDropoff = false;
+                        });
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        setState(() {
+                          _dropoffSearchError = 'network';
+                          _isSearchingDropoff = false;
+                        });
+                      }
+                    }
                   },
                   icon: _isSearchingDropoff
                       ? const SizedBox(
@@ -851,6 +921,28 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ],
             ),
+            if (_dropoffSearchError == 'network')
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: const [
+                    Icon(Icons.wifi_off, color: AppColors.error, size: 16),
+                    SizedBox(width: 6),
+                    Text('Ağ bağlantısını kontrol edin', style: TextStyle(color: AppColors.error, fontSize: 13)),
+                  ],
+                ),
+              ),
+            if (_dropoffSearchError == 'empty')
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: const [
+                    Icon(Icons.search_off, color: AppColors.textSecondary, size: 16),
+                    SizedBox(width: 6),
+                    Text('Sonuç bulunamadı', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                  ],
+                ),
+              ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -876,6 +968,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                           _destinationLatLng = LatLng(res['lat'], res['lon']);
                           _destinationAddress = res['display_name'];
                           _dropoffSearchResults = [];
+                          _dropoffSearchError = null;
                           _dropoffSearchController.text = res['display_name'];
                         });
                       },
@@ -930,14 +1023,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
             _destinationLatLng!.longitude,
           );
         }
-        double price = 2000.0;
-        if (dist > 1.0) {
-          if (dist <= 15.0) {
-            price += (dist - 1.0) * 200.0;
-          } else {
-            price += (14.0 * 200.0) + (dist - 15.0) * 150.0;
-          }
-        }
+        final price = _calculatePrice(dist);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
