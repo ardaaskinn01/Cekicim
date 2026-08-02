@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,8 +11,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/driver_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
+import 'package:shared_models/service_request_model.dart';
+import 'package:shared_models/request_status.dart';
 import 'package:shared_services/notification_service.dart';
 import 'package:shared_services/alarm_audio_service.dart';
+import '../../providers/request_provider.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -22,10 +27,12 @@ class DriverHomeScreen extends ConsumerStatefulWidget {
 class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   Timer? _verificationPollTimer;
   String? _lastNavigatedOfferId;
+  BitmapDescriptor? _towTruckIcon;
 
   @override
   void initState() {
     super.initState();
+    _loadCustomMarker();
     _startVerificationPolling();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = ref.read(currentUserProvider).value;
@@ -33,6 +40,53 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
         NotificationService().setupFCM(user.id);
       }
     });
+  }
+
+  Future<void> _loadCustomMarker() async {
+    try {
+      final icon = await _getBytesFromCanvas(36, 36, Icons.rv_hookup, AppColors.accent);
+      if (mounted) {
+        setState(() {
+          _towTruckIcon = icon;
+        });
+      }
+    } catch (e) {
+      debugPrint("Hata custom marker oluşturulurken: $e");
+    }
+  }
+
+  Future<BitmapDescriptor> _getBytesFromCanvas(int width, int height, IconData iconData, Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+
+    final Paint paint = Paint()..color = color;
+    canvas.drawCircle(Offset(width / 2, height / 2), width / 2, paint);
+
+    final Paint borderPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3;
+    canvas.drawCircle(Offset(width / 2, height / 2), width / 2 - 1.5, borderPaint);
+
+    TextPainter textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(iconData.codePoint),
+      style: TextStyle(
+        fontSize: width * 0.6,
+        fontFamily: iconData.fontFamily,
+        color: Colors.white,
+        package: iconData.fontPackage,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset((width - textPainter.width) / 2, (height - textPainter.height) / 2),
+    );
+
+    final ui.Image image = await pictureRecorder.endRecording().toImage(width, height);
+    final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 
   @override
@@ -62,8 +116,26 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     final isOnline = ref.watch(driverStatusProvider);
     final locationAsync = ref.watch(locationProvider);
 
-    // Watch pending offers — guard against duplicate pushes for the same offer
+    final activeReq = ref.watch(activeRequestProvider).value;
+    final isOnDuty = activeReq != null &&
+        activeReq.status != RequestStatus.completed &&
+        activeReq.status != RequestStatus.cancelled;
+
+    // Auto redirect to active request navigation screen when active request exists
+    ref.listen<AsyncValue<ServiceRequestModel?>>(activeRequestProvider, (prev, next) {
+      final req = next.value;
+      if (req != null && req.status != RequestStatus.completed && req.status != RequestStatus.cancelled) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            context.go('/driver/navigate/${req.id}');
+          }
+        });
+      }
+    });
+
+    // Watch pending offers — guard against duplicate pushes or ringing when on duty
     ref.listen<AsyncValue<List<Map<String, dynamic>>>>(pendingOffersProvider, (prev, next) {
+      if (isOnDuty || !isOnline) return;
       final list = next.value;
       if (list != null && list.isNotEmpty) {
         final offer = list.first;
@@ -115,14 +187,14 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
 
               return MapWidget(
                 initialPosition: latLng,
-                showMyLocation: true,
+                showMyLocation: false,
                 fitMarkers: false,
                 markers: {
                   Marker(
                     markerId: const MarkerId('driver_current_position'),
                     position: latLng,
                     infoWindow: const InfoWindow(title: 'Benim Konumum'),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                    icon: _towTruckIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
                   ),
                 },
               );
@@ -206,6 +278,40 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+            ),
+          if (activeReq != null && activeReq.status != RequestStatus.completed && activeReq.status != RequestStatus.cancelled)
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: 110,
+              child: InkWell(
+                onTap: () => context.go('/driver/navigate/${activeReq.id}'),
+                borderRadius: BorderRadius.circular(16),
+                child: Card(
+                  color: AppColors.primary,
+                  elevation: 8,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.navigation_rounded, color: Colors.white, size: 24),
+                            SizedBox(width: 12),
+                            Text(
+                              '🚨 Aktif Göreve Dön',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                          ],
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ),

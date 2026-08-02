@@ -79,15 +79,22 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
             children: [
               const Icon(Icons.pin_drop_outlined, size: 80, color: AppColors.primary),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'Müşteriden Aldığınız Biniş Kodunu Girin',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Yolcunun bindiğini doğrulamak için müşterinin ekranında yazan 4 haneli kodu giriniz.',
-                style: TextStyle(color: AppColors.textSecondary),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                  fontSize: 14,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
@@ -100,13 +107,21 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
               ),
               const SizedBox(height: 24),
               CheckboxListTile(
-                title: const Text(
+                title: Text(
                   'Yolcuyu ve aracını güvenle teslim aldığımı onaylıyorum.',
-                  style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 value: _isConfirmed,
                 activeColor: AppColors.primary,
                 checkColor: Colors.white,
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                  width: 2,
+                ),
                 onChanged: (val) {
                   setState(() => _isConfirmed = val ?? false);
                 },

@@ -180,6 +180,34 @@ class AuthRepository {
       );
     }
 
+    // Auto-upgrade customer to driver if accessing driver app
+    if (expectedRole == UserRole.driver) {
+      final roleStr = profileData['role'] as String?;
+      if (roleStr == 'customer') {
+        try {
+          await _client.from('profiles').update({'role': 'driver'}).eq('id', user.id);
+          profileData['role'] = 'driver';
+
+          final driverData = await _client
+              .from('drivers')
+              .select()
+              .eq('id', user.id)
+              .maybeSingle();
+
+          if (driverData == null) {
+            await _client.from('drivers').insert({
+              'id': user.id,
+              'vehicle_plate': '',
+              'is_onboarding_completed': false,
+              'is_verified': false,
+            });
+          }
+        } catch (e) {
+          debugPrint('getCurrentUser: Failed to auto-upgrade customer to driver: $e');
+        }
+      }
+    }
+
     final metadataVerified = user.userMetadata?['is_verified'] as bool? ?? false;
     final profileDataCopy = Map<String, dynamic>.from(profileData);
     // is_verified kolonu profiles tablosunda olmayabilir, güvenli fallback
@@ -205,6 +233,10 @@ class AuthRepository {
   }
 
   Future<void> signInWithPhone(String phone) async {
+    final cleanDigits = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleanDigits.length < 10) {
+      throw Exception('Lütfen telefon numaranızı 10 hane olarak eksiksiz giriniz (Örn: 5551234567).');
+    }
     var normalizedPhone = phone.trim();
     if (!normalizedPhone.startsWith('+')) {
       if (normalizedPhone.startsWith('0')) {

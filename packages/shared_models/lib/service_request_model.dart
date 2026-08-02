@@ -36,6 +36,7 @@ class ServiceRequestModel {
   final String? driverName;
   final double? customerRatingFromDriver;
   final double? driverRatingFromCustomer;
+  final double tollFee;
 
   ServiceRequestModel({
     required this.id,
@@ -73,6 +74,7 @@ class ServiceRequestModel {
     this.driverName,
     this.customerRatingFromDriver,
     this.driverRatingFromCustomer,
+    this.tollFee = 0.0,
   });
 
   factory ServiceRequestModel.fromJson(Map<String, dynamic> json) {
@@ -123,6 +125,7 @@ class ServiceRequestModel {
       driverName: json['driver'] != null ? json['driver']['full_name'] as String? : null,
       customerRatingFromDriver: _parseCustomerRating(json['ratings'], json['customer_id'] as String),
       driverRatingFromCustomer: _parseDriverRating(json['ratings'], json['customer_id'] as String),
+      tollFee: (json['toll_fee'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -178,6 +181,7 @@ class ServiceRequestModel {
       'cancelled_at': cancelledAt?.toIso8601String(),
       'active_call_channel': activeCallChannel,
       'active_call_caller_id': activeCallCallerId,
+      'toll_fee': tollFee,
     };
     if (id.isNotEmpty) {
       data['id'] = id;
@@ -221,6 +225,7 @@ class ServiceRequestModel {
     String? driverName,
     double? customerRatingFromDriver,
     double? driverRatingFromCustomer,
+    double? tollFee,
   }) {
     return ServiceRequestModel(
       id: id ?? this.id,
@@ -258,6 +263,7 @@ class ServiceRequestModel {
       driverName: driverName ?? this.driverName,
       customerRatingFromDriver: customerRatingFromDriver ?? this.customerRatingFromDriver,
       driverRatingFromCustomer: driverRatingFromCustomer ?? this.driverRatingFromCustomer,
+      tollFee: tollFee ?? this.tollFee,
     );
   }
 }

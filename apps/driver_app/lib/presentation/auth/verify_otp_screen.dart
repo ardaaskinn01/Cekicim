@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
+import 'package:shared_services/app_error_handler.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
@@ -73,7 +74,7 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
+          content: Text(AppErrorHandler.parse(e)),
           backgroundColor: AppColors.error,
         ),
       );

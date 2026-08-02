@@ -36,10 +36,10 @@ class RequestNotifier extends StateNotifier<AsyncValue<String?>> {
     }
   }
 
-  Future<void> cancelRequest(String requestId) async {
+  Future<void> cancelRequest(String requestId, String reason) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.cancelRequestByCustomer(requestId, 'Müşteri tarafından iptal edildi');
+      await _repository.cancelRequestByCustomer(requestId, reason);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

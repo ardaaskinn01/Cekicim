@@ -12,6 +12,8 @@ import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/driver_model.dart';
 import 'package:shared_models/service_request_model.dart';
 import 'package:shared_models/request_status.dart';
+import 'package:shared_services/routing_service.dart';
+import 'package:shared_services/app_error_handler.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/location_provider.dart';
 import '../../providers/request_provider.dart';
@@ -29,6 +31,8 @@ class RequestServiceScreen extends ConsumerStatefulWidget {
 
 class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   int _currentStep = 0;
+  bool _hasTolls = false;
+  double _tollFee = 0.0;
   LatLng _selectedLatLng = const LatLng(39.9208, 32.8541); // Default Ankara
   
   String? _selectedVehicleType;
@@ -89,6 +93,33 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     });
   }
 
+  Future<void> _checkTolls() async {
+    if (_destinationLatLng == null) {
+      if (mounted) {
+        setState(() {
+          _hasTolls = false;
+          _tollFee = 0.0;
+        });
+      }
+      return;
+    }
+
+    try {
+      final res = await RoutingService().checkTollsAndRoute(
+        originLat: _selectedLatLng.latitude,
+        originLng: _selectedLatLng.longitude,
+        destLat: _destinationLatLng!.latitude,
+        destLng: _destinationLatLng!.longitude,
+      );
+      if (mounted) {
+        setState(() {
+          _hasTolls = res['hasTolls'] as bool? ?? false;
+          _tollFee = (res['tollFee'] as num? ?? 0.0).toDouble();
+        });
+      }
+    } catch (_) {}
+  }
+
   double _calculatePrice(double dist) {
     double price = 2000.0;
     if (dist > 1.0) {
@@ -98,8 +129,9 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         price += (14.0 * 200.0) + (dist - 15.0) * 150.0;
       }
     }
-    // Round to nearest 100 TL step (e.g., 2140 -> 2100 TL)
-    return (price / 100).round() * 100.0;
+    // Round base distance price to nearest 100 TL step
+    final basePrice = (price / 100).round() * 100.0;
+    return basePrice + _tollFee;
   }
 
   @override
@@ -269,7 +301,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     final picker = ImagePicker();
     final result = await showModalBottomSheet<XFile?>(
       context: context,
-      backgroundColor: AppColors.cardBackground,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -277,7 +309,10 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         child: Wrap(children: [
           ListTile(
             leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-            title: const Text('Kamerayı Kullan'),
+            title: Text(
+              'Kamerayı Kullan',
+              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontWeight: FontWeight.w600),
+            ),
             onTap: () async {
               final img = await picker.pickImage(
                 source: ImageSource.camera,
@@ -290,7 +325,10 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.photo_library, color: AppColors.primary),
-            title: const Text('Galeriden Seç'),
+            title: Text(
+              'Galeriden Seç',
+              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontWeight: FontWeight.w600),
+            ),
             onTap: () async {
               final img = await picker.pickImage(
                 source: ImageSource.gallery,
@@ -312,13 +350,25 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     try {
       final repo = ref.read(requestRepositoryProvider);
       final currentUser = ref.read(currentUserProvider).value;
-      final drivers = await repo.getNearbyAvailableDrivers(
+      var drivers = await repo.getNearbyAvailableDrivers(
         _selectedLatLng.latitude,
         _selectedLatLng.longitude,
-        30.0,
+        50.0,
         _selectedVehicleType!,
         customerId: currentUser?.id,
       );
+      if (drivers.isEmpty) {
+        drivers = await repo.getNearbyAvailableDrivers(
+          _selectedLatLng.latitude,
+          _selectedLatLng.longitude,
+          150.0,
+          _selectedVehicleType!,
+          customerId: currentUser?.id,
+        );
+      }
+      if (drivers.isEmpty) {
+        drivers = await repo.getAllAvailableDrivers(customerId: currentUser?.id);
+      }
       setState(() {
         _nearbyDrivers = drivers;
         _selectedDriverIds = _nearbyDrivers.map((d) => d.id).toList();
@@ -393,6 +443,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         selectedDriverIds: _selectedDriverIds,
         distanceKm: distance,
         price: price,
+        tollFee: _tollFee,
         status: RequestStatus.awaitingAcceptance,
         createdAt: DateTime.now(),
         customerPhone: user.phone ?? '08501234567',
@@ -408,7 +459,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Talep oluşturulamadı: $e'), backgroundColor: AppColors.error),
+        SnackBar(content: Text(AppErrorHandler.parse(e)), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -440,6 +491,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         return;
       }
       _fetchDrivers();
+      _checkTolls();
       setState(() => _currentStep++);
     } else {
       _submitRequest();
@@ -1085,11 +1137,21 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                         Text('${dist.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
+                    if (_hasTolls && _tollFee > 0) ...[
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('HGS / Köprü Geçiş Ücreti:', style: TextStyle(color: AppColors.textSecondary)),
+                          Text('₺${_tollFee.round()}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                        ],
+                      ),
+                    ],
                     const Divider(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Fiyat:', style: TextStyle(color: AppColors.textSecondary)),
+                        Text(_hasTolls && _tollFee > 0 ? 'Toplam Fiyat (HGS Dahil):' : 'Fiyat:', style: const TextStyle(color: AppColors.textSecondary)),
                         Text('₺${price.round()}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 16)),
                       ],
                     ),
@@ -1105,6 +1167,29 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ),
             ),
+            if (_hasTolls && _tollFee > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.alt_route_rounded, color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '🛣️ Rotanızda paralı otoyol/köprü geçişi tespit edildi (+₺${_tollFee.round()} HGS Ücreti Dahildir).',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             if (_selectedDriverIds.isEmpty) ...[
               Container(

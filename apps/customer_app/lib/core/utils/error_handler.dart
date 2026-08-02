@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_ui/app_colors.dart';
+import 'package:shared_services/app_error_handler.dart';
 
 abstract class AppException implements Exception {
   final String message;
@@ -28,17 +29,18 @@ class DatabaseException extends AppException {
 class ErrorHandler {
   static AppException handleError(Object error) {
     if (error is AppException) return error;
+    final parsedMessage = AppErrorHandler.parse(error);
     final errStr = error.toString().toLowerCase();
     if (errStr.contains('socket') || errStr.contains('network') || errStr.contains('connection')) {
-      return NetworkException();
+      return NetworkException(parsedMessage);
     }
     if (errStr.contains('auth') || errStr.contains('password') || errStr.contains('jwt')) {
-      return AuthException(error.toString().replaceAll('Exception: ', ''));
+      return AuthException(parsedMessage);
     }
     if (errStr.contains('location') || errStr.contains('gps') || errStr.contains('permission')) {
-      return LocationException();
+      return LocationException(parsedMessage);
     }
-    return DatabaseException(error.toString().replaceAll('Exception: ', ''));
+    return DatabaseException(parsedMessage);
   }
 
   static void showErrorSnackbar(BuildContext context, AppException exception) {

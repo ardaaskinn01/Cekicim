@@ -11,6 +11,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_services/routing_service.dart';
 import 'package:shared_services/alarm_audio_service.dart';
+import 'package:shared_models/driver_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/request_provider.dart';
 
@@ -39,6 +40,19 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(currentUserProvider).value;
+      final driver = user is DriverModel ? user : null;
+      final activeReq = ref.read(activeRequestProvider).value;
+      if (activeReq != null || driver?.isAvailable == false) {
+        AlarmAudioService().stopAlarm();
+        if (mounted) {
+          context.pop();
+        }
+        return;
+      }
+    });
+
     AlarmAudioService().startAlarm();
     _startTimer();
     // If stream doesn't resolve within 5 seconds, show retry UI
@@ -257,23 +271,20 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
               });
             }
 
-            // Mark that we've received real data at least once
-            if (!_hasLoadedRequest) {
-              // Do it after build to avoid setState in build
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) setState(() => _hasLoadedRequest = true);
-              });
-            }
-
-            if (request.status != RequestStatus.awaitingAcceptance) {
+            if (request.status == RequestStatus.awaitingAcceptance) {
+              if (!_hasLoadedRequest) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _hasLoadedRequest = true);
+                });
+              }
+            } else {
               if (request.driverId == user?.id) {
                 // This driver accepted it — show loading while navigating
                 return const Center(
                   child: CircularProgressIndicator(color: AppColors.primary),
                 );
               }
-              // Only redirect if we have loaded the request at least once
-              // (prevents race condition on first stream emission)
+              // Only redirect if we previously loaded a valid awaitingAcceptance request
               if (_hasLoadedRequest && !_navigationPending) {
                 _navigationPending = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -466,6 +477,28 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                   ),
+                                  if (request.tollFee > 0) ...[
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.alt_route_rounded, color: Colors.orange, size: 13),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'HGS / Köprü Dahil (+₺${request.tollFee.round()})',
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

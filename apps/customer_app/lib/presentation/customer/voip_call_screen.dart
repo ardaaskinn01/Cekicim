@@ -98,11 +98,17 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
       if (widget.isInitiator) {
         final user = ref.read(currentUserProvider).value;
         if (user != null) {
-          ref.read(requestRepositoryProvider).updateCallStatus(
+          final repo = ref.read(requestRepositoryProvider);
+          repo.updateCallStatus(
             widget.requestId,
             channelId,
             user.id,
           ).catchError((_) {});
+          final reqAsync = ref.read(requestStatusProvider(widget.requestId));
+          final req = reqAsync.value;
+          if (req != null && req.driverId != null) {
+            repo.sendCallNotification(requestId: widget.requestId, targetUserId: req.driverId!, callerName: user.fullName).catchError((_) {});
+          }
         }
       }
 

@@ -1,7 +1,7 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
-/// Service to manage looping foreground alarm playback (e.g. bg_alarm2.mp3)
+/// Service to manage looping foreground alarm playback (e.g. alarm.mp3)
 class AlarmAudioService {
   static final AlarmAudioService _instance = AlarmAudioService._internal();
   factory AlarmAudioService() => _instance;
@@ -20,7 +20,7 @@ class AlarmAudioService {
       _player ??= AudioPlayer();
       await _player!.setReleaseMode(ReleaseMode.loop);
       await _player!.setVolume(1.0);
-      await _player!.play(AssetSource('bg_alarm2.mp3'));
+      await _player!.play(AssetSource('alarm.mp3'));
       debugPrint('[AlarmAudioService] Started looping alarm sound.');
     } catch (e) {
       debugPrint('[AlarmAudioService] Error playing alarm audio: $e');

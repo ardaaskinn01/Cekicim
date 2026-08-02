@@ -8,6 +8,8 @@ import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
 
+import '../../providers/theme_provider.dart';
+
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -19,6 +21,78 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _fullNameController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLoading = false;
+
+  void _showThemeDialog(BuildContext context, WidgetRef ref) {
+    final currentMode = ref.read(themeModeProvider);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Görünüm ve Tema',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Uygulama renk temasını tercihinize göre ayarlayın.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.system,
+                  groupValue: currentMode,
+                  activeColor: AppColors.accent,
+                  title: const Text('📱 Sistem Varsayılanı', style: TextStyle(color: AppColors.textPrimary)),
+                  subtitle: const Text('Telefonunuzun sistem ayarını takip eder', style: TextStyle(color: AppColors.textSecondary)),
+                  onChanged: (mode) {
+                    if (mode != null) {
+                      ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.light,
+                  groupValue: currentMode,
+                  activeColor: AppColors.accent,
+                  title: const Text('☀️ Açık Tema (Light)', style: TextStyle(color: AppColors.textPrimary)),
+                  onChanged: (mode) {
+                    if (mode != null) {
+                      ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+                RadioListTile<ThemeMode>(
+                  value: ThemeMode.dark,
+                  groupValue: currentMode,
+                  activeColor: AppColors.accent,
+                  title: const Text('🌙 Koyu Tema (Dark)', style: TextStyle(color: AppColors.textPrimary)),
+                  onChanged: (mode) {
+                    if (mode != null) {
+                      ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -151,6 +225,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: 32),
                 const Divider(color: AppColors.divider),
                 const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                ListTile(
+                  onTap: () => _showThemeDialog(context, ref),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  tileColor: AppColors.surface,
+                  leading: const Icon(Icons.palette_outlined, color: AppColors.accent),
+                  title: const Text('Görünüm ve Tema', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  subtitle: Text(
+                    ref.watch(themeModeProvider) == ThemeMode.system
+                        ? 'Sistem Varsayılanı'
+                        : (ref.watch(themeModeProvider) == ThemeMode.dark ? 'Koyu Tema' : 'Açık Tema'),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
                 ListTile(
                   onTap: () => context.push('/customer/disputes'),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

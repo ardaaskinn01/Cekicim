@@ -35,7 +35,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
 
     final initialLatLng = currentPos != null
         ? LatLng(currentPos.latitude, currentPos.longitude)
-        : const LatLng(39.9208, 32.8541); // Ankara Kizilay fallback
+        : const LatLng(39.9208, 32.8541); // Türkiye genel başlangıç fallback konumu
 
     return Scaffold(
       body: Stack(
@@ -77,10 +77,10 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                         const SizedBox(width: 10),
                         Text(
                           'Merhaba, ${user?.fullName ?? 'Müşteri'}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.w700, 
                             fontSize: 13, 
-                            color: AppColors.textPrimary,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                       ],

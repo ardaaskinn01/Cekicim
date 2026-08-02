@@ -5,6 +5,7 @@ import 'package:shared_ui/app_theme.dart';
 import 'package:shared_services/supabase_service.dart';
 import 'package:shared_services/notification_service.dart';
 import 'core/router/app_router.dart';
+import 'providers/theme_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
@@ -22,9 +23,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } catch (_) {}
 
   try {
+    final type = message.data['type'] as String?;
     final notification = message.notification;
-    final title = notification?.title ?? message.data['title'] ?? '🚨 Yeni Yol Yardım Talebi!';
-    final body = notification?.body ?? message.data['body'] ?? 'Yakınınızda yeni bir talep var. Hemen inceleyin!';
+    final title = notification?.title ?? message.data['title'] ?? (type == 'VOIP_CALL' ? '📞 Gelen Sesli Arama' : '🚨 Yeni Yol Yardım Talebi!');
+    final body = notification?.body ?? message.data['body'] ?? (type == 'VOIP_CALL' ? 'Çekici hizmetiniz için canlı sesli arama geliyor.' : 'Yakınınızda yeni bir talep var. Hemen inceleyin!');
+    final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
 
     final localNotifications = FlutterLocalNotificationsPlugin();
     
@@ -46,7 +49,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       importance: Importance.max,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
-      sound: RawResourceAndroidNotificationSound('bg_alarm2'),
+      sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
       fullScreenIntent: true,
     );
@@ -56,7 +59,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       presentBadge: true,
       presentSound: true,
       presentBanner: true,
-      sound: 'bg_alarm2.mp3',
+      sound: 'alarm.mp3',
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
@@ -70,9 +73,10 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       title,
       body,
       notificationDetails,
+      payload: requestId != null ? '$requestId|${type ?? ""}' : null,
     );
   } catch (e) {
-    debugPrint('Background message handle error: $e');
+    debugPrint('Background message handler error: $e');
   }
 }
 
@@ -117,15 +121,23 @@ class DriverApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
-    // Set FCM notification tap handler — navigates to offer screen when tapped
-    NotificationService.onNotificationTapped = (requestId) {
-      router.go('/driver/offer/$requestId');
+    // Set FCM notification tap handler — navigates to offer or call screen when tapped
+    NotificationService.onNotificationTapped = (requestId, type) {
+      if (type == 'VOIP_CALL') {
+        router.push('/driver/call/$requestId');
+      } else {
+        router.go('/driver/offer/$requestId');
+      }
     };
+
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
       title: 'Çekici Sürücü',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       routerConfig: router,
     );
   }

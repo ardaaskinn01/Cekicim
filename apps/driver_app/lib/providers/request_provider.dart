@@ -16,7 +16,7 @@ final activeRequestProvider = StreamProvider<ServiceRequestModel?>((ref) {
   if (user == null) return Stream.value(null);
 
   final repo = ref.watch(requestRepositoryProvider);
-  return repo.watchActiveRequest(user.id);
+  return repo.watchActiveRequestForDriver(user.id);
 });
 
 class RequestNotifier extends StateNotifier<AsyncValue<String?>> {
@@ -36,10 +36,10 @@ class RequestNotifier extends StateNotifier<AsyncValue<String?>> {
     }
   }
 
-  Future<void> cancelRequest(String requestId) async {
+  Future<void> cancelRequest(String requestId, String driverId, String reason) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.cancelRequestByDriver(requestId, 'Driver ID', 'Sürücü tarafından iptal edildi'); // Assuming we can get driverId here or in UI
+      await _repository.cancelRequestByDriver(requestId, driverId, reason);
       state = const AsyncValue.data(null);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

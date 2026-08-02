@@ -7,7 +7,7 @@ import 'auth_repository.dart';
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-  static Function(String requestId)? onNotificationTapped;
+  static Function(String requestId, String? type)? onNotificationTapped;
 
   NotificationService._internal();
 
@@ -25,14 +25,25 @@ class NotificationService {
       iOS: iosSettings,
     );
 
-    await _flutterLocalNotificationsPlugin.initialize(initSettings);
+    await _flutterLocalNotificationsPlugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        final payload = response.payload;
+        if (payload != null && onNotificationTapped != null) {
+          final parts = payload.split('|');
+          final reqId = parts[0];
+          final type = parts.length > 1 ? parts[1] : null;
+          onNotificationTapped!(reqId, type);
+        }
+      },
+    );
 
     const androidChannel = AndroidNotificationChannel(
       'cekici_alerts_v2',
       'Çekici Bildirimleri',
       description: 'Yeni teklif ve yol yardım bildirim kanalı',
       importance: Importance.max,
-      sound: RawResourceAndroidNotificationSound('bg_alarm2'),
+      sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
     );
 
@@ -104,19 +115,30 @@ class NotificationService {
       
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        if (message.notification != null) {
-          showLocalNotification(
-            message.notification!.title ?? 'Çekici',
-            message.notification!.body ?? '',
-          );
+        final type = (message.data['type'] ?? message.data['notification_type']) as String?;
+        String title = message.notification?.title ?? message.data['title'] ?? 'Çekici';
+        String body = message.notification?.body ?? message.data['body'] ?? '';
+
+        if (type == 'call' || type == 'VOIP_CALL') {
+          title = message.data['title'] ?? '📞 Gelen Sesli Arama';
+          body = message.data['body'] ?? 'Sizi arıyorlar. Görüşmeyi yanıtlamak için tıklayın.';
         }
+
+        final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
+
+        showLocalNotification(
+          title,
+          body,
+          payload: requestId != null ? '$requestId|${type ?? ""}' : null,
+        );
       });
 
       // Handle background taps
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
+        final type = message.data['type'] as String?;
         if (requestId != null && onNotificationTapped != null) {
-          onNotificationTapped!(requestId);
+          onNotificationTapped!(requestId, type);
         }
       });
 
@@ -124,8 +146,9 @@ class NotificationService {
       messaging.getInitialMessage().then((RemoteMessage? message) {
         if (message != null) {
           final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
+          final type = message.data['type'] as String?;
           if (requestId != null && onNotificationTapped != null) {
-            onNotificationTapped!(requestId);
+            onNotificationTapped!(requestId, type);
           }
         }
       });
@@ -134,7 +157,7 @@ class NotificationService {
     }
   }
 
-  Future<void> showLocalNotification(String title, String body) async {
+  Future<void> showLocalNotification(String title, String body, {String? payload}) async {
     const androidDetails = AndroidNotificationDetails(
       'cekici_alerts_v2',
       'Çekici Bildirimleri',
@@ -142,18 +165,17 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
       icon: '@mipmap/ic_launcher',
-      sound: RawResourceAndroidNotificationSound('bg_alarm2'),
+      sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
       fullScreenIntent: true,
     );
 
-    // iOS Ön planda ses ve banner gösterim parametreleri güncellendi
     const iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
       presentBanner: true,
-      sound: 'bg_alarm2.mp3',
+      sound: 'alarm.mp3',
       interruptionLevel: InterruptionLevel.timeSensitive,
     );
 
@@ -166,6 +188,7 @@ class NotificationService {
       title,
       body,
       notificationDetails,
+      payload: payload,
     );
   }
 }

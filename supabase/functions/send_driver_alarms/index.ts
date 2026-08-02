@@ -74,15 +74,19 @@ Deno.serve(async (req) => {
     // Send notification to each token
     const results = await Promise.all(
       tokens.map(async (token: string) => {
-        const title = notification_type === 'REQUEST_TAKEN'
-          ? 'Talep Alındı'
-          : 'Yeni Yol Yardım Talebi!'
-        const body = notification_type === 'REQUEST_TAKEN'
-          ? 'İncelediğiniz talep başka bir sürücü tarafından kabul edildi.'
-          : 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.'
-        const type = notification_type === 'REQUEST_TAKEN'
-          ? 'REQUEST_TAKEN'
-          : 'NEW_REQUEST'
+        let title = 'Yeni Yol Yardım Talebi!'
+        let body = 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.'
+        let type = 'NEW_REQUEST'
+
+        if (notification_type === 'REQUEST_TAKEN') {
+          title = 'Talep Alındı'
+          body = 'İncelediğiniz talep başka bir sürücü tarafından kabul edildi.'
+          type = 'REQUEST_TAKEN'
+        } else if (notification_type === 'VOIP_CALL') {
+          title = '📞 Gelen Sesli Arama'
+          body = 'Çekici hizmetiniz için canlı sesli arama geliyor. Cevaplamak için tıklayın.'
+          type = 'VOIP_CALL'
+        }
 
         const messageBody = {
           message: {
@@ -98,7 +102,7 @@ Deno.serve(async (req) => {
             android: {
               priority: 'high',
               notification: {
-                sound: 'bg_alarm2',
+                sound: 'alarm',
                 channelId: 'cekici_alerts_v2',
               },
             },
@@ -114,7 +118,7 @@ Deno.serve(async (req) => {
                     title: title,
                     body: body,
                   },
-                  sound: 'bg_alarm2.mp3',
+                  sound: 'alarm.mp3',
                   'content-available': 1,
                   'mutable-content': 1,
                 },

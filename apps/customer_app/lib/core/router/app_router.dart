@@ -70,7 +70,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             return null;
           }
 
-          if (userModel.role == UserRole.customer) {
+          if (userModel.role == UserRole.customer || userModel.role == UserRole.driver) {
             if (isAuthRoute || state.uri.path == '/register') return '/customer';
           } else {
             return '/login';

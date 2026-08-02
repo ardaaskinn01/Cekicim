@@ -27,7 +27,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
   bool _wasOnlineBeforeBackground = false;
   DateTime? _backgroundTime;
 
-  DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(false) {
+  DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(true) {
     if (_driverId.isNotEmpty) {
       WidgetsBinding.instance.addObserver(this);
       _initStatus();
@@ -36,20 +36,20 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
 
   Future<void> _setOnlinePreference(bool isOnline) async {
     try {
-      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref.txt');
+      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref_${_driverId}.txt');
       await file.writeAsString(isOnline ? 'online' : 'offline');
     } catch (_) {}
   }
 
   Future<bool> _getOnlinePreference() async {
     try {
-      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref.txt');
+      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref_${_driverId}.txt');
       if (await file.exists()) {
         final val = await file.readAsString();
         return val == 'online';
       }
     } catch (_) {}
-    return false;
+    return true; // Default to true so driver stays online after completing requests
   }
 
   Future<void> _initStatus() async {
@@ -57,8 +57,9 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
       final prefOnline = await _getOnlinePreference();
       
       if (prefOnline) {
-        // Automatically make online on reopen/relaunch
+        // Automatically make online on reopen/relaunch/completion
         await _requestRepo.updateDriverOnlineStatus(_driverId, true);
+        await _setOnlinePreference(true);
         state = true;
         _startLocationSharing();
       } else {
@@ -68,7 +69,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
             .select('is_available')
             .eq('id', _driverId)
             .maybeSingle();
-        final isAvailable = data?['is_available'] as bool? ?? false;
+        final isAvailable = data?['is_available'] as bool? ?? true;
         state = isAvailable;
         if (isAvailable) {
           _startLocationSharing();

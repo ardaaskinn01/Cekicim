@@ -34,9 +34,36 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   final LocationTrackingService _trackingService = LocationTrackingService();
   final RoutingService _routingService = RoutingService();
   List<LatLng> _routePoints = [];
+  List<LatLng> _fullRoutePoints = [];
+  LatLng? _driverLatLng;
   bool _isTrackingStarted = false;
   BuildContext? _incomingCallDialogContext;
   bool _isCancellationDialogShown = false;
+
+  List<LatLng> _trimRoutePoints(List<LatLng> fullRoute, LatLng currentPos) {
+    if (fullRoute.length < 2) return fullRoute;
+
+    int closestIndex = 0;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < fullRoute.length; i++) {
+      final dist = Geolocator.distanceBetween(
+        currentPos.latitude,
+        currentPos.longitude,
+        fullRoute[i].latitude,
+        fullRoute[i].longitude,
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex >= fullRoute.length - 1) {
+      return [currentPos, fullRoute.last];
+    }
+    return [currentPos, ...fullRoute.sublist(closestIndex + 1)];
+  }
 
   void _showIncomingCallDialog(BuildContext context, ServiceRequestModel request) {
     if (_incomingCallDialogContext != null) return;
@@ -88,6 +115,8 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
     });
   }
 
+  Timer? _routeTimer;
+
   @override
   void initState() {
     super.initState();
@@ -97,17 +126,12 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   Future<void> _initTrackingAndRouting() async {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
-        final driver = ref.read(currentUserProvider).value;
-        if (driver != null && !_isTrackingStarted) {
-          // Arka plan konum yayınını başlat
-          await _trackingService.startTracking(
-            requestId: widget.requestId,
-            driverId: driver.id,
-          );
-          _isTrackingStarted = true;
-        }
-        // OSRM rotasını çiz
-        _loadRoute();
+        // OSRM rotasını ilk kez çiz ve harita takibini başlat
+        await _loadRoute();
+        _routeTimer?.cancel();
+        _routeTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+          if (mounted) _loadRoute();
+        });
       } catch (e) {
         debugPrint("Hata konum takibi başlatılırken: $e");
       }
@@ -117,7 +141,6 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   Future<void> _loadRoute() async {
     try {
       final req = await ref.read(requestRepositoryProvider).getRequestById(widget.requestId);
-
       final driverPos = await Geolocator.getCurrentPosition();
       
       // Determine target coordinates based on status
@@ -138,8 +161,42 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
 
       if (mounted) {
         setState(() {
-          _routePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
+          _fullRoutePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
+          _routePoints = _driverLatLng != null 
+              ? _trimRoutePoints(_fullRoutePoints, _driverLatLng!)
+              : List.from(_fullRoutePoints);
         });
+      }
+
+      // Canlı veya Simülasyonlu Konum Yayınını Başlat
+      if (!_isTrackingStarted && routeCoords.isNotEmpty) {
+        final driver = ref.read(currentUserProvider).value;
+        if (driver != null) {
+          final routeMockPoints = routeCoords.map((pt) => {'lat': pt[0], 'lng': pt[1]}).toList();
+          await _trackingService.startTracking(
+            requestId: widget.requestId,
+            driverId: driver.id,
+            isDebugMock: true, // Set to true for 3x speed simulated route movement in emulator
+            mockPoints: routeMockPoints,
+            onLocationUpdate: (pos) {
+              if (mounted) {
+                final newPos = LatLng(pos.latitude, pos.longitude);
+                setState(() {
+                  _driverLatLng = newPos;
+                  if (_fullRoutePoints.isNotEmpty) {
+                    _routePoints = _trimRoutePoints(_fullRoutePoints, newPos);
+                  }
+                });
+              }
+            },
+            onInactivity: () {
+              if (mounted) {
+                _showInactivityDialog();
+              }
+            },
+          );
+          _isTrackingStarted = true;
+        }
       }
     } catch (e) {
       debugPrint("Hata OSRM rotası çizilirken: $e");
@@ -148,6 +205,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
 
   @override
   void dispose() {
+    _routeTimer?.cancel();
     _trackingService.stopTracking();
     super.dispose();
   }
@@ -244,6 +302,153 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
     }
   }
 
+  Future<void> _cancelRequest(ServiceRequestModel req) async {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    final List<String> driverReasons = [
+      '💸 Fiyat Uyuşmazlığı',
+      '🚗 Müşteri Konumunda Yok / Ulaşılamıyor',
+      '🛠️ Araç Çekim Alanına Uygun Değil (Hasarlı/Kilitli)',
+      '🚨 Sürücü / Çekici Arızalandı',
+      '❓ Diğer',
+    ];
+
+    final selectedReason = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        String? chosen;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: 20,
+                  left: 20,
+                  right: 20,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Talebi İptal Etme Nedeni',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Lütfen iptal etme nedeninizi seçin:',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    ...driverReasons.map((reason) {
+                      return RadioListTile<String>(
+                        value: reason,
+                        groupValue: chosen,
+                        activeColor: AppColors.error,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(reason, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                        onChanged: (val) {
+                          setModalState(() => chosen = val);
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx, null),
+                            child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: chosen == null
+                                ? null
+                                : () => Navigator.pop(ctx, chosen),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                            child: const Text('Talebi İptal Et'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedReason == null) return;
+
+    try {
+      _trackingService.stopTracking();
+      _isTrackingStarted = false;
+      await ref.read(requestNotifierProvider.notifier).cancelRequest(req.id, user.id, selectedReason);
+      if (mounted) {
+        context.go('/driver');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('İptal edilemedi: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  void _showInactivityDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Hareket Algılanmadı', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+          ],
+        ),
+        content: const Text(
+          '5 dakikadır konumunuz değişmedi. Müşteriye doğru yola çıktınız mı?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final reqAsync = ref.read(requestStatusProvider(widget.requestId));
+              final req = reqAsync.value;
+              if (req != null) {
+                _cancelRequest(req);
+              }
+            },
+            child: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.error)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _trackingService.resetInactivityTimer();
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Yoldayım / Devam Et'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _reportDispute(ServiceRequestModel req) {
     final user = ref.read(currentUserProvider).value;
     if (user == null) return;
@@ -303,9 +508,11 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                     Text('Talep İptal Edildi', style: TextStyle(color: AppColors.textPrimary)),
                   ],
                 ),
-                content: const Text(
-                  'Bu hizmet talebi müşteri tarafından iptal edilmiştir.', 
-                  style: TextStyle(color: AppColors.textSecondary)
+                content: Text(
+                  request.cancellationReason != null && request.cancellationReason!.isNotEmpty
+                      ? 'Bu hizmet talebi müşteri tarafından iptal edilmiştir.\n\nİptal Nedeni: ${request.cancellationReason}'
+                      : 'Bu hizmet talebi müşteri tarafından iptal edilmiştir.',
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
                 actions: [
                   TextButton(
@@ -368,6 +575,13 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
               MapWidget(
                 initialPosition: initialLatLng,
                 markers: {
+                  if (_driverLatLng != null)
+                    Marker(
+                      markerId: const MarkerId('driver_live'),
+                      position: _driverLatLng!,
+                      infoWindow: const InfoWindow(title: 'Çekici (Siz)'),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                    ),
                   Marker(
                     markerId: const MarkerId('pickup'),
                     position: customerLatLng,
@@ -434,20 +648,37 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (req.price > 0) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    '₺${req.price.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: AppColors.primary,
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        '₺${req.price.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (req.tollFee > 0) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '🛣️ Köprü/HGS Dahil (+₺${req.tollFee.round()})',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.warning,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(width: 8),
                               ],
@@ -491,15 +722,32 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => _reportDispute(req),
-                        icon: const Icon(Icons.gavel_rounded, color: AppColors.error),
-                        label: const Text('Sorun / Uyuşmazlık Bildir', style: TextStyle(color: AppColors.error)),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.error),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          minimumSize: const Size.fromHeight(48),
-                        ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _reportDispute(req),
+                              icon: const Icon(Icons.gavel_rounded, color: AppColors.warning),
+                              label: const Text('Sorun Bildir', style: TextStyle(color: AppColors.warning)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.warning),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _cancelRequest(req),
+                              icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
+                              label: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.error)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.error),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       if (req.vehiclePhotoUrl != null && req.vehiclePhotoUrl!.isNotEmpty) ...[
                         const SizedBox(height: 8),

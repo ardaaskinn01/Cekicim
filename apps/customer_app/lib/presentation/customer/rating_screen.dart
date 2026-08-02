@@ -90,7 +90,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Hizmeti Değerlendir')),
         body: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,6 +124,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                   label: 'Yorumunuz (İsteğe Bağlı)',
                   hint: 'Sürücü ve hizmet hakkında düşünceleriniz...',
                   prefixIcon: Icons.rate_review_outlined,
+                  maxLines: 3,
                 ),
                 const SizedBox(height: 20),
                 // Block driver option
@@ -160,7 +161,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                     ),
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 32),
                 GreenButton(
                   text: 'Puanla ve Bitir',
                   onPressed: _submitRating,

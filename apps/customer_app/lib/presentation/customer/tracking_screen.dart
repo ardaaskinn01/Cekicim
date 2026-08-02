@@ -13,10 +13,12 @@ import 'package:shared_models/dispute_model.dart';
 import 'package:shared_services/dispute_repository.dart';
 import 'package:shared_ui/widgets/dispute_dialog.dart';
 import 'package:shared_services/routing_service.dart';
+import 'package:shared_services/app_error_handler.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_ui/widgets/glass_container.dart';
 
 class LatLngTween extends Tween<LatLng> {
@@ -103,31 +105,48 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
   Animation<LatLng>? _latLngAnimation;
   LatLng? _currentDriverLocation;
   double _driverBearing = 0.0;
+  List<LatLng> _fullRoutePoints = [];
 
   bool _isRealtimeSubscribed = false;
+  bool _isCancellationDialogShown = false;
 
   BitmapDescriptor? _driverIcon;
   double _currentZoom = 15.0;
   bool _isPanelVisible = true;
 
+  List<LatLng> _trimRoutePoints(List<LatLng> fullRoute, LatLng currentPos) {
+    if (fullRoute.length < 2) return fullRoute;
+
+    int closestIndex = 0;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < fullRoute.length; i++) {
+      final dist = Geolocator.distanceBetween(
+        currentPos.latitude,
+        currentPos.longitude,
+        fullRoute[i].latitude,
+        fullRoute[i].longitude,
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex >= fullRoute.length - 1) {
+      return [currentPos, fullRoute.last];
+    }
+    return [currentPos, ...fullRoute.sublist(closestIndex + 1)];
+  }
+
   @override
   void initState() {
     super.initState();
     _loadCustomMarker();
-    _animationController = AnimationController(
-      duration: const Duration(seconds: 3), // Konum güncelleme aralığıyla (3sn) senkronize
-      vsync: this,
-    )..addListener(() {
-        if (_latLngAnimation != null) {
-          setState(() {
-            _currentDriverLocation = _latLngAnimation!.value;
-          });
-        }
-      });
   }
 
   Future<void> _loadCustomMarker({double zoom = 15.0}) async {
-    final int size = zoom < 12 ? 18 : (zoom < 14 ? 24 : 30);
+    final int size = 38; // Sleek, perfectly proportioned 38x38 px canvas icon
     try {
       final icon = await _getBytesFromCanvas(size, size, Icons.rv_hookup, AppColors.success);
       if (mounted) {
@@ -191,11 +210,11 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
     }
   }
 
-  void _subscribeRealtime(String requestId, LatLng customerLatLng) {
+  void _subscribeRealtime(ServiceRequestModel request) {
     if (_isRealtimeSubscribed) return;
     _isRealtimeSubscribed = true;
 
-    _realtimeChannel = Supabase.instance.client.channel('trip_tracking:$requestId');
+    _realtimeChannel = Supabase.instance.client.channel('trip_tracking:${request.id}');
     
     _realtimeChannel!.onBroadcast(
       event: 'location_update',
@@ -203,63 +222,92 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
         final double lat = payload['latitude'];
         final double lng = payload['longitude'];
         final double bearing = (payload['bearing'] ?? 0.0) + 0.0;
-        _onDriverLocationReceived(LatLng(lat, lng), bearing, customerLatLng);
+        _onDriverLocationReceived(LatLng(lat, lng), bearing, request);
       },
     ).subscribe();
   }
 
-  void _onDriverLocationReceived(LatLng newLocation, double newBearing, LatLng customerLatLng) {
+  void _onDriverLocationReceived(LatLng newLocation, double newBearing, ServiceRequestModel request) {
     if (!mounted) return;
 
     if (_currentDriverLocation == null) {
       _currentDriverLocation = newLocation;
       _driverBearing = newBearing;
+      if (_fullRoutePoints.isNotEmpty) {
+        _routePoints = _trimRoutePoints(_fullRoutePoints, newLocation);
+      }
       setState(() {});
-      _fetchRouteAndETA(newLocation, customerLatLng);
+      _fetchRouteAndETA(newLocation, request);
       return;
     }
 
-    // Koordinat yumuşatma animasyonunu başlat
-    _latLngAnimation = LatLngTween(
-      begin: _currentDriverLocation,
-      end: newLocation,
-    ).animate(CurvedAnimation(
-      parent: _animationController!,
-      curve: Curves.linear,
-    ));
+    final double distanceMeters = Geolocator.distanceBetween(
+      _currentDriverLocation!.latitude,
+      _currentDriverLocation!.longitude,
+      newLocation.latitude,
+      newLocation.longitude,
+    );
 
-    _driverBearing = newBearing;
-    _animationController!.reset();
-    _animationController!.forward();
+    if (distanceMeters < 0.5) {
+      if (newBearing > 0 && newBearing != _driverBearing) {
+        setState(() {
+          _driverBearing = newBearing;
+        });
+      }
+      return;
+    }
 
-    // Rota ve ETA sorgusunu 20 saniyede bir çalıştır (API limit tasarrufu için)
+    // Direct 1.5s interval update (eliminates 60 FPS full-screen re-render lag)
+    setState(() {
+      _currentDriverLocation = newLocation;
+      if (newBearing > 0) {
+        _driverBearing = newBearing;
+      }
+      if (_fullRoutePoints.isNotEmpty) {
+        _routePoints = _trimRoutePoints(_fullRoutePoints, newLocation);
+      }
+    });
+
+    // Throttle heavy network route recalculations to once every 15 seconds to keep map 60 FPS smooth
     final now = DateTime.now();
-    if (_lastRouteFetchTime == null ||
-        now.difference(_lastRouteFetchTime!).inSeconds >= 20) {
+    if (_lastRouteFetchTime == null || now.difference(_lastRouteFetchTime!).inSeconds >= 15) {
       _lastRouteFetchTime = now;
-      _fetchRouteAndETA(newLocation, customerLatLng);
+      _fetchRouteAndETA(newLocation, request);
     }
   }
 
-  Future<void> _fetchRouteAndETA(LatLng driverPos, LatLng customerPos) async {
+  RequestStatus? _lastStatus;
+
+  Future<void> _fetchRouteAndETA(LatLng driverPos, ServiceRequestModel request) async {
     try {
+      double destLat = request.customerLat;
+      double destLng = request.customerLng;
+
+      if (request.status == RequestStatus.inProgress &&
+          request.destinationLat != null &&
+          request.destinationLng != null) {
+        destLat = request.destinationLat!;
+        destLng = request.destinationLng!;
+      }
+
       final routeCoords = await _routingService.getRoute(
         originLat: driverPos.latitude,
         originLng: driverPos.longitude,
-        destLat: customerPos.latitude,
-        destLng: customerPos.longitude,
+        destLat: destLat,
+        destLng: destLng,
       );
 
       final etaData = await _routingService.getETA(
         originLat: driverPos.latitude,
         originLng: driverPos.longitude,
-        destLat: customerPos.latitude,
-        destLng: customerPos.longitude,
+        destLat: destLat,
+        destLng: destLng,
       );
 
       if (mounted) {
         setState(() {
-          _routePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
+          _fullRoutePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
+          _routePoints = _trimRoutePoints(_fullRoutePoints, driverPos);
           if (etaData['success'] == true) {
             _etaDistance = etaData['distanceText'];
             _etaDuration = etaData['durationText'];
@@ -274,54 +322,169 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
 
 
   Future<void> _cancelRequest(ServiceRequestModel request) async {
+    // 1. Eğer henüz bir sürücü kabul etmemişse (eşleşme yoksa), direkt basit onay diyalogu göster
+    if (request.driverId == null || request.status == RequestStatus.awaitingAcceptance) {
+      final confirmCancel = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+          content: const Text(
+            'Çekici talebinizi iptal etmek istediğinize emin misiniz?',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Talebi İptal Et'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmCancel != true) return;
+
+      try {
+        await ref.read(requestNotifierProvider.notifier).cancelRequest(
+          request.id,
+          'Müşteri eşleşme öncesi vazgeçti',
+        );
+        if (mounted) {
+          context.go('/customer');
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(AppErrorHandler.parse(e)), backgroundColor: AppColors.error),
+          );
+        }
+      }
+      return;
+    }
+
+    // 2. Eğer eşleşme sağlanmışsa (sürücü kabul etmişse), detaylı iptal nedeni modalını aç
     if (request.acceptedAt != null) {
       final difference = DateTime.now().difference(request.acceptedAt!);
       if (difference.inMinutes >= 5) {
-        showDialog(
+        final confirmForce = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             backgroundColor: AppColors.cardBackground,
             title: const Text('İptal Süresi Aşıldı', style: TextStyle(color: AppColors.textPrimary)),
             content: const Text(
-              'Sürücü talebinizi kabul edeli 5 dakikayı geçtiği için doğrudan iptal işlemi yapamazsınız. Lütfen uyuşmazlık bildirin ya da sürücüyle iletişime geçin.',
+              'Sürücü talebinizi kabul edeli 5 dakikayı geçti. Yine de iptal etmek istiyor musunuz?',
               style: TextStyle(color: AppColors.textSecondary),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Kapat', style: TextStyle(color: AppColors.accent)),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                child: const Text('Yine de Devam Et'),
               ),
             ],
           ),
         );
-        return;
+        if (confirmForce != true) return;
       }
     }
 
-    final confirm = await showDialog<bool>(
+    final List<String> customerReasons = [
+      '💸 Fiyat Uyuşmazlığı',
+      '⏱️ Sürücü Çok Gecikti / Hareketsiz Kaldı',
+      '🚗 Yanlış Konum / Adres Değişikliği',
+      '🛠️ Sorun Kendiliğinden Çözüldü / Vazgeçtim',
+      '❓ Diğer',
+    ];
+
+    final selectedReason = await showModalBottomSheet<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text('Bu talebi iptal etmek istediğinize emin misiniz?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Evet, İptal Et'),
-          ),
-        ],
+      backgroundColor: AppColors.cardBackground,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      builder: (ctx) {
+        String? chosen;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: 20,
+                  left: 20,
+                  right: 20,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Talebi İptal Etme Nedeni',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Lütfen iptal etme nedeninizi seçin:',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    ...customerReasons.map((reason) {
+                      return RadioListTile<String>(
+                        value: reason,
+                        groupValue: chosen,
+                        activeColor: AppColors.error,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(reason, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                        onChanged: (val) {
+                          setModalState(() => chosen = val);
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx, null),
+                            child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: chosen == null
+                                ? null
+                                : () => Navigator.pop(ctx, chosen),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                            child: const Text('İptal Et'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
 
-    if (confirm != true) return;
+    if (selectedReason == null) return;
 
     try {
-      await ref.read(requestNotifierProvider.notifier).cancelRequest(request.id);
+      await ref.read(requestNotifierProvider.notifier).cancelRequest(request.id, selectedReason);
       if (mounted) {
         context.go('/customer');
       }
@@ -363,9 +526,43 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
       error: (err, st) => Scaffold(body: Center(child: Text('Hata: $err'))),
       data: (request) {
         if (request.status == RequestStatus.cancelled) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) context.go('/customer');
-          });
+          if (!_isCancellationDialogShown) {
+            _isCancellationDialogShown = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (dialogCtx) => AlertDialog(
+                    backgroundColor: AppColors.cardBackground,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: AppColors.error),
+                        SizedBox(width: 8),
+                        Text('Talep İptal Edildi', style: TextStyle(color: AppColors.textPrimary)),
+                      ],
+                    ),
+                    content: Text(
+                      request.cancellationReason != null && request.cancellationReason!.isNotEmpty
+                          ? 'Bu hizmet talebi iptal edilmiştir.\n\nİptal Nedeni: ${request.cancellationReason}'
+                          : 'Bu hizmet talebi iptal edilmiştir.',
+                      style: const TextStyle(color: AppColors.textSecondary),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(dialogCtx);
+                          context.go('/customer');
+                        },
+                        child: const Text('Tamam', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            });
+          }
           return const Scaffold();
         }
 
@@ -378,11 +575,18 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
           return const Scaffold();
         }
 
+        if (_lastStatus != request.status) {
+          _lastStatus = request.status;
+          _routePoints = [];
+          _etaDuration = null;
+          _lastRouteFetchTime = null;
+        }
+
         final customerLatLng = LatLng(request.customerLat, request.customerLng);
 
         // Canlı yayın dinleyicisini başlat
         if (request.driverId != null) {
-          _subscribeRealtime(request.id, customerLatLng);
+          _subscribeRealtime(request);
         }
 
         Set<Marker> markers = {
@@ -423,7 +627,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
 
               if (activeDriverLoc != null && _etaDuration == null && _routePoints.isEmpty) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _fetchRouteAndETA(activeDriverLoc, customerLatLng);
+                  _fetchRouteAndETA(activeDriverLoc, request);
                 });
               }
 
@@ -512,12 +716,43 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                               '₺${request.price!.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary),
                             ),
-                            const Text('Ücret', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                            Text(
+                              request.tollFee > 0 ? 'Ücret (HGS Dahil)' : 'Ücret',
+                              style: TextStyle(
+                                color: request.tollFee > 0 ? AppColors.warning : AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: request.tollFee > 0 ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
                           ],
                         ),
                       ],
                     ],
                   ),
+                  if (request.tollFee > 0) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.alt_route_rounded, color: AppColors.warning, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '🛣️ Rotanızda paralı geçiş tespit edildi (+₺${request.tollFee.round()} Osmangazi Köprü + O-5 Otoyol HGS Ücreti Dahildir).',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.warning),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   const Divider(height: 24, color: AppColors.border),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -651,6 +886,71 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                   ),
                 ),
               ),
+              // Eylemsizlik / Hareketsizlik Uyarısı Kılavuz Kartı
+              if (request.status == RequestStatus.accepted &&
+                  request.acceptedAt != null &&
+                  DateTime.now().difference(request.acceptedAt!).inMinutes >= 5) ...[
+                Positioned(
+                  top: 70,
+                  left: 16,
+                  right: 16,
+                  child: Card(
+                    color: Colors.orange.withValues(alpha: 0.95),
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'ℹ️ Çekici sürücünüz 5 dakikadır sabit konumda bekliyor.',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => context.push('/customer/call/${request.id}?initiator=true'),
+                                  icon: const Icon(Icons.phone_in_talk, size: 16),
+                                  label: const Text('Sürücüyü Ara', style: TextStyle(fontSize: 12)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.white,
+                                    foregroundColor: AppColors.primary,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => _cancelRequest(request),
+                                  icon: const Icon(Icons.cancel_outlined, size: 16),
+                                  label: const Text('Talebi İptal Et', style: TextStyle(fontSize: 12)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.error,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 8),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               // Floating action column for VoIP Call, Chat, and Dispute
               if (request.driverId != null)
                 Positioned(

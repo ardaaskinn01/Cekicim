@@ -9,6 +9,7 @@ import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
 import 'package:shared_models/driver_model.dart';
 import 'package:shared_services/iban_input_formatter.dart';
+import 'package:shared_services/app_error_handler.dart';
 import '../../providers/auth_provider.dart';
 
 class DriverOnboardingScreen extends ConsumerStatefulWidget {
@@ -104,7 +105,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
     try {
       final XFile? image = await showModalBottomSheet<XFile?>(
         context: context,
-        backgroundColor: AppColors.background,
+        backgroundColor: Theme.of(context).cardColor,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
         ),
@@ -114,7 +115,10 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
               children: <Widget>[
                 ListTile(
                   leading: const Icon(Icons.photo_library, color: AppColors.primary),
-                  title: const Text('Galeriden Seç', style: TextStyle(color: AppColors.textPrimary)),
+                  title: Text(
+                    'Galeriden Seç',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
+                  ),
                   onTap: () async {
                     final img = await _picker.pickImage(
                       source: ImageSource.gallery,
@@ -127,7 +131,10 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                 ),
                 ListTile(
                   leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-                  title: const Text('Kamerayla Çek', style: TextStyle(color: AppColors.textPrimary)),
+                  title: Text(
+                    'Kamerayla Çek',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
+                  ),
                   onTap: () async {
                     final img = await _picker.pickImage(
                       source: ImageSource.camera,
@@ -486,7 +493,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
       if (mounted) {
         setState(() => _isUploading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Kayıt güncellenirken hata oluştu: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text(AppErrorHandler.parse(e)), backgroundColor: AppColors.error),
         );
       }
     }
@@ -695,6 +702,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   title: Text(key, style: const TextStyle(color: AppColors.textPrimary)),
                   activeColor: AppColors.primary,
                   checkColor: Colors.white,
+                  side: const BorderSide(color: AppColors.textSecondary, width: 2),
                   value: _equipments[key],
                   onChanged: (bool? value) {
                     setState(() {
@@ -728,6 +736,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   title: Text(key, style: const TextStyle(color: AppColors.textPrimary)),
                   activeColor: AppColors.primary,
                   checkColor: Colors.white,
+                  side: const BorderSide(color: AppColors.textSecondary, width: 2),
                   value: _supportedVehicleTypes[key],
                   onChanged: (bool? value) {
                     setState(() {

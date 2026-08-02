@@ -22,7 +22,7 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
   try {
     final user = await repo.getCurrentUser(UserRole.customer);
     if (user != null) {
-      if (user.role != UserRole.customer) {
+      if (user.role != UserRole.customer && user.role != UserRole.driver) {
         await repo.signOut();
         return null;
       }
