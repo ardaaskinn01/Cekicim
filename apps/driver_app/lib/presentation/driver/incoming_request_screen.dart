@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/price_calculator.dart';
 import 'package:shared_services/rating_repository.dart';
@@ -36,6 +37,8 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   List<LatLng> _routePoints = [];
   bool _isRouteFetched = false;
   Future<double>? _customerRatingFuture;
+  String? _driverToCustomerEtaText;
+  bool _isEtaFetched = false;
 
   @override
   void initState() {
@@ -72,6 +75,37 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
         _timeoutRequest();
       }
     });
+  }
+
+  Future<void> _fetchDriverToCustomerETA(double customerLat, double customerLng, double distanceKm) async {
+    if (_isEtaFetched) return;
+    _isEtaFetched = true;
+    try {
+      final pos = await Geolocator.getCurrentPosition().timeout(const Duration(seconds: 3));
+      final etaData = await RoutingService().getETA(
+        originLat: pos.latitude,
+        originLng: pos.longitude,
+        destLat: customerLat,
+        destLng: customerLng,
+      );
+      if (mounted && etaData['success'] == true) {
+        setState(() {
+          _driverToCustomerEtaText = etaData['durationText'];
+        });
+      } else if (mounted) {
+        final fallbackMins = (distanceKm * 2.0).round().clamp(3, 90);
+        setState(() {
+          _driverToCustomerEtaText = '$fallbackMins dk';
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        final fallbackMins = (distanceKm * 2.0).round().clamp(3, 90);
+        setState(() {
+          _driverToCustomerEtaText = '$fallbackMins dk';
+        });
+      }
+    }
   }
 
   Future<void> _fetchRoute(double originLat, double originLng, double destLat, double destLng) async {
@@ -256,7 +290,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
           data: (request) {
             final user = ref.watch(currentUserProvider).value;
 
-            // Fetch route points once when request data is available
+            // Fetch route points & ETA to customer once when request data is available
             if (!_isRouteFetched && 
                 request.destinationLat != null && 
                 request.destinationLng != null) {
@@ -268,6 +302,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                   request.destinationLat!,
                   request.destinationLng!,
                 );
+                _fetchDriverToCustomerETA(request.customerLat, request.customerLng, request.distanceKm);
               });
             }
 
@@ -347,7 +382,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                   bottom: 300, // Positioned right above the bottom details card
                   child: FloatingActionButton.extended(
                     onPressed: _isLoading ? null : _rejectRequest,
-                    backgroundColor: Colors.white,
+                    backgroundColor: AppColors.cardBackground,
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -372,11 +407,11 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                   bottom: 16,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.cardBackground,
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
+                          color: Colors.black.withValues(alpha: 0.35),
                           blurRadius: 15,
                           offset: const Offset(0, -4),
                         ),
@@ -450,7 +485,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                                 Container(
                                   width: 2,
                                   height: 24,
-                                  color: Colors.grey.shade300,
+                                  color: AppColors.border,
                                 ),
                                 const Icon(Icons.location_on, color: Colors.red, size: 16),
                               ],
@@ -461,7 +496,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    '${request.distanceKm.toStringAsFixed(1)} KM uzaklıkta',
+                                    '${request.distanceKm.toStringAsFixed(1)} KM  •  ⏱️ ~${_driverToCustomerEtaText ?? '${(request.distanceKm * 2.0).round().clamp(3, 90)} dk'} ulaşım süresi',
                                     style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
                                   ),
                                   Text(
@@ -576,10 +611,10 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(
-                                  _isLoading ? 'Kabul Ediliyor...' : 'Kabul Et',
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                                ),
+                                 Text(
+                                   _isLoading ? 'Kabul Ediliyor...' : 'Kabul Et (~${_driverToCustomerEtaText ?? '${(request.distanceKm * 2.0).round().clamp(3, 90)} dk'})',
+                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                 ),
                                 if (!_isLoading) ...[
                                   const SizedBox(width: 12),
                                   Container(

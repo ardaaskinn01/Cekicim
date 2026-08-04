@@ -36,6 +36,8 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   List<LatLng> _routePoints = [];
   List<LatLng> _fullRoutePoints = [];
   LatLng? _driverLatLng;
+  String? _etaDuration;
+  String? _etaDistance;
   bool _isTrackingStarted = false;
   BuildContext? _incomingCallDialogContext;
   bool _isCancellationDialogShown = false;
@@ -159,12 +161,23 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
         destLng: destLng,
       );
 
+      final etaData = await _routingService.getETA(
+        originLat: driverPos.latitude,
+        originLng: driverPos.longitude,
+        destLat: destLat,
+        destLng: destLng,
+      );
+
       if (mounted) {
         setState(() {
           _fullRoutePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
           _routePoints = _driverLatLng != null 
               ? _trimRoutePoints(_fullRoutePoints, _driverLatLng!)
               : List.from(_fullRoutePoints);
+          if (etaData['success'] == true) {
+            _etaDuration = etaData['durationText'];
+            _etaDistance = etaData['distanceText'];
+          }
         });
       }
 
@@ -181,8 +194,19 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
             onLocationUpdate: (pos) {
               if (mounted) {
                 final newPos = LatLng(pos.latitude, pos.longitude);
+                final distMeters = Geolocator.distanceBetween(
+                  newPos.latitude,
+                  newPos.longitude,
+                  destLat,
+                  destLng,
+                );
+                final distKm = distMeters / 1000.0;
+                final mins = (distKm * 2.0).round().clamp(1, 180);
+
                 setState(() {
                   _driverLatLng = newPos;
+                  _etaDistance = '${distKm.toStringAsFixed(1)} km';
+                  _etaDuration = '$mins dk';
                   if (_fullRoutePoints.isNotEmpty) {
                     _routePoints = _trimRoutePoints(_fullRoutePoints, newPos);
                   }
@@ -622,7 +646,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
+              Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
@@ -633,14 +657,35 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                                   future: AuthRepository().getUserProfile(req.customerId),
                                   builder: (context, userSnapshot) {
                                     final name = userSnapshot.data?.fullName ?? 'Müşteri Yükleniyor...';
-                                    return Text(
-                                      name,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                        ),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.timer_outlined, size: 14, color: AppColors.accent),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text(
+                                                'Varış: ${_etaDuration ?? 'Hesaplanıyor...'} (${_etaDistance ?? '...'})',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.accent,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     );
                                   },
                                 ),
-                                const SizedBox(height: 4),
-                                Text('Telefon: ${req.customerPhone ?? 'Belirtilmedi'}', style: const TextStyle(color: AppColors.textSecondary)),
                               ],
                             ),
                           ),

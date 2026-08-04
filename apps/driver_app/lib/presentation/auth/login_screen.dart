@@ -64,8 +64,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 40),
-                  const Icon(Icons.local_shipping_rounded, size: 80, color: AppColors.accent),
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        height: 110,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   const Text(
                     'ÇEKİCİM',
