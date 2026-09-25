@@ -299,50 +299,15 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
   Future<void> _pickVehiclePhoto() async {
     final picker = ImagePicker();
-    final result = await showModalBottomSheet<XFile?>(
-      context: context,
-      backgroundColor: Theme.of(context).cardColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Wrap(children: [
-          ListTile(
-            leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-            title: Text(
-              'Kamerayı Kullan',
-              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontWeight: FontWeight.w600),
-            ),
-            onTap: () async {
-              final img = await picker.pickImage(
-                source: ImageSource.camera,
-                imageQuality: 80,
-                maxWidth: 1080,
-                maxHeight: 1920,
-              );
-              if (ctx.mounted) Navigator.pop(ctx, img);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library, color: AppColors.primary),
-            title: Text(
-              'Galeriden Seç',
-              style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface, fontWeight: FontWeight.w600),
-            ),
-            onTap: () async {
-              final img = await picker.pickImage(
-                source: ImageSource.gallery,
-                imageQuality: 80,
-                maxWidth: 1080,
-                maxHeight: 1920,
-              );
-              if (ctx.mounted) Navigator.pop(ctx, img);
-            },
-          ),
-        ]),
-      ),
+    final img = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 80,
+      maxWidth: 1080,
+      maxHeight: 1920,
     );
-    if (result != null) setState(() => _vehiclePhoto = result);
+    if (img != null && mounted) {
+      setState(() => _vehiclePhoto = img);
+    }
   }
 
   Future<void> _fetchDrivers() async {

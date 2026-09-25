@@ -102,7 +102,6 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
 
   // Animasyon durumları (Konum yumuşatma için)
   AnimationController? _animationController;
-  Animation<LatLng>? _latLngAnimation;
   LatLng? _currentDriverLocation;
   double _driverBearing = 0.0;
   List<LatLng> _fullRoutePoints = [];
@@ -406,6 +405,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
       '❓ Diğer',
     ];
 
+    if (!mounted) return;
     final selectedReason = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: AppColors.cardBackground,
@@ -481,6 +481,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
       },
     );
 
+    if (!mounted) return;
     if (selectedReason == null) return;
 
     try {
@@ -706,14 +707,14 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                           const Text('Kalan Mesafe', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                         ],
                       ),
-                      if (request.price != null) ...[
+                      if (request.price > 0) ...[
                         Container(height: 30, width: 1, color: AppColors.divider),
                         Column(
                           children: [
                             const Icon(Icons.payments_outlined, color: AppColors.primary, size: 20),
                             const SizedBox(height: 4),
                             Text(
-                              '₺${request.price!.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                              '₺${request.price.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primary),
                             ),
                             Text(

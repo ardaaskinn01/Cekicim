@@ -185,12 +185,10 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
       if (!_isTrackingStarted && routeCoords.isNotEmpty) {
         final driver = ref.read(currentUserProvider).value;
         if (driver != null) {
-          final routeMockPoints = routeCoords.map((pt) => {'lat': pt[0], 'lng': pt[1]}).toList();
           await _trackingService.startTracking(
             requestId: widget.requestId,
             driverId: driver.id,
-            isDebugMock: true, // Set to true for 3x speed simulated route movement in emulator
-            mockPoints: routeMockPoints,
+            isDebugMock: false, // Production mode: broadcasts actual device GPS coordinates via Geolocator
             onLocationUpdate: (pos) {
               if (mounted) {
                 final newPos = LatLng(pos.latitude, pos.longitude);

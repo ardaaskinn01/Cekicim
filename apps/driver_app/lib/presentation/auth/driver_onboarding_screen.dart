@@ -53,10 +53,15 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
     'Ağır Vasıta (Otobüs / Kamyon)': false,
   };
 
-  // Step 4: IBAN
+  // Step 4: IBAN & Vehicle Info
   final _ibanController = TextEditingController();
   final _ibanOwnerController = TextEditingController();
-  final _ibanFormKey = GlobalKey<FormState>();
+  final _vehiclePlateController = TextEditingController();
+  final _vehicleBrandController = TextEditingController();
+  final _vehicleModelController = TextEditingController();
+  final _vehicleColorController = TextEditingController();
+  final _vehicleYearController = TextEditingController();
+  final _step4FormKey = GlobalKey<FormState>();
   bool _isDataPrefilled = false;
 
   @override
@@ -66,6 +71,26 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
       final user = ref.read(currentUserProvider).value;
       if (user is DriverModel) {
         _isDataPrefilled = true;
+        if (user.vehiclePlate.isNotEmpty) {
+          _vehiclePlateController.text = user.vehiclePlate;
+        } else {
+          final metadataPlate = Supabase.instance.client.auth.currentUser?.userMetadata?['vehicle_plate'] as String?;
+          if (metadataPlate != null && metadataPlate.isNotEmpty) {
+            _vehiclePlateController.text = metadataPlate;
+          }
+        }
+        if (user.vehicleBrand != null && user.vehicleBrand!.isNotEmpty) {
+          _vehicleBrandController.text = user.vehicleBrand!;
+        }
+        if (user.vehicleModel != null && user.vehicleModel!.isNotEmpty) {
+          _vehicleModelController.text = user.vehicleModel!;
+        }
+        if (user.vehicleColor != null && user.vehicleColor!.isNotEmpty) {
+          _vehicleColorController.text = user.vehicleColor!;
+        }
+        if (user.vehicleYear != null) {
+          _vehicleYearController.text = user.vehicleYear.toString();
+        }
         if (user.iban != null && user.iban!.isNotEmpty) {
           _ibanController.text = user.iban!;
         }
@@ -96,6 +121,11 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
   void dispose() {
     _ibanController.dispose();
     _ibanOwnerController.dispose();
+    _vehiclePlateController.dispose();
+    _vehicleBrandController.dispose();
+    _vehicleModelController.dispose();
+    _vehicleColorController.dispose();
+    _vehicleYearController.dispose();
     super.dispose();
   }
 
@@ -103,52 +133,11 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
   Future<void> _pickImage(String docType) async {
     try {
-      final XFile? image = await showModalBottomSheet<XFile?>(
-        context: context,
-        backgroundColor: Theme.of(context).cardColor,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
-        builder: (BuildContext context) {
-          return SafeArea(
-            child: Wrap(
-              children: <Widget>[
-                ListTile(
-                  leading: const Icon(Icons.photo_library, color: AppColors.primary),
-                  title: Text(
-                    'Galeriden Seç',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () async {
-                    final img = await _picker.pickImage(
-                      source: ImageSource.gallery,
-                      imageQuality: 80,
-                      maxWidth: 1080,
-                      maxHeight: 1920,
-                    );
-                    if (context.mounted) Navigator.pop(context, img);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt, color: AppColors.primary),
-                  title: Text(
-                    'Kamerayla Çek',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () async {
-                    final img = await _picker.pickImage(
-                      source: ImageSource.camera,
-                      imageQuality: 80,
-                      maxWidth: 1080,
-                      maxHeight: 1920,
-                    );
-                    if (context.mounted) Navigator.pop(context, img);
-                  },
-                ),
-              ],
-            ),
-          );
-        },
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+        maxWidth: 1080,
+        maxHeight: 1920,
       );
 
       if (image == null) return;
@@ -329,8 +318,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
   }
 
   Future<void> _handleSubmit() async {
-    // [TEST MODE] Document and Photo validations are bypassed. 
-    // We only require at least one vehicle type for basic request routing.
+    // Production Mode: Strict validations for all documents, photos and vehicle info
     final selectedVehicleTypes = _supportedVehicleTypes.entries
         .where((e) => e.value)
         .map((e) => e.key)
@@ -351,6 +339,16 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
     });
 
     try {
+      // Auto refresh Supabase session if expired to prevent 401 Unauthorized errors during upload
+      try {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session == null || session.isExpired) {
+          await Supabase.instance.client.auth.refreshSession();
+        }
+      } catch (e) {
+        debugPrint('Session auto-refresh attempt before onboarding submit: $e');
+      }
+
       final repo = ref.read(authRepositoryProvider);
       final user = ref.read(currentUserProvider).value;
       if (user == null) throw Exception('Kullanıcı oturumu bulunamadı.');
@@ -369,13 +367,13 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
               vehiclePlate: Supabase.instance.client.auth.currentUser?.userMetadata?['vehicle_plate'] as String? ?? '06ANK06',
             );
 
-      // Assign existing document URLs if available, fallback to mockUrl if completely missing
-      final mockUrl = 'https://picsum.photos/800/600';
-      
-      String licenseUrl = (driver.driverLicenseUrl != null && driver.driverLicenseUrl!.isNotEmpty)
+      // Require mandatory documents (must have selected file or existing valid URL)
+      String licenseUrl = (driver.driverLicenseUrl != null && driver.driverLicenseUrl!.isNotEmpty && !driver.driverLicenseUrl!.contains('picsum'))
           ? driver.driverLicenseUrl!
-          : mockUrl;
+          : '';
       if (_driverLicense != null) {
+        _uploadStatus = 'Sürücü belgesi yükleniyor...';
+        setState(() {});
         licenseUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'license',
@@ -383,11 +381,14 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
           fileBytes: await _driverLicense!.readAsBytes(),
         );
       }
+      if (licenseUrl.isEmpty) throw Exception('Sürücü belgesi yüklenemedi. Lütfen tekrar deneyin.');
 
-      String registrationUrl = (driver.vehicleRegistrationUrl != null && driver.vehicleRegistrationUrl!.isNotEmpty)
+      String registrationUrl = (driver.vehicleRegistrationUrl != null && driver.vehicleRegistrationUrl!.isNotEmpty && !driver.vehicleRegistrationUrl!.contains('picsum'))
           ? driver.vehicleRegistrationUrl!
-          : mockUrl;
+          : '';
       if (_vehicleRegistration != null) {
+        _uploadStatus = 'Araç ruhsatı yükleniyor...';
+        setState(() {});
         registrationUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'registration',
@@ -395,11 +396,14 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
           fileBytes: await _vehicleRegistration!.readAsBytes(),
         );
       }
+      if (registrationUrl.isEmpty) throw Exception('Araç ruhsatı yüklenemedi. Lütfen tekrar deneyin.');
 
-      String criminalUrl = (driver.criminalRecordUrl != null && driver.criminalRecordUrl!.isNotEmpty)
+      String criminalUrl = (driver.criminalRecordUrl != null && driver.criminalRecordUrl!.isNotEmpty && !driver.criminalRecordUrl!.contains('picsum'))
           ? driver.criminalRecordUrl!
-          : mockUrl;
+          : '';
       if (_criminalRecord != null) {
+        _uploadStatus = 'Adli sicil kaydı yükleniyor...';
+        setState(() {});
         criminalUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'criminal',
@@ -407,11 +411,14 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
           fileBytes: await _criminalRecord!.readAsBytes(),
         );
       }
+      if (criminalUrl.isEmpty) throw Exception('Adli sicil kaydı yüklenemedi. Lütfen tekrar deneyin.');
 
-      String? taxUrl = (driver.taxPlateUrl != null && driver.taxPlateUrl!.isNotEmpty)
+      String? taxUrl = (driver.taxPlateUrl != null && driver.taxPlateUrl!.isNotEmpty && !driver.taxPlateUrl!.contains('picsum'))
           ? driver.taxPlateUrl!
-          : mockUrl;
+          : null;
       if (_taxPlate != null) {
+        _uploadStatus = 'Vergi levhası yükleniyor...';
+        setState(() {});
         taxUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'tax_plate',
@@ -420,11 +427,15 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
-      List<String> vehiclePhotos = List.from(driver.vehiclePhotos);
+      // 4 Angle Vehicle Photos upload (No picsum fallback)
+      List<String> vehiclePhotos = driver.vehiclePhotos.where((p) => !p.contains('picsum')).toList();
       while (vehiclePhotos.length < 4) {
-        vehiclePhotos.add(mockUrl);
+        vehiclePhotos.add('');
       }
+
       if (_photoFront != null) {
+        _uploadStatus = 'Ön araç fotoğrafı yükleniyor...';
+        setState(() {});
         vehiclePhotos[0] = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'vehicle_photos',
@@ -433,6 +444,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
       if (_photoBack != null) {
+        _uploadStatus = 'Arka araç fotoğrafı yükleniyor...';
+        setState(() {});
         vehiclePhotos[1] = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'vehicle_photos',
@@ -441,6 +454,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
       if (_photoLeft != null) {
+        _uploadStatus = 'Sol araç fotoğrafı yükleniyor...';
+        setState(() {});
         vehiclePhotos[2] = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'vehicle_photos',
@@ -449,6 +464,8 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
       if (_photoRight != null) {
+        _uploadStatus = 'Sağ araç fotoğrafı yükleniyor...';
+        setState(() {});
         vehiclePhotos[3] = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'vehicle_photos',
@@ -457,12 +474,21 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         );
       }
 
+      if (vehiclePhotos.any((p) => p.isEmpty)) {
+        throw Exception('Lütfen aracınızın tüm 4 açıdan fotoğraflarını eksiksiz yükleyiniz.');
+      }
+
       final selectedEquipments = _equipments.entries
           .where((e) => e.value)
           .map((e) => e.key)
           .toList();
 
       final updatedDriver = driver.copyWith(
+        vehiclePlate: _vehiclePlateController.text.trim().toUpperCase(),
+        vehicleBrand: _vehicleBrandController.text.trim(),
+        vehicleModel: _vehicleModelController.text.trim(),
+        vehicleColor: _vehicleColorController.text.trim(),
+        vehicleYear: int.tryParse(_vehicleYearController.text.trim()),
         driverLicenseUrl: licenseUrl,
         vehicleRegistrationUrl: registrationUrl,
         criminalRecordUrl: criminalUrl,
@@ -602,10 +628,53 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                     child: GreenButton(
                       text: _currentStep == 3 ? 'Tamamla' : 'Devam Et',
                       onPressed: () {
-                        if (_currentStep < 3) {
+                        final driver = ref.read(currentUserProvider).value as DriverModel?;
+                        if (_currentStep == 0) {
+                          final hasLicense = _driverLicense != null || (driver?.driverLicenseUrl?.isNotEmpty ?? false);
+                          final hasRegistration = _vehicleRegistration != null || (driver?.vehicleRegistrationUrl?.isNotEmpty ?? false);
+                          final hasCriminal = _criminalRecord != null || (driver?.criminalRecordUrl?.isNotEmpty ?? false);
+
+                          if (!hasLicense || !hasRegistration || !hasCriminal) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Lütfen tüm zorunlu evrakları yükleyiniz (Ehliyet, Ruhsat, Adli Sicil).'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+                          setState(() => _currentStep++);
+                        } else if (_currentStep == 1) {
+                          final existingPhotosCount = driver?.vehiclePhotos.where((p) => !p.contains('picsum')).length ?? 0;
+                          final hasFront = _photoFront != null || existingPhotosCount > 0;
+                          final hasBack = _photoBack != null || existingPhotosCount > 1;
+                          final hasLeft = _photoLeft != null || existingPhotosCount > 2;
+                          final hasRight = _photoRight != null || existingPhotosCount > 3;
+
+                          if (!hasFront || !hasBack || !hasLeft || !hasRight) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Lütfen çekici aracınızın 4 farklı açıdan fotoğrafını yükleyiniz.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+                          setState(() => _currentStep++);
+                        } else if (_currentStep == 2) {
+                          final hasVehicleType = _supportedVehicleTypes.values.any((v) => v);
+                          if (!hasVehicleType) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Lütfen en az bir adet taşıyabildiğiniz araç türü seçin.'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
                           setState(() => _currentStep++);
                         } else {
-                          if (_ibanFormKey.currentState?.validate() ?? false) {
+                          if (_step4FormKey.currentState?.validate() ?? false) {
                             _handleSubmit();
                           }
                         }
@@ -788,10 +857,207 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
             ),
             const SizedBox(height: 28),
             Form(
-              key: _ibanFormKey,
+              key: _step4FormKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'Araç Plakası *',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _vehiclePlateController,
+                    textCapitalization: TextCapitalization.characters,
+                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                    decoration: InputDecoration(
+                      hintText: 'Örn: 35 BFG 051',
+                      hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                      filled: true,
+                      fillColor: AppColors.cardBackground,
+                      prefixIcon: const Icon(Icons.directions_car_outlined, color: AppColors.accent),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Araç plakası zorunludur.';
+                      if (v.trim().length < 5) return 'Lütfen geçerli bir plaka girin.';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Araç Markası *',
+                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _vehicleBrandController,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                hintText: 'Örn: Ford',
+                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                                filled: true,
+                                fillColor: AppColors.cardBackground,
+                                prefixIcon: const Icon(Icons.minor_crash_outlined, color: AppColors.accent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Marka zorunludur.';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Araç Modeli *',
+                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _vehicleModelController,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                hintText: 'Örn: Cargo',
+                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                                filled: true,
+                                fillColor: AppColors.cardBackground,
+                                prefixIcon: const Icon(Icons.directions_bus_outlined, color: AppColors.accent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Model zorunludur.';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Araç Rengi *',
+                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _vehicleColorController,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                hintText: 'Örn: Beyaz',
+                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                                filled: true,
+                                fillColor: AppColors.cardBackground,
+                                prefixIcon: const Icon(Icons.palette_outlined, color: AppColors.accent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Renk zorunludur.';
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Model Yılı (Opsiyonel)',
+                              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _vehicleYearController,
+                              keyboardType: TextInputType.number,
+                              style: const TextStyle(color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                hintText: 'Örn: 2020',
+                                hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                                filled: true,
+                                fillColor: AppColors.cardBackground,
+                                prefixIcon: const Icon(Icons.calendar_today_outlined, color: AppColors.accent),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                              ),
+                              validator: (v) {
+                                if (v != null && v.trim().isNotEmpty) {
+                                  final yr = int.tryParse(v.trim());
+                                  if (yr == null || yr < 1970 || yr > DateTime.now().year + 1) {
+                                    return 'Geçersiz yıl';
+                                  }
+                                }
+                                return null;
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
                   const Text(
                     'IBAN Numarası *',
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.w500),

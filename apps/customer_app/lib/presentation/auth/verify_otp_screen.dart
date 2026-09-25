@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,10 +22,13 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
+  int _secondsRemaining = 60;
+  Timer? _countdownTimer;
 
   @override
   void initState() {
     super.initState();
+    _startCountdown();
     // Attach backspace listeners to each focus node
     for (int i = 0; i < 6; i++) {
       final idx = i;
@@ -41,8 +45,47 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
     }
   }
 
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _secondsRemaining = 60;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining > 0) {
+        if (mounted) setState(() => _secondsRemaining--);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  Future<void> _handleResend() async {
+    if (_secondsRemaining > 0) return;
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(authNotifierProvider.notifier).sendSMSCode(widget.phone);
+      _startCountdown();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Doğrulama kodu tekrar gönderildi.'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppErrorHandler.parse(e)),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     for (var c in _controllers) {
       c.dispose();
     }
@@ -193,6 +236,24 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
                   text: 'Doğrula ve Devam Et',
                   onPressed: _handleVerify,
                   isLoading: _isLoading,
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: TextButton(
+                    onPressed: _secondsRemaining == 0 ? _handleResend : null,
+                    child: Text(
+                      _secondsRemaining > 0
+                          ? 'Tekrar Kod Gönder ($_secondsRemaining sn)'
+                          : 'Tekrar Kod Gönder',
+                      style: TextStyle(
+                        color: _secondsRemaining > 0
+                            ? AppColors.textSecondary
+                            : AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

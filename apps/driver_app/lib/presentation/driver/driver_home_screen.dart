@@ -349,7 +349,31 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
                       activeColor: AppColors.accent,
                       onChanged: (driver == null || !driver.isVerified)
                           ? null
-                          : (val) {
+                          : (val) async {
+                              /*
+                              // AWS Rekognition Yüz Doğrulama Altyapısı (Test Sürecinde Yorum Satırında):
+                              // Çevrimiçi açılırken canlı selfie isteyip sürücü belgesindeki fotoğrafla eşleştirir:
+                              if (val == true) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Lütfen canlı selfie doğrulamasını tamamlayın...')),
+                                  );
+                                }
+                                final result = await FaceVerificationService.instance.captureAndVerifySelfie(driver.id);
+                                if (!result.isMatch) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(result.error ?? 'Yüz eşleşmedi! Çevrimiçi olunamadı.'),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                  }
+                                  return; // Yüz eşleşmezse çevrimiçi olma
+                                }
+                              }
+                              */
+
                               ref.read(driverStatusProvider.notifier).toggleOnlineStatus();
                             },
                     ),

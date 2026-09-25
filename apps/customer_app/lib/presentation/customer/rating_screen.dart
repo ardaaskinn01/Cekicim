@@ -88,7 +88,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
       isLoading: _isLoading,
       message: 'Gönderiliyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Hizmeti Değerlendir')),
+        appBar: AppBar(title: Text('Çekiciyi Değerlendir', style: TextStyle(color: AppColors.getTextPrimary(context)))),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -97,16 +97,16 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
               children: [
                 const Icon(Icons.check_circle_outline_rounded, size: 72, color: AppColors.accent),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Hizmetiniz Tamamlandı!',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.getTextPrimary(context)),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '${widget.driverName} sunduğu çekici hizmetini nasıl buldunuz?',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                  style: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 14),
                 ),
                 const SizedBox(height: 32),
                 Center(
@@ -136,10 +136,10 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                     decoration: BoxDecoration(
                       color: _shouldBlock
                           ? AppColors.error.withValues(alpha: 0.12)
-                          : AppColors.surface,
+                          : AppColors.getSurface(context),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _shouldBlock ? AppColors.error.withValues(alpha: 0.5) : AppColors.border,
+                        color: _shouldBlock ? AppColors.error.withValues(alpha: 0.5) : AppColors.getBorder(context),
                       ),
                     ),
                     child: Row(
@@ -148,13 +148,13 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                           value: _shouldBlock,
                           onChanged: (v) => setState(() => _shouldBlock = v ?? false),
                           activeColor: AppColors.error,
-                          side: BorderSide(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                          side: BorderSide(color: AppColors.getTextSecondary(context).withValues(alpha: 0.5)),
                         ),
                         const SizedBox(width: 4),
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Bu sürücüyle beni bir daha asla eşleştirme',
-                            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                            style: TextStyle(color: AppColors.getTextPrimary(context), fontSize: 13),
                           ),
                         ),
                       ],
@@ -170,7 +170,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () => context.go('/customer'),
-                  child: const Text('Şimdi Değil', style: TextStyle(color: AppColors.textSecondary)),
+                  child: Text('Şimdi Değil', style: TextStyle(color: AppColors.getTextSecondary(context))),
                 ),
               ],
             ),

@@ -2,7 +2,7 @@ name: driver_app
 description: "Çekici Driver Application"
 publish_to: 'none'
 
-version: 1.0.0+15
+version: 1.0.0+25
 
 environment:
   sdk: ^3.7.2
@@ -37,6 +37,7 @@ dependencies:
     path: ../../packages/shared_ui_light
   firebase_core: ^3.11.0
   firebase_messaging: ^15.1.0
+  firebase_auth: ^5.4.4
 
 dev_dependencies:
   flutter_test:

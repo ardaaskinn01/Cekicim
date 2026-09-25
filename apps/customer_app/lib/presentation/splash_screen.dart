@@ -87,10 +87,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.local_shipping_rounded,
-                  size: 80,
-                  color: AppColors.accent,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.contain,
+                    errorBuilder: (ctx, err, stack) => const Icon(
+                      Icons.local_shipping_rounded,
+                      size: 80,
+                      color: AppColors.accent,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

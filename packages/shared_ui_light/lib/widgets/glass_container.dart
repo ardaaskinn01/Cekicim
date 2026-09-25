@@ -24,19 +24,24 @@ class GlassContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardColor = Theme.of(context).cardColor;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final cardColor = theme.cardColor;
+    final defaultBorderColor = isDark ? AppColors.darkBorder.withValues(alpha: 0.5) : AppColors.lightBorder;
+    final defaultShadowColor = isDark ? Colors.black.withValues(alpha: 0.25) : Colors.black.withValues(alpha: 0.08);
+
     return Container(
       margin: margin,
       decoration: BoxDecoration(
         color: cardColor.withValues(alpha: opacity),
         borderRadius: BorderRadius.circular(borderRadius),
         border: border ?? Border.all(
-          color: AppColors.border.withValues(alpha: 0.5),
+          color: defaultBorderColor,
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
+            color: defaultShadowColor,
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),

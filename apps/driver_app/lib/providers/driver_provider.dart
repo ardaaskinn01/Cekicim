@@ -36,14 +36,14 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
 
   Future<void> _setOnlinePreference(bool isOnline) async {
     try {
-      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref_${_driverId}.txt');
+      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref_$_driverId.txt');
       await file.writeAsString(isOnline ? 'online' : 'offline');
     } catch (_) {}
   }
 
   Future<bool> _getOnlinePreference() async {
     try {
-      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref_${_driverId}.txt');
+      final file = File('${Directory.systemTemp.path}/cekici_driver_online_pref_$_driverId.txt');
       if (await file.exists()) {
         final val = await file.readAsString();
         return val == 'online';

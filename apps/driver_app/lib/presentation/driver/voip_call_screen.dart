@@ -276,7 +276,7 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: AppColors.accent.withOpacity(1.0 - progress),
+                                    color: AppColors.accent.withValues(alpha: 1.0 - progress),
                                     width: 2,
                                   ),
                                 ),
@@ -342,7 +342,7 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
                               color: _isMuted ? AppColors.error : AppColors.textPrimary,
                             ),
                             style: IconButton.styleFrom(
-                              backgroundColor: _isMuted ? AppColors.error.withOpacity(0.15) : AppColors.surface,
+                              backgroundColor: _isMuted ? AppColors.error.withValues(alpha: 0.15) : AppColors.surface,
                               padding: const EdgeInsets.all(16),
                             ),
                           ),
@@ -360,7 +360,7 @@ class _VoIPCallScreenState extends ConsumerState<VoIPCallScreen> with SingleTick
                               color: _isSpeakerOn ? AppColors.accent : AppColors.textPrimary,
                             ),
                             style: IconButton.styleFrom(
-                              backgroundColor: _isSpeakerOn ? AppColors.accent.withOpacity(0.15) : AppColors.surface,
+                              backgroundColor: _isSpeakerOn ? AppColors.accent.withValues(alpha: 0.15) : AppColors.surface,
                               padding: const EdgeInsets.all(16),
                             ),
                           ),

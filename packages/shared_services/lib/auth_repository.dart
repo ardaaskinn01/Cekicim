@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/user_role.dart';
 import 'package:shared_models/user_model.dart';
 import 'package:shared_models/driver_model.dart';
 import 'supabase_service.dart';
-import 'nvi_service.dart';
 
 class AuthRepository {
   final SupabaseClient _client = SupabaseService.instance.client;
-  bool get _isProductionOfficial => false;
+  static String? _verificationId;
+  static int? _resendToken;
+  static ConfirmationResult? _webConfirmationResult;
 
   Future<UserModel> signInWithEmail(String email, String password) async {
     final response = await _client.auth.signInWithPassword(
@@ -110,6 +113,9 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
     await _client.auth.signOut();
   }
 
@@ -138,9 +144,10 @@ class AuthRepository {
         .eq('id', user.id)
         .maybeSingle();
 
+    final rawPhone = user.phone ?? (user.userMetadata?['phone'] as String?);
     // Fallback: If profile is not found by Auth user.id, search by phone number (last 10 digits)
-    if (profileData == null && user.phone != null && user.phone!.trim().isNotEmpty) {
-      final phoneStr = user.phone!.trim();
+    if (profileData == null && rawPhone != null && rawPhone.trim().isNotEmpty) {
+      final phoneStr = rawPhone.trim();
       final digits = phoneStr.replaceAll(RegExp(r'\D'), '');
       final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
 
@@ -232,6 +239,26 @@ class AuthRepository {
     return userModel;
   }
 
+  String _mapFirebaseError(FirebaseAuthException e) {
+    debugPrint('Firebase Auth Error: ${e.code} - ${e.message}');
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'Geçersiz telefon numarası girdiniz.';
+      case 'invalid-verification-code':
+        return 'Girdiğiniz doğrulama kodu hatalı. Lütfen kontrol ediniz.';
+      case 'session-expired':
+        return 'Doğrulama kodunun geçerlilik süresi doldu. Lütfen yeni bir kod isteyiniz.';
+      case 'too-many-requests':
+        return 'Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyiniz.';
+      case 'quota-exceeded':
+        return 'SMS gönderim kotası aşıldı. Lütfen daha sonra tekrar deneyiniz.';
+      case 'network-request-failed':
+        return 'İnternet bağlantınızı kontrol ediniz.';
+      default:
+        return e.message ?? 'Doğrulama sırasında bir hata oluştu.';
+    }
+  }
+
   Future<void> signInWithPhone(String phone) async {
     final cleanDigits = phone.replaceAll(RegExp(r'\D'), '');
     if (cleanDigits.length < 10) {
@@ -248,9 +275,69 @@ class AuthRepository {
       }
     }
 
-    await _client.auth.signInWithOtp(
-      phone: normalizedPhone,
-    );
+    if (kIsWeb) {
+      try {
+        _webConfirmationResult = await FirebaseAuth.instance.signInWithPhoneNumber(normalizedPhone);
+        return;
+      } on FirebaseAuthException catch (e) {
+        throw Exception(_mapFirebaseError(e));
+      }
+    }
+
+    final completer = Completer<void>();
+
+    try {
+      await FirebaseAuth.instance.verifyPhoneNumber(
+        phoneNumber: normalizedPhone,
+        timeout: const Duration(seconds: 60),
+        forceResendingToken: _resendToken,
+        verificationCompleted: (PhoneAuthCredential credential) async {
+          // Kullanıcının kodu ekrana kendi eliyle yazması için otomatik girişi devre dışı bırakıyoruz.
+          // Kod gelince ekranda beklenir, kullanıcı 6 haneli kodu yazıp 'Doğrula' butonuna basar.
+          debugPrint('SMS otomatik algılandı, ancak kullanıcının kodu elle girmesi bekleniyor.');
+        },
+        verificationFailed: (FirebaseAuthException e) async {
+          debugPrint('verifyPhoneNumber verificationFailed: ${e.code} - ${e.message}');
+          // If Play Integrity or app authorization fails, attempt web / recaptcha fallback
+          final isIntegrityError = e.code == 'app-not-authorized' ||
+              e.message?.contains('play_integrity') == true ||
+              e.message?.contains('SHA-256') == true;
+
+          if (isIntegrityError) {
+            try {
+              debugPrint('Attempting signInWithPhoneNumber web/recaptcha fallback...');
+              _webConfirmationResult = await FirebaseAuth.instance.signInWithPhoneNumber(normalizedPhone);
+              if (!completer.isCompleted) {
+                completer.complete();
+              }
+              return;
+            } catch (fallbackErr) {
+              debugPrint('Fallback signInWithPhoneNumber failed: $fallbackErr');
+            }
+          }
+
+          if (!completer.isCompleted) {
+            completer.completeError(Exception(_mapFirebaseError(e)));
+          }
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          _verificationId = verificationId;
+          _resendToken = resendToken;
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {
+          _verificationId = verificationId;
+        },
+      );
+    } catch (e) {
+      if (!completer.isCompleted) {
+        completer.completeError(e);
+      }
+    }
+
+    return completer.future;
   }
 
   Future<void> verifyPhoneOTP(String phone, String token) async {
@@ -265,11 +352,70 @@ class AuthRepository {
       }
     }
 
-    await _client.auth.verifyOTP(
-      phone: normalizedPhone,
-      token: token,
-      type: OtpType.sms,
-    );
+    if (_webConfirmationResult != null) {
+      try {
+        await _webConfirmationResult!.confirm(token.trim());
+      } on FirebaseAuthException catch (e) {
+        throw Exception(_mapFirebaseError(e));
+      }
+    } else {
+      if (_verificationId == null) {
+        throw Exception('SMS oturumu bulunamadı. Lütfen tekrar kod isteyiniz.');
+      }
+      try {
+        final credential = PhoneAuthProvider.credential(
+          verificationId: _verificationId!,
+          smsCode: token.trim(),
+        );
+        await FirebaseAuth.instance.signInWithCredential(credential);
+      } on FirebaseAuthException catch (e) {
+        throw Exception(_mapFirebaseError(e));
+      }
+    }
+
+    // Firebase SMS onaylandı; Supabase veritabanı oturumunu senkronize et
+    await _syncFirebaseWithSupabase(normalizedPhone);
+  }
+
+  Future<void> _syncFirebaseWithSupabase(String normalizedPhone) async {
+    final cleanDigits = normalizedPhone.replaceAll(RegExp(r'\D'), '');
+    final email = 'phone_$cleanDigits@cekiciapp.com';
+    final password = 'CekiciAuth!_${cleanDigits}_Secure2026#';
+
+    try {
+      await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+    } on AuthException catch (e) {
+      final errorMsg = e.message.toLowerCase();
+      if (errorMsg.contains('invalid login credentials') ||
+          errorMsg.contains('invalid_grant') ||
+          e.statusCode == '400') {
+        try {
+          final res = await _client.auth.signUp(
+            email: email,
+            password: password,
+            data: {
+              'phone': normalizedPhone,
+              'role': 'customer',
+            },
+          );
+          if (res.session == null) {
+            await _client.auth.signInWithPassword(
+              email: email,
+              password: password,
+            );
+          }
+        } catch (signUpErr) {
+          debugPrint('Supabase signUp error during phone sync: $signUpErr');
+          rethrow;
+        }
+      } else {
+        debugPrint('Supabase signIn error during phone sync: $e');
+        rethrow;
+      }
+    }
   }
 
   Future<UserModel> createUserProfile({
@@ -386,28 +532,10 @@ class AuthRepository {
     final user = _client.auth.currentUser;
     if (user == null) throw Exception('Kullanıcı oturumu bulunamadı.');
 
-    bool isValid = false;
-    if (!_isProductionOfficial) {
-      isValid = true;
-      debugPrint('MERNIS (Bypass Mode): T.C. Kimlik doğrulaması tamamen atlandı (Aktif Bypass).');
-    } else {
-      isValid = await NviService().validateTCKimlikNo(
-        tcNo: tcNo,
-        firstName: firstName,
-        lastName: lastName,
-        birthYear: birthYear,
-      );
-    }
-
-    if (!isValid) {
-      throw Exception('Kimlik doğrulama başarısız oldu. Lütfen bilgilerinizi kontrol ediniz.');
-    }
-
     await _client.auth.updateUser(
       UserAttributes(
         data: {
           'is_verified': true,
-          'tc_no': tcNo,
         },
       ),
     );
@@ -447,5 +575,24 @@ class AuthRepository {
     await _client.from('profiles').update({
       'fcm_token': token,
     }).eq('id', userId);
+  }
+
+  Future<void> deleteAccount() async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('Oturum açmış kullanıcı bulunamadı.');
+
+    try {
+      await _client.from('drivers').delete().eq('id', user.id);
+    } catch (e) {
+      debugPrint('Error deleting driver record: $e');
+    }
+
+    try {
+      await _client.from('profiles').delete().eq('id', user.id);
+    } catch (e) {
+      debugPrint('Error deleting profile record: $e');
+    }
+
+    await signOut();
   }
 }

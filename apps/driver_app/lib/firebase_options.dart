@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '504769736096',
     projectId: 'cekicim-45b73',
     storageBucket: 'cekicim-45b73.firebasestorage.app',
-    iosBundleId: 'com.aasoft.cekici.driver',
+    iosBundleId: 'com.aasoft.cekicimsurucu',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

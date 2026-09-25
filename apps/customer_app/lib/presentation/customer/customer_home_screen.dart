@@ -21,7 +21,6 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
-  int _selectedIndex = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -137,18 +136,23 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                 child: const Icon(Icons.local_shipping_rounded, color: AppColors.primary, size: 28),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Yol Yardım İhtiyacınız mı Var?', 
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.2),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16, 
+                        letterSpacing: -0.2,
+                        color: AppColors.getTextPrimary(context),
+                      ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       'Müsait ve en yakın çekici aranıyor...', 
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 12),
                     ),
                   ],
                 ),
@@ -173,7 +177,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppColors.surface.withAlpha(245),
+          color: AppColors.getCardBackground(context),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: AppColors.accent, width: 2),
           boxShadow: [
@@ -197,15 +201,15 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                     Text(status.label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.accent)),
                   ],
                 ),
-                const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.getTextSecondary(context)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('${request.carBrand} ${request.carModel}', style: const TextStyle(color: AppColors.textPrimary)),
-                Text('₺${request.price.round()}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                Text('${request.carBrand} ${request.carModel}', style: TextStyle(color: AppColors.getTextPrimary(context))),
+                Text('₺${request.price.round()}', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getTextPrimary(context))),
               ],
             ),
           ],

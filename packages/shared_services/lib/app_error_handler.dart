@@ -39,8 +39,11 @@ class AppErrorHandler {
     if (msg.contains('Password should be at least')) {
       return 'Şifreniz en az 6 karakter olmalıdır.';
     }
-    if (msg.contains('401') || msg.contains('Unauthorized')) {
-      return 'Doğrulama kodu hatalı veya oturum süresi dolmuş. Lütfen tekrar deneyin.';
+    if (msg.contains('401') || msg.contains('unauthorized') || msg.contains('jwt expired')) {
+      if (msg.contains('otp') || msg.contains('token') || msg.contains('code')) {
+        return 'Doğrulama kodu hatalı veya süresi dolmuş. Lütfen yeni kod isteyiniz.';
+      }
+      return 'Oturum süreniz dolmuş. Lütfen yeniden giriş yapıp tekrar deneyiniz.';
     }
 
     return msg;
@@ -53,8 +56,11 @@ class AppErrorHandler {
     if (status == '400' || msg.contains('invalid login credentials') || msg.contains('invalid_grant')) {
       return 'Giriş bilgileri hatalı. Lütfen e-posta ve şifrenizi kontrol edin.';
     }
-    if (status == '401' || msg.contains('unauthorized')) {
-      return 'Doğrulama kodu hatalı veya süresi dolmuş. Lütfen yeni kod isteyiniz.';
+    if (status == '401' || msg.contains('unauthorized') || msg.contains('jwt expired')) {
+      if (msg.contains('otp') || msg.contains('token') || msg.contains('code')) {
+        return 'Doğrulama kodu hatalı veya süresi dolmuş. Lütfen yeni kod isteyiniz.';
+      }
+      return 'Oturum süreniz dolmuş. Lütfen yeniden giriş yapıp tekrar deneyiniz.';
     }
     if (status == '404' || msg.contains('user not found')) {
       return 'Kayıtlı kullanıcı bulunamadı.';

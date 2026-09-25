@@ -118,11 +118,9 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
       isLoading: _isLoading,
       message: 'Değerlendirme gönderiliyor...',
       child: Scaffold(
-        backgroundColor: AppColors.background,
         appBar: AppBar(
-          title: const Text('Müşteriyi Değerlendir'),
+          title: Text('Müşteriyi Değerlendir', style: TextStyle(color: AppColors.getTextPrimary(context))),
           elevation: 0,
-          backgroundColor: Colors.transparent,
         ),
         body: SafeArea(
           child: SingleChildScrollView(
@@ -136,9 +134,9 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
                   // Decorative Glow Card Wrapper
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
+                      color: AppColors.getCardBackground(context),
                       borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: AppColors.border, width: 1.5),
+                      border: Border.all(color: AppColors.getBorder(context), width: 1.5),
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
                     child: Column(
@@ -164,18 +162,18 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
                         Text(
                           widget.customerName,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                            color: AppColors.getTextPrimary(context),
                           ),
                         ),
                         const SizedBox(height: 8),
                         
-                        const Text(
+                        Text(
                           'Hizmet verdiğiniz müşteriyi puanlayıp geri bildirimde bulunarak topluluk güvenliğini artırın.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          style: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 13),
                         ),
                         const SizedBox(height: 36),
                         
@@ -217,22 +215,22 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
                   // Comment Text Field
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
+                      color: AppColors.getCardBackground(context),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.border, width: 1.5),
+                      border: Border.all(color: AppColors.getBorder(context), width: 1.5),
                     ),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: TextField(
                       controller: _commentController,
                       maxLines: 4,
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: AppColors.getTextPrimary(context), fontSize: 14),
+                      decoration: InputDecoration(
                         hintText: 'Müşteri veya yolculuk hakkında eklemek istediğiniz yorum... (İsteğe bağlı)',
-                        hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        hintStyle: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 13),
                         border: InputBorder.none,
                         icon: Padding(
-                          padding: EdgeInsets.only(bottom: 50.0),
-                          child: Icon(Icons.rate_review_outlined, color: AppColors.textSecondary),
+                          padding: const EdgeInsets.only(bottom: 50.0),
+                          child: Icon(Icons.rate_review_outlined, color: AppColors.getTextSecondary(context)),
                         ),
                       ),
                     ),

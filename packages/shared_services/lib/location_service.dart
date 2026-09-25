@@ -96,13 +96,18 @@ class LocationService {
     }
   }
 
-  Stream<Position> watchPosition() {
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10,
-    );
-    
-    return Geolocator.getPositionStream(locationSettings: locationSettings);
+  Stream<Position> watchPosition() async* {
+    try {
+      final hasPerm = await requestPermission();
+      if (!hasPerm) return;
+      const locationSettings = LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      );
+      yield* Geolocator.getPositionStream(locationSettings: locationSettings);
+    } catch (e) {
+      // Catch permission/service errors gracefully
+    }
   }
 
   Future<String> getAddressFromCoordinates(double lat, double lng) async {

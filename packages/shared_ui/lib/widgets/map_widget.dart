@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import '../app_colors.dart';
 
 class MapWidget extends StatefulWidget {
@@ -38,12 +39,33 @@ class _MapWidgetState extends State<MapWidget> {
   GoogleMapController? _mapController;
   bool _isMapReady = false;
   bool _hasFittedMarkers = false;
+  bool _hasLocationPermission = false;
   late LatLng _currentCameraTarget;
 
   @override
   void initState() {
     super.initState();
     _currentCameraTarget = widget.initialPosition;
+    _checkLocationPermission();
+
+    // Safety fallback: If onMapCreated is delayed or Google Maps native view is blocked,
+    // automatically dismiss the skeleton loader after 2 seconds so screen is never stuck grey.
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && !_isMapReady) {
+        setState(() {
+          _isMapReady = true;
+        });
+      }
+    });
+  }
+
+  Future<void> _checkLocationPermission() async {
+    try {
+      final perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.always || perm == LocationPermission.whileInUse) {
+        if (mounted) setState(() => _hasLocationPermission = true);
+      }
+    } catch (_) {}
   }
 
   static const String _darkSlateMapStyle = '''
@@ -250,7 +272,7 @@ class _MapWidgetState extends State<MapWidget> {
             markers: widget.markers,
             polylines: widget.polylines,
             onTap: widget.onTap,
-            myLocationEnabled: widget.showMyLocation,
+            myLocationEnabled: widget.showMyLocation && _hasLocationPermission,
             myLocationButtonEnabled: false, // Hide default to avoid layout conflict
             zoomControlsEnabled: false,
             compassEnabled: true,

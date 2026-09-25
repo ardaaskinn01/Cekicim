@@ -143,6 +143,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (mounted) context.go('/login');
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppColors.error),
+            SizedBox(width: 8),
+            Text('Hesabımı Sil', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text(
+          'Hesabınızı silmek istediğinize emin misiniz? Tüm profil ve işlem verileriniz kalıcı olarak silinecektir. Bu işlem geri alınamaz.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Kalıcı Olarak Sil'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isLoading = true);
+      try {
+        await ref.read(authNotifierProvider.notifier).deleteAccount();
+        if (mounted) context.go('/login');
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hesap silinirken hata oluştu: $e'), backgroundColor: AppColors.error),
+        );
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
@@ -261,6 +310,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text('Oturumu Kapat', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: _confirmDeleteAccount,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.error.withValues(alpha: 0.8),
+                    minimumSize: const Size.fromHeight(44),
+                  ),
+                  icon: const Icon(Icons.delete_forever_outlined, size: 20),
+                  label: const Text('Hesabımı Sil', style: TextStyle(fontSize: 13, decoration: TextDecoration.underline)),
                 ),
               ],
             ),

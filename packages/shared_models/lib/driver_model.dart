@@ -4,6 +4,10 @@ import 'user_model.dart';
 class DriverModel extends UserModel {
   final String vehiclePlate;
   final String vehicleType;
+  final String? vehicleBrand;
+  final String? vehicleModel;
+  final String? vehicleColor;
+  final int? vehicleYear;
   final bool isAvailable;
   final double? latitude;
   final double? longitude;
@@ -44,6 +48,10 @@ class DriverModel extends UserModel {
     super.isProfileComplete = true,
     required this.vehiclePlate,
     this.vehicleType = 'small',
+    this.vehicleBrand,
+    this.vehicleModel,
+    this.vehicleColor,
+    this.vehicleYear,
     this.isAvailable = false,
     super.isVerified = false,
     this.latitude,
@@ -80,6 +88,10 @@ class DriverModel extends UserModel {
       isProfileComplete: user.isProfileComplete,
       vehiclePlate: driverJson['vehicle_plate'] as String? ?? '',
       vehicleType: driverJson['vehicle_type'] as String? ?? 'small',
+      vehicleBrand: driverJson['vehicle_brand'] as String?,
+      vehicleModel: driverJson['vehicle_model'] as String?,
+      vehicleColor: driverJson['vehicle_color'] as String?,
+      vehicleYear: (driverJson['vehicle_year'] as num?)?.toInt(),
       isAvailable: driverJson['is_available'] as bool? ?? false,
       isVerified: driverJson['is_verified'] as bool? ?? false,
       latitude: (driverJson['latitude'] as num?)?.toDouble(),
@@ -110,6 +122,10 @@ class DriverModel extends UserModel {
       'id': id,
       'vehicle_plate': vehiclePlate,
       'vehicle_type': vehicleType,
+      'vehicle_brand': vehicleBrand,
+      'vehicle_model': vehicleModel,
+      'vehicle_color': vehicleColor,
+      'vehicle_year': vehicleYear,
       'is_available': isAvailable,
       'is_verified': isVerified,
       'latitude': latitude,
@@ -144,6 +160,10 @@ class DriverModel extends UserModel {
     String? avatarUrl,
     String? vehiclePlate,
     String? vehicleType,
+    String? vehicleBrand,
+    String? vehicleModel,
+    String? vehicleColor,
+    int? vehicleYear,
     bool? isAvailable,
     bool? isVerified,
     double? latitude,
@@ -178,6 +198,10 @@ class DriverModel extends UserModel {
       isSuspended: isSuspended ?? this.isSuspended,
       vehiclePlate: vehiclePlate ?? this.vehiclePlate,
       vehicleType: vehicleType ?? this.vehicleType,
+      vehicleBrand: vehicleBrand ?? this.vehicleBrand,
+      vehicleModel: vehicleModel ?? this.vehicleModel,
+      vehicleColor: vehicleColor ?? this.vehicleColor,
+      vehicleYear: vehicleYear ?? this.vehicleYear,
       isAvailable: isAvailable ?? this.isAvailable,
       isVerified: isVerified ?? this.isVerified,
       latitude: latitude ?? this.latitude,
