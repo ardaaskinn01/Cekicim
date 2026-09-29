@@ -1,23 +1,27 @@
 #!/bin/bash
 set -e
 
+# Dart/Flutter bellek ve performans optimizasyonu
+export DART_VM_OPTIONS="--old_gen_heap_size=2048"
+
 # Kök dizinde miyiz yoksa alt dizinde miyiz kontrol edelim
 if [ -d "apps/admin_web" ]; then
   # Kök dizindeyiz (monorepo root)
-  REPO_ROOT=$(pwd)
-  git clone https://github.com/flutter/flutter.git -b stable --depth 1
+  if [ ! -d "flutter" ]; then
+    git clone https://github.com/flutter/flutter.git -b stable --depth 1
+  fi
   export PATH="$PATH:$(pwd)/flutter/bin"
   cd apps/admin_web
 else
   # Zaten apps/admin_web alt dizindeyiz
-  REPO_ROOT=$(pwd)/../..
-  git clone https://github.com/flutter/flutter.git -b stable --depth 1
+  if [ ! -d "flutter" ]; then
+    git clone https://github.com/flutter/flutter.git -b stable --depth 1
+  fi
   export PATH="$PATH:$(pwd)/flutter/bin"
 fi
 
-# pubspec_overrides.yaml içindeki Windows backslash'larını Linux forward slash ile düzelt
+# pubspec_overrides.yaml ayarları
 cat > pubspec_overrides.yaml << 'EOF'
-# melos_managed_dependency_overrides: shared_models,shared_services,shared_ui
 dependency_overrides:
   shared_models:
     path: ../../packages/shared_models
@@ -27,16 +31,11 @@ dependency_overrides:
     path: ../../packages/shared_ui
 EOF
 
-# Sürüm doğrula ve web modunu etkinleştir
-flutter config --enable-web
-flutter doctor
-
 # Bağımlılıkları yükle
 flutter pub get
 
 # Derlemeyi yap
-flutter build web --release
-
+flutter build web --release --no-pub
 
 # Vercel'in okuyacağı public klasörünü oluştur ve dosyaları kopyala
 mkdir -p public

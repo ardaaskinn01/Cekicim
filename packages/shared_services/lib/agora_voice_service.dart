@@ -26,7 +26,7 @@ class AgoraVoiceService {
   }
 
   Future<void> initialize(String appId) async {
-    if (_isInitialized) return;
+    if (_isInitialized || kIsWeb) return;
 
     _engine = createAgoraRtcEngine();
     await _engine!.initialize(RtcEngineContext(
@@ -38,13 +38,17 @@ class AgoraVoiceService {
     _isInitialized = true;
   }
 
+
   Future<void> joinChannel(
     String channelId,
     int uid, {
     Function(int uid)? onUserJoined,
     Function(int uid)? onUserOffline,
   }) async {
+    if (kIsWeb) return;
+
     // 1. Supabase Edge Function'dan güvenli token ve App ID al
+
     final tokenData = await _fetchToken(channelId, uid);
     final token = tokenData['token'] as String;
     final appId = tokenData['appId'] as String;
