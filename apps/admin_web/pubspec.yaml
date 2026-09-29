@@ -2,7 +2,8 @@ name: admin_web
 description: "Çekici Admin Web Dashboard"
 publish_to: 'none'
 
-version: 1.0.0+5
+version: 1.0.0+6
+
 
 
 

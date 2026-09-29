@@ -81,3 +81,29 @@ CREATE POLICY "Authenticated users can upload request photos"
 -- 6. Add rejection_reason to pending_offers
 ALTER TABLE pending_offers 
   ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+-- 7. Create storage bucket for driver-documents & RLS policies
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('driver-documents', 'driver-documents', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+DROP POLICY IF EXISTS "Anyone can read driver documents" ON storage.objects;
+CREATE POLICY "Anyone can read driver documents"
+  ON storage.objects FOR SELECT 
+  USING (bucket_id = 'driver-documents');
+
+DROP POLICY IF EXISTS "Authenticated users can upload driver documents" ON storage.objects;
+CREATE POLICY "Authenticated users can upload driver documents"
+  ON storage.objects FOR INSERT TO authenticated 
+  WITH CHECK (bucket_id = 'driver-documents');
+
+DROP POLICY IF EXISTS "Authenticated users can update driver documents" ON storage.objects;
+CREATE POLICY "Authenticated users can update driver documents"
+  ON storage.objects FOR UPDATE TO authenticated 
+  USING (bucket_id = 'driver-documents');
+
+DROP POLICY IF EXISTS "Authenticated users can delete driver documents" ON storage.objects;
+CREATE POLICY "Authenticated users can delete driver documents"
+  ON storage.objects FOR DELETE TO authenticated 
+  USING (bucket_id = 'driver-documents');
+

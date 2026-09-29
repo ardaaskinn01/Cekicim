@@ -1153,7 +1153,7 @@ packages:
   shared_ui:
     dependency: "direct main"
     description:
-      path: "../../packages/shared_ui_light"
+      path: "../../packages/shared_ui"
       relative: true
     source: path
     version: "1.0.0"
@@ -1491,5 +1491,5 @@ packages:
     source: hosted
     version: "2.1.1"
 sdks:
-  dart: ">=3.7.2 <4.0.0"
+  dart: ">=3.7.0 <4.0.0"
   flutter: ">=3.29.0"

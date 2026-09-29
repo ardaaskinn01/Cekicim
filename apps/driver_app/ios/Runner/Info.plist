@@ -82,5 +82,8 @@
 	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Sesli görüşme sırasında Bluetooth kulaklık kullanabilmek için erişim gereklidir.</string>
+	<key>io.flutter.embedded_views_preview</key>
+	<true/>
 </dict>
+
 </plist>
