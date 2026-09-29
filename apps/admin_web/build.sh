@@ -20,6 +20,14 @@ else
   export PATH="$PATH:$(pwd)/flutter/bin"
 fi
 
+# Vercel build esnasında .env dosyasının bulunmaması durumunda oluştur
+if [ ! -f ".env" ]; then
+  cat > .env << 'EOF'
+SUPABASE_URL=https://lytisoqffembcrtplfpo.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5dGlzb3FmZmVtYmNydHBsZnBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2Njk1NTcsImV4cCI6MjA5ODI0NTU1N30.6qULuPDqA9iH_p8u2h1LDFDsyPV-TzKPzqX5N78RtA8
+EOF
+fi
+
 # pubspec_overrides.yaml ayarları
 cat > pubspec_overrides.yaml << 'EOF'
 dependency_overrides:
@@ -36,7 +44,6 @@ flutter pub get
 
 # Derlemeyi yap
 flutter build web --release --no-pub --no-tree-shake-icons
-
 
 # Vercel'in okuyacağı public klasörünü oluştur ve dosyaları kopyala
 mkdir -p public
