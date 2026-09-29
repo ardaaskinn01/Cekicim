@@ -27,11 +27,16 @@ dependency_overrides:
     path: ../../packages/shared_ui
 EOF
 
-# Sürüm doğrula
+# Sürüm doğrula ve web modunu etkinleştir
+flutter config --enable-web
 flutter doctor
+
+# Bağımlılıkları yükle
+flutter pub get
 
 # Derlemeyi yap
 flutter build web --release
+
 
 # Vercel'in okuyacağı public klasörünü oluştur ve dosyaları kopyala
 mkdir -p public
