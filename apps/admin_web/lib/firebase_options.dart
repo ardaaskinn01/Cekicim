@@ -1,0 +1,71 @@
+// File generated for admin_web Firebase configuration.
+// ignore_for_file: type=lint
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+
+class DefaultFirebaseOptions {
+  static FirebaseOptions get currentPlatform {
+    if (kIsWeb) {
+      return web;
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return android;
+      case TargetPlatform.iOS:
+        return ios;
+      case TargetPlatform.macOS:
+        return macos;
+      case TargetPlatform.windows:
+        return windows;
+      default:
+        return web;
+    }
+  }
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyCS22_FJI7McpvOMuTABNtjuvB-xjAPrCU',
+    appId: '1:504769736096:web:00a12b703242477969c8c5',
+    messagingSenderId: '504769736096',
+    projectId: 'cekicim-45b73',
+    authDomain: 'cekicim-45b73.firebaseapp.com',
+    storageBucket: 'cekicim-45b73.firebasestorage.app',
+    measurementId: 'G-YJBLX1ZDMD',
+  );
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyCUhSxU_YB7nH3CoaED3aBGLCWBMTH1t1k',
+    appId: '1:504769736096:android:05ad35f775e12c8569c8c5',
+    messagingSenderId: '504769736096',
+    projectId: 'cekicim-45b73',
+    storageBucket: 'cekicim-45b73.firebasestorage.app',
+  );
+
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCk1iShxbSo9HA2hk9fb7wsTtQjGerlDVE',
+    appId: '1:504769736096:ios:405bd45a24a5a4d169c8c5',
+    messagingSenderId: '504769736096',
+    projectId: 'cekicim-45b73',
+    storageBucket: 'cekicim-45b73.firebasestorage.app',
+    iosBundleId: 'com.aasoft.cekicimadmin',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyCk1iShxbSo9HA2hk9fb7wsTtQjGerlDVE',
+    appId: '1:504769736096:ios:b4950a924e9574f869c8c5',
+    messagingSenderId: '504769736096',
+    projectId: 'cekicim-45b73',
+    storageBucket: 'cekicim-45b73.firebasestorage.app',
+    iosBundleId: 'io.supabase.adminApp',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyCS22_FJI7McpvOMuTABNtjuvB-xjAPrCU',
+    appId: '1:504769736096:web:3cfc00b4b2b3b74a69c8c5',
+    messagingSenderId: '504769736096',
+    projectId: 'cekicim-45b73',
+    authDomain: 'cekicim-45b73.firebaseapp.com',
+    storageBucket: 'cekicim-45b73.firebasestorage.app',
+    measurementId: 'G-1P3Z207DH1',
+  );
+}

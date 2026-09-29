@@ -1,0 +1,15 @@
+apps/customer_app/
+apps/driver_app/
+**/.dart_tool/
+**/build/
+**/ios/
+**/android/
+**/.pub-cache/
+**/.pub/
+.git/
+node_modules/
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws

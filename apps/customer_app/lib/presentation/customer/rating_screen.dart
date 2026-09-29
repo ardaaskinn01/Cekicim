@@ -1,0 +1,182 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_ui/app_colors.dart';
+import 'package:shared_models/rating_model.dart';
+import 'package:shared_services/rating_repository.dart';
+import '../../providers/auth_provider.dart';
+import 'package:shared_ui/widgets/app_text_field.dart';
+import 'package:shared_ui/widgets/green_button.dart';
+import 'package:shared_ui/widgets/loading_overlay.dart';
+import 'package:shared_ui/widgets/rating_widget.dart';
+
+class CustomerRatingScreen extends ConsumerStatefulWidget {
+  final String requestId;
+  final String driverId;
+  final String driverName;
+
+  const CustomerRatingScreen({
+    super.key,
+    required this.requestId,
+    required this.driverId,
+    required this.driverName,
+  });
+
+  @override
+  ConsumerState<CustomerRatingScreen> createState() => _CustomerRatingScreenState();
+}
+
+class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
+  double _score = 5.0;
+  final _commentController = TextEditingController();
+  bool _isLoading = false;
+  bool _shouldBlock = false;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitRating() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final user = ref.read(currentUserProvider).value;
+      if (user == null) return;
+
+      final rating = RatingModel(
+        id: '',
+        requestId: widget.requestId,
+        raterId: user.id,
+        ratedId: widget.driverId,
+        score: _score.toInt(),
+        comment: _commentController.text.trim().isEmpty ? null : _commentController.text.trim(),
+        createdAt: DateTime.now(),
+      );
+
+      final repo = RatingRepository();
+      await repo.submitRating(rating);
+
+      if (_shouldBlock) {
+        await repo.blockDriver(user.id, widget.driverId);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Değerlendirmeniz alındı. Teşekkür ederiz!'), backgroundColor: AppColors.success),
+      );
+      context.go('/customer');
+    } catch (e) {
+      if (!mounted) return;
+      final errMsg = e.toString().replaceAll('Exception: ', '');
+      if (errMsg.contains('zaten değerlendirme')) {
+        context.go('/customer');
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(errMsg), backgroundColor: AppColors.error),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LoadingOverlay(
+      isLoading: _isLoading,
+      message: 'Gönderiliyor...',
+      child: Scaffold(
+        appBar: AppBar(title: Text('Çekiciyi Değerlendir', style: TextStyle(color: AppColors.getTextPrimary(context)))),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Icon(Icons.check_circle_outline_rounded, size: 72, color: AppColors.accent),
+                const SizedBox(height: 16),
+                Text(
+                  'Hizmetiniz Tamamlandı!',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.getTextPrimary(context)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${widget.driverName} sunduğu çekici hizmetini nasıl buldunuz?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 14),
+                ),
+                const SizedBox(height: 32),
+                Center(
+                  child: RatingWidget(
+                    rating: _score,
+                    size: 40,
+                    onRatingChanged: (newRating) {
+                      setState(() => _score = newRating);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 32),
+                AppTextField(
+                  controller: _commentController,
+                  label: 'Yorumunuz (İsteğe Bağlı)',
+                  hint: 'Sürücü ve hizmet hakkında düşünceleriniz...',
+                  prefixIcon: Icons.rate_review_outlined,
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 20),
+                // Block driver option
+                InkWell(
+                  onTap: () => setState(() => _shouldBlock = !_shouldBlock),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _shouldBlock
+                          ? AppColors.error.withValues(alpha: 0.12)
+                          : AppColors.getSurface(context),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _shouldBlock ? AppColors.error.withValues(alpha: 0.5) : AppColors.getBorder(context),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _shouldBlock,
+                          onChanged: (v) => setState(() => _shouldBlock = v ?? false),
+                          activeColor: AppColors.error,
+                          side: BorderSide(color: AppColors.getTextSecondary(context).withValues(alpha: 0.5)),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Bu sürücüyle beni bir daha asla eşleştirme',
+                            style: TextStyle(color: AppColors.getTextPrimary(context), fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                GreenButton(
+                  text: 'Puanla ve Bitir',
+                  onPressed: _submitRating,
+                  isLoading: _isLoading,
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => context.go('/customer'),
+                  child: Text('Şimdi Değil', style: TextStyle(color: AppColors.getTextSecondary(context))),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

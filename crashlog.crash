@@ -1,0 +1,315 @@
+Incident Identifier: EE068157-7BC6-4D5D-AD46-A49E4CD6ADD2
+Distributor ID:      com.apple.TestFlight
+Hardware Model:      iPhone17,4
+Process:             Runner [26636]
+Path:                /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Runner
+Identifier:          com.aasoft.cekicimsurucu
+Version:             1.0.0 (30)
+AppStoreTools:       27A261
+AppVariant:          1:iPhone17,4:26
+Beta:                YES
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           com.aasoft.cekicimsurucu [19133]
+
+Date/Time:           2026-09-28 17:48:55.6379 +0300
+Launch Time:         2026-09-28 17:48:45.4291 +0300
+OS Version:          iPhone OS 26.6 (23G71)
+Release Type:        User
+Baseband Version:    2.70.01
+Report Version:      104
+
+Exception Type:  EXC_BREAKPOINT (SIGTRAP)
+Exception Codes: 0x0000000000000001, 0x0000000196030528
+Termination Reason: SIGNAL 5 Trace/BPT trap: 5
+Terminating Process: exc handler [26636]
+
+Triggered by Thread:  5
+
+
+Thread 0 name:
+Thread 0:
+0   libsystem_kernel.dylib        	0x00000002489fbcd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000002489ff30c mach_msg2_internal + 76 (:-1)
+2   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg2 + 4 (:-1)
+3   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg_overwrite + 424 (:-1)
+4   libsystem_kernel.dylib        	0x00000002489ff078 mach_msg + 24 (:-1)
+5   CoreFoundation                	0x0000000199198344 __CFRunLoopServiceMachPort + 160 (:-1)
+6   CoreFoundation                	0x0000000199162310 __CFRunLoopRun + 1188 (:-1)
+7   CoreFoundation                	0x000000019916154c _CFRunLoopRunSpecificWithOptions + 532 (:-1)
+8   GraphicsServices              	0x000000023f145498 GSEventRunModal + 120 (:-1)
+9   UIKitCore                     	0x000000019ee95670 -[UIApplication _run] + 796 (:-1)
+10  UIKitCore                     	0x000000019ee00158 UIApplicationMain + 332 (:-1)
+11  UIKitCore                     	0x000000019f00caa4 UIApplicationMain(_:_:_:_:) + 104 (:-1)
+12  Runner                        	0x00000001005cc9d0 specialized static UIApplicationDelegate.main() + 28 (/<compiler-generated>:8)
+13  Runner                        	0x00000001005cc9d0 static AppDelegate.$main() + 28 (AppDelegate.swift:0)
+14  Runner                        	0x00000001005cc9d0 main + 120
+15  dyld                          	0x0000000195d6dc1c start + 6928 (:-1)
+
+Thread 1:
+0   libsystem_kernel.dylib        	0x0000000248a015e8 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_psynch_cond_wait + 92 (:-1)
+2   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_cond_wait + 980 (:-1)
+3   libc++.1.dylib                	0x00000001a88b23dc std::__1::__libcpp_condvar_timedwait[abi:nqe210106](_opaque_pthread_cond_t*, _opaque_pthread_mutex_t*, timespec*) + 8 (:-1)
+4   libc++.1.dylib                	0x00000001a88b23dc std::__1::condition_variable::__do_timed_wait(std::__1::unique_lock<std::__1::mutex>&, std::__1::chrono::time_point<std::__1::chrono::system_clock, std::__1::chrono::duration<long long, std::__1::r... + 104 (:-1)
+5   AgoraRtcWrapper               	0x00000001029bfa88 enableUseJsonArray + 6404
+6   libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+7   libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 2:
+
+Thread 3:
+
+Thread 4:
+
+Thread 5 name:
+Thread 5 Crashed:
+0   libswiftCore.dylib            	0x0000000196030528 _assertionFailure(_:_:file:line:flags:) + 168 (:-1)
+1   FirebaseAuth                  	0x0000000104bbfbe8 PhoneAuthProvider.verifyPhoneNumber(_:uiDelegate:multiFactorSession:) + 356 (PhoneAuthProvider.swift:110)
+2   FirebaseAuth                  	0x0000000104bbf66d closure #1 in PhoneAuthProvider.verifyPhoneNumber(_:uiDelegate:multiFactorSession:completion:) + 1 (PhoneAuthProvider.swift:83)
+3   FirebaseAuth                  	0x0000000104b7cde9 <deduplicated_symbol> + 1
+4   FirebaseAuth                  	0x0000000104b79bbd <deduplicated_symbol> + 1
+5   FirebaseAuth                  	0x0000000104b7cde9 <deduplicated_symbol> + 1
+6   libswift_Concurrency.dylib    	0x0000000197253385 completeTaskWithClosure(swift::AsyncContext*, swift::SwiftError*) + 1 (:-1)
+
+Thread 6 name:
+Thread 6:
+0   libsystem_kernel.dylib        	0x00000002489fbcd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000002489ff30c mach_msg2_internal + 76 (:-1)
+2   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg2 + 4 (:-1)
+3   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg_overwrite + 424 (:-1)
+4   libsystem_kernel.dylib        	0x00000002489ff078 mach_msg + 24 (:-1)
+5   CoreFoundation                	0x0000000199198344 __CFRunLoopServiceMachPort + 160 (:-1)
+6   CoreFoundation                	0x0000000199162310 __CFRunLoopRun + 1188 (:-1)
+7   CoreFoundation                	0x000000019916154c _CFRunLoopRunSpecificWithOptions + 532 (:-1)
+8   Foundation                    	0x00000001963cecf0 -[NSRunLoop(NSRunLoop) runMode:beforeDate:] + 212 (:-1)
+9   Foundation                    	0x00000001963cebd8 -[NSRunLoop(NSRunLoop) runUntilDate:] + 64 (:-1)
+10  UIKitCore                     	0x000000019ee5aeac -[UIEventFetcher threadMain] + 420 (:-1)
+11  Foundation                    	0x0000000196452904 __NSThread__start__ + 732 (:-1)
+12  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+13  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 7:
+
+Thread 8:
+
+Thread 9 name:
+Thread 9:
+0   libsystem_kernel.dylib        	0x00000002489fbcd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000002489ff30c mach_msg2_internal + 76 (:-1)
+2   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg2 + 4 (:-1)
+3   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg_overwrite + 424 (:-1)
+4   libsystem_kernel.dylib        	0x00000002489ff078 mach_msg + 24 (:-1)
+5   CoreFoundation                	0x0000000199198344 __CFRunLoopServiceMachPort + 160 (:-1)
+6   CoreFoundation                	0x0000000199162310 __CFRunLoopRun + 1188 (:-1)
+7   CoreFoundation                	0x000000019916154c _CFRunLoopRunSpecificWithOptions + 532 (:-1)
+8   Flutter                       	0x000000010755fed8 fml::MessageLoopDarwin::Run() + 92 (message_loop_darwin.mm:51)
+9   Flutter                       	0x000000010755f530 fml::MessageLoopImpl::DoRun() + 16 (function.h:319)
+10  Flutter                       	0x000000010755f530 fml::MessageLoop::Run() + 16
+11  Flutter                       	0x000000010755f530 fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0::operator()() const + 16
+12  Flutter                       	0x000000010755f530 decltype(std::declval<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0&>()()) std::__fl::__invoke[abi:nn210000]<fml::T... + 16
+13  Flutter                       	0x000000010755f530 void std::__fl::__invoke_void_return_wrapper<void, true>::__call[abi:nn210000]<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig con... + 16
+14  Flutter                       	0x000000010755f530 void std::__fl::__invoke_r[abi:nn210000]<void, fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0&>(fml::Thread::Thread(... + 16
+15  Flutter                       	0x000000010755f530 std::__fl::__function::__alloc_func<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0, std::__fl::allocator<fml::Thread... + 16
+16  Flutter                       	0x000000010755f530 std::__fl::__function::__func<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0, std::__fl::allocator<fml::Thread::Thre... + 196
+17  Flutter                       	0x000000010755f1bc std::__fl::__function::__value_func<void ()>::operator()[abi:nn210000]() const + 20 (thread.cc:73)
+18  Flutter                       	0x000000010755f1bc std::__fl::function<void ()>::operator()() const + 20
+19  Flutter                       	0x000000010755f1bc fml::ThreadHandle::ThreadHandle(std::__fl::function<void ()>&&)::$_0::operator()(void*) const + 20
+20  Flutter                       	0x000000010755f1bc fml::ThreadHandle::ThreadHandle(std::__fl::function<void ()>&&)::$_0::__invoke(void*) + 36
+21  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+22  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 10 name:
+Thread 10:
+0   libsystem_kernel.dylib        	0x00000002489fbcd4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000002489ff30c mach_msg2_internal + 76 (:-1)
+2   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg2 + 4 (:-1)
+3   libsystem_kernel.dylib        	0x00000002489ff22c mach_msg_overwrite + 424 (:-1)
+4   libsystem_kernel.dylib        	0x00000002489ff078 mach_msg + 24 (:-1)
+5   CoreFoundation                	0x0000000199198344 __CFRunLoopServiceMachPort + 160 (:-1)
+6   CoreFoundation                	0x0000000199162310 __CFRunLoopRun + 1188 (:-1)
+7   CoreFoundation                	0x000000019916154c _CFRunLoopRunSpecificWithOptions + 532 (:-1)
+8   Flutter                       	0x000000010755fed8 fml::MessageLoopDarwin::Run() + 92 (message_loop_darwin.mm:51)
+9   Flutter                       	0x000000010755f530 fml::MessageLoopImpl::DoRun() + 16 (function.h:319)
+10  Flutter                       	0x000000010755f530 fml::MessageLoop::Run() + 16
+11  Flutter                       	0x000000010755f530 fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0::operator()() const + 16
+12  Flutter                       	0x000000010755f530 decltype(std::declval<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0&>()()) std::__fl::__invoke[abi:nn210000]<fml::T... + 16
+13  Flutter                       	0x000000010755f530 void std::__fl::__invoke_void_return_wrapper<void, true>::__call[abi:nn210000]<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig con... + 16
+14  Flutter                       	0x000000010755f530 void std::__fl::__invoke_r[abi:nn210000]<void, fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0&>(fml::Thread::Thread(... + 16
+15  Flutter                       	0x000000010755f530 std::__fl::__function::__alloc_func<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0, std::__fl::allocator<fml::Thread... + 16
+16  Flutter                       	0x000000010755f530 std::__fl::__function::__func<fml::Thread::Thread(std::__fl::function<void (fml::Thread::ThreadConfig const&)> const&, fml::Thread::ThreadConfig const&)::$_0, std::__fl::allocator<fml::Thread::Thre... + 196
+17  Flutter                       	0x000000010755f1bc std::__fl::__function::__value_func<void ()>::operator()[abi:nn210000]() const + 20 (thread.cc:73)
+18  Flutter                       	0x000000010755f1bc std::__fl::function<void ()>::operator()() const + 20
+19  Flutter                       	0x000000010755f1bc fml::ThreadHandle::ThreadHandle(std::__fl::function<void ()>&&)::$_0::operator()(void*) const + 20
+20  Flutter                       	0x000000010755f1bc fml::ThreadHandle::ThreadHandle(std::__fl::function<void ()>&&)::$_0::__invoke(void*) + 36
+21  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+22  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 11 name:
+Thread 11:
+0   libsystem_kernel.dylib        	0x0000000248a015e8 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_psynch_cond_wait + 92 (:-1)
+2   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_cond_wait + 980 (:-1)
+3   Flutter                       	0x0000000107558f40 std::__fl::__libcpp_condvar_wait[abi:nn210000](_opaque_pthread_cond_t*, _opaque_pthread_mutex_t*) + 12 (thread.h:209)
+4   Flutter                       	0x0000000107558f40 std::__fl::condition_variable::wait(std::__fl::unique_lock<std::__fl::mutex>&) + 12
+5   Flutter                       	0x0000000107558f40 void std::__fl::condition_variable::wait<fml::ConcurrentMessageLoop::WorkerMain()::$_0>(std::__fl::unique_lock<std::__fl::mutex>&, fml::ConcurrentMessageLoop::WorkerMain()::$_0) + 48
+6   Flutter                       	0x0000000107558f40 fml::ConcurrentMessageLoop::WorkerMain() + 56
+7   Flutter                       	0x0000000107558f40 fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long)::$_0::operator()() const + 228
+8   Flutter                       	0x0000000107558f40 decltype(std::declval<fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long)::$_0>()()) std::__fl::__invoke[abi:nn210000]<fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long):... + 228
+9   Flutter                       	0x0000000107558f40 void std::__fl::__thread_execute[abi:nn210000]<std::__fl::unique_ptr<std::__fl::__thread_struct, std::__fl::default_delete<std::__fl::__thread_struct>>, fml::ConcurrentMessageLoop::ConcurrentMessag... + 228
+10  Flutter                       	0x0000000107558f40 void* std::__fl::__thread_proxy[abi:nn210000]<std::__fl::tuple<std::__fl::unique_ptr<std::__fl::__thread_struct, std::__fl::default_delete<std::__fl::__thread_struct>>, fml::ConcurrentMessageLoop::... + 324
+11  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+12  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 12 name:
+Thread 12:
+0   libsystem_kernel.dylib        	0x0000000248a015e8 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_psynch_cond_wait + 92 (:-1)
+2   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_cond_wait + 980 (:-1)
+3   Flutter                       	0x0000000107558f40 std::__fl::__libcpp_condvar_wait[abi:nn210000](_opaque_pthread_cond_t*, _opaque_pthread_mutex_t*) + 12 (thread.h:209)
+4   Flutter                       	0x0000000107558f40 std::__fl::condition_variable::wait(std::__fl::unique_lock<std::__fl::mutex>&) + 12
+5   Flutter                       	0x0000000107558f40 void std::__fl::condition_variable::wait<fml::ConcurrentMessageLoop::WorkerMain()::$_0>(std::__fl::unique_lock<std::__fl::mutex>&, fml::ConcurrentMessageLoop::WorkerMain()::$_0) + 48
+6   Flutter                       	0x0000000107558f40 fml::ConcurrentMessageLoop::WorkerMain() + 56
+7   Flutter                       	0x0000000107558f40 fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long)::$_0::operator()() const + 228
+8   Flutter                       	0x0000000107558f40 decltype(std::declval<fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long)::$_0>()()) std::__fl::__invoke[abi:nn210000]<fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long):... + 228
+9   Flutter                       	0x0000000107558f40 void std::__fl::__thread_execute[abi:nn210000]<std::__fl::unique_ptr<std::__fl::__thread_struct, std::__fl::default_delete<std::__fl::__thread_struct>>, fml::ConcurrentMessageLoop::ConcurrentMessag... + 228
+10  Flutter                       	0x0000000107558f40 void* std::__fl::__thread_proxy[abi:nn210000]<std::__fl::tuple<std::__fl::unique_ptr<std::__fl::__thread_struct, std::__fl::default_delete<std::__fl::__thread_struct>>, fml::ConcurrentMessageLoop::... + 324
+11  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+12  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 13 name:
+Thread 13:
+0   libsystem_kernel.dylib        	0x0000000248a015e8 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_psynch_cond_wait + 92 (:-1)
+2   libsystem_pthread.dylib       	0x00000001f8af4b48 _pthread_cond_wait + 980 (:-1)
+3   Flutter                       	0x0000000107558f40 std::__fl::__libcpp_condvar_wait[abi:nn210000](_opaque_pthread_cond_t*, _opaque_pthread_mutex_t*) + 12 (thread.h:209)
+4   Flutter                       	0x0000000107558f40 std::__fl::condition_variable::wait(std::__fl::unique_lock<std::__fl::mutex>&) + 12
+5   Flutter                       	0x0000000107558f40 void std::__fl::condition_variable::wait<fml::ConcurrentMessageLoop::WorkerMain()::$_0>(std::__fl::unique_lock<std::__fl::mutex>&, fml::ConcurrentMessageLoop::WorkerMain()::$_0) + 48
+6   Flutter                       	0x0000000107558f40 fml::ConcurrentMessageLoop::WorkerMain() + 56
+7   Flutter                       	0x0000000107558f40 fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long)::$_0::operator()() const + 228
+8   Flutter                       	0x0000000107558f40 decltype(std::declval<fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long)::$_0>()()) std::__fl::__invoke[abi:nn210000]<fml::ConcurrentMessageLoop::ConcurrentMessageLoop(unsigned long):... + 228
+9   Flutter                       	0x0000000107558f40 void std::__fl::__thread_execute[abi:nn210000]<std::__fl::unique_ptr<std::__fl::__thread_struct, std::__fl::default_delete<std::__fl::__thread_struct>>, fml::ConcurrentMessageLoop::ConcurrentMessag... + 228
+10  Flutter                       	0x0000000107558f40 void* std::__fl::__thread_proxy[abi:nn210000]<std::__fl::tuple<std::__fl::unique_ptr<std::__fl::__thread_struct, std::__fl::default_delete<std::__fl::__thread_struct>>, fml::ConcurrentMessageLoop::... + 324
+11  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+12  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 14 name:
+Thread 14:
+0   libsystem_kernel.dylib        	0x0000000248a028dc kevent + 8 (:-1)
+1   Flutter                       	0x000000010798f4c4 dart::bin::EventHandlerImplementation::EventHandlerEntry(unsigned long) + 368 (eventhandler_macos.cc:459)
+2   Flutter                       	0x00000001079c71f8 dart::bin::ThreadStart(void*) + 88 (thread_macos.cc:65)
+3   libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+4   libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 15 name:
+Thread 15:
+0   libsystem_kernel.dylib        	0x0000000248a015e8 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001f8af4b74 _pthread_psynch_cond_wait + 136 (:-1)
+2   libsystem_pthread.dylib       	0x00000001f8af4b74 _pthread_cond_wait + 1024 (:-1)
+3   Flutter                       	0x0000000107a1302c dart::TimedWait(_opaque_pthread_cond_t*, _opaque_pthread_mutex_t*, long long) + 60 (synchronization_posix.cc:147)
+4   Flutter                       	0x0000000107a1302c dart::ConditionVariable::WaitMicros(dart::Mutex*, long long) + 116
+5   Flutter                       	0x0000000107a5117c dart::ThreadPool::Worker::Sleep(long long) + 4 (isolate.cc:277)
+6   Flutter                       	0x0000000107a5117c dart::MutatorThreadPool::OnEnterIdleLocked(dart::MutexLocker*, dart::ThreadPool::Worker*) + 212
+7   Flutter                       	0x0000000107ad50ec dart::ThreadPool::WorkerLoop(dart::ThreadPool::Worker*) + 24 (thread_pool.cc:367)
+8   Flutter                       	0x0000000107ad50ec dart::ThreadPool::Worker::Main(unsigned long) + 264
+9   Flutter                       	0x0000000107ab2b84 dart::ThreadStart(void*) + 272 (os_thread_macos.cc:94)
+10  libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+11  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+Thread 16 name:
+Thread 16:
+0   libsystem_kernel.dylib        	0x0000000248a015e8 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x00000001f8af4b74 _pthread_psynch_cond_wait + 136 (:-1)
+2   libsystem_pthread.dylib       	0x00000001f8af4b74 _pthread_cond_wait + 1024 (:-1)
+3   Flutter                       	0x0000000107a1302c dart::TimedWait(_opaque_pthread_cond_t*, _opaque_pthread_mutex_t*, long long) + 60 (synchronization_posix.cc:147)
+4   Flutter                       	0x0000000107a1302c dart::ConditionVariable::WaitMicros(dart::Mutex*, long long) + 116
+5   Flutter                       	0x0000000107ad52ac dart::ThreadPool::Worker::Sleep(long long) + 16 (thread_pool.cc:367)
+6   Flutter                       	0x0000000107ad52ac dart::ThreadPool::WorkerLoop(dart::ThreadPool::Worker*) + 472
+7   Flutter                       	0x0000000107ad52ac dart::ThreadPool::Worker::Main(unsigned long) + 712
+8   Flutter                       	0x0000000107ab2b84 dart::ThreadStart(void*) + 272 (os_thread_macos.cc:94)
+9   libsystem_pthread.dylib       	0x00000001f8af6438 _pthread_start + 136 (:-1)
+10  libsystem_pthread.dylib       	0x00000001f8af28cc thread_start + 8 (:-1)
+
+
+Thread 5 crashed with ARM Thread State (64-bit):
+    x0: 0x000000010c52c908   x1: 0x0000000200000003   x2: 0x0000000000000060   x3: 0xfffff0007fc00000
+    x4: 0x000000010c9f6800   x5: 0x0000000000000013   x6: 0x0000000000000020   x7: 0xfffff0003ffff800
+    x8: 0xfffffffe00000000   x9: 0x00000000ffbf2d87  x10: 0x0000000000000000  x11: 0x0000000000000000
+   x12: 0x000db06d0040d278  x13: 0x000da0678040ca98  x14: 0x000000000000d000  x15: 0x0000000106e8c000
+   x16: 0x0000000200000003  x17: 0x0000000000000003  x18: 0x0000000000000000  x19: 0x0000000122cced00
+   x20: 0x000000016fc06de0  x21: 0xf00000000000002d  x22: 0x00000001192e70f0  x23: 0x0000000000000000
+   x24: 0x000000016fc070e0  x25: 0x0000000000000000  x26: 0x00000002029378f0  x27: 0x0000000202937908
+   x28: 0x0000000000000000   fp: 0x000000016fc06dc0   lr: 0x0000000196030528
+    sp: 0x000000016fc06d40   pc: 0x0000000196030528 cpsr: 0x60000000
+   esr: 0xf2000001 (Breakpoint) brk 1
+
+
+Binary Images:
+        0x1005c8000 -         0x100dc3fff Runner arm64  <079e1d03580532c19f77f261d8233a37> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Runner
+        0x1010c8000 -         0x1010cffff AgoraSoundTouch arm64  <c01e83e1b13c3fffa78578cb235d6718> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraSoundTouch.framework/AgoraSoundTouch
+        0x1011b0000 -         0x1011bffff AgoraVideoEncoderExtension arm64  <9591d634352c36f49338c795cec5eb15> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraVideoEncoderExtension.framework/AgoraVideoEncoderExtension
+        0x1011d0000 -         0x1011d7fff FirebaseAppCheckInterop arm64  <1fea5523d0ae399f9dbb9c3cd4af82b8> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseAppCheckInterop.framework/FirebaseAppCheckInterop
+        0x101268000 -         0x101273fff libobjc-trampolines.dylib arm64e  <6893bf2adb4b33d9875deea7cb8f8060> /private/preboot/Cryptexes/OS/usr/lib/libobjc-trampolines.dylib
+        0x101350000 -         0x101357fff FirebaseAuthInterop arm64  <94b60de5084238828a6c076e08ec2ca0> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseAuthInterop.framework/FirebaseAuthInterop
+        0x101368000 -         0x10136ffff FirebaseCoreExtension arm64  <c3e27589942730f3a05e141b4b698814> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseCoreExtension.framework/FirebaseCoreExtension
+        0x101380000 -         0x10138ffff FBLPromises arm64  <03509bda3e2b37db8cdc1c053f2b66ae> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FBLPromises.framework/FBLPromises
+        0x1013b0000 -         0x1013b7fff RecaptchaInterop arm64  <3af9fe13d2cb3ec292be37ffe784486d> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/RecaptchaInterop.framework/RecaptchaInterop
+        0x1013c8000 -         0x1013d3fff app_links arm64  <62abfd5936543ea8991597052330c66c> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/app_links.framework/app_links
+        0x1013ec000 -         0x1013f3fff iris_method_channel arm64  <568c38b9fa9f37d0b3b89cc1ba880e18> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/iris_method_channel.framework/iris_method_channel
+        0x101408000 -         0x101493fff AgoraFaceDetectionExtension arm64  <7bde163158643bcbbb936fad31e4488b> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraFaceDetectionExtension.framework/AgoraFaceDetectionExtension
+        0x1014c0000 -         0x101527fff Agorafdkaac arm64  <e2ae8b88fab7315383e4ca9baeb8e4fa> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/Agorafdkaac.framework/Agorafdkaac
+        0x101534000 -         0x101547fff FirebaseCore arm64  <25be39498a9e36ea9a35e74adfa1effb> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseCore.framework/FirebaseCore
+        0x101568000 -         0x10157bfff agora_rtc_engine arm64  <4b66afb6beff33c8ad800ba1e51839da> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/agora_rtc_engine.framework/agora_rtc_engine
+        0x1015a0000 -         0x1017cffff AgoraAiEchoCancellationExtension arm64  <920d5b8bf8b0352c8782930278f12b45> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraAiEchoCancellationExtension.framework/AgoraAiEchoCancellationExtension
+        0x1017f4000 -         0x10198bfff AgoraAiEchoCancellationLLExtension arm64  <7d93da9ec8cd36448058e4e00ee96dba> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraAiEchoCancellationLLExtension.framework/AgoraAiEchoCancellationLLExtension
+        0x1019a8000 -         0x1019f3fff AgoraAudioBeautyExtension arm64  <ce7ceff8f4b0339f80d78739a78aa5a2> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraAudioBeautyExtension.framework/AgoraAudioBeautyExtension
+        0x101b14000 -         0x101b7bfff AgoraContentInspectExtension arm64  <bcd4e2b630bf3f6dbafc35da11c8e8d2> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraContentInspectExtension.framework/AgoraContentInspectExtension
+        0x101c68000 -         0x101c6ffff nanopb arm64  <836328d0e23b3bb8923b02a337575227> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/nanopb.framework/nanopb
+        0x101c80000 -         0x101f3bfff AgoraAiNoiseSuppressionExtension arm64  <094de3e6a9643689901a9e7880ec4224> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraAiNoiseSuppressionExtension.framework/AgoraAiNoiseSuppressionExtension
+        0x101f58000 -         0x10220bfff AgoraAiNoiseSuppressionLLExtension arm64  <e9c4a87bce113460b799c8d71c7236cb> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraAiNoiseSuppressionLLExtension.framework/AgoraAiNoiseSuppressionLLExtension
+        0x102228000 -         0x102377fff AgoraFaceCaptureExtension arm64  <57a37f11aaac3474bc8a84291c9f2a0e> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraFaceCaptureExtension.framework/AgoraFaceCaptureExtension
+        0x102434000 -         0x10245bfff AgoraReplayKitExtension arm64  <e0892d43ab753d0db2b44e45390eac27> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraReplayKitExtension.framework/AgoraReplayKitExtension
+        0x10299c000 -         0x102a43fff AgoraRtcWrapper arm64  <235dbf65bd2e3ed99ff5eb751bb2dd5c> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraRtcWrapper.framework/AgoraRtcWrapper
+        0x102a64000 -         0x102a7bfff FirebaseInstallations arm64  <2882638253f6385e95b29e2cdd2f28d9> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseInstallations.framework/FirebaseInstallations
+        0x102aa4000 -         0x102ac3fff GoogleUtilities arm64  <1374a55f4a4d31f39c31bc958b8a80bf> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/GoogleUtilities.framework/GoogleUtilities
+        0x102b0c000 -         0x102dd7fff AgoraClearVisionExtension arm64  <944e78fdf418332b97e8acd4d9438429> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraClearVisionExtension.framework/AgoraClearVisionExtension
+        0x1033f4000 -         0x10347ffff AgoraLipSyncExtension arm64  <116aa4a5110038989a4221c6e4f2cbe1> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraLipSyncExtension.framework/AgoraLipSyncExtension
+        0x103a4c000 -         0x103a67fff FirebaseCoreInternal arm64  <ee8f6096ae023a27bf51253c720d9bca> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseCoreInternal.framework/FirebaseCoreInternal
+        0x103aa8000 -         0x103ad3fff GTMSessionFetcher arm64  <54ba7de6a9cb3d1484e8e1b11c2ff5c8> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/GTMSessionFetcher.framework/GTMSessionFetcher
+        0x103b10000 -         0x103b1bfff connectivity_plus arm64  <2f52d48b556c3989b9a764aa4853be4d> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/connectivity_plus.framework/connectivity_plus
+        0x103b44000 -         0x103c27fff AgoraVideoAv1EncoderExtension arm64  <cb3df1c885ad3f668b84672c817923cb> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraVideoAv1EncoderExtension.framework/AgoraVideoAv1EncoderExtension
+        0x103c3c000 -         0x103c6ffff FirebaseMessaging arm64  <5798a360f8a63c61a06b599a18762bb8> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseMessaging.framework/FirebaseMessaging
+        0x103cbc000 -         0x103ce3fff GoogleDataTransport arm64  <29d85f0f914c318aace329a650fa00cd> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/GoogleDataTransport.framework/GoogleDataTransport
+        0x103d20000 -         0x103d2ffff flutter_local_notifications arm64  <b1b74b8984483b1392267e3daa7c2c50> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/flutter_local_notifications.framework/flutter_local_notifications
+        0x103d48000 -         0x103d53fff geolocator_apple arm64  <f6eab894a5dc3be995956571ec2f030a> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/geolocator_apple.framework/geolocator_apple
+        0x103d78000 -         0x103db7fff aosl arm64  <a1d663bc69b5353aaa7203b891847818> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/aosl.framework/aosl
+        0x103df0000 -         0x103e07fff audioplayers_darwin arm64  <519254a5429639bd9cdf90dbd1ad4cd0> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/audioplayers_darwin.framework/audioplayers_darwin
+        0x103e48000 -         0x10421bfff AgoraSpatialAudioExtension arm64  <2b84bf3e74e532ef865ba65e25902bfa> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraSpatialAudioExtension.framework/AgoraSpatialAudioExtension
+        0x104340000 -         0x1043a7fff AgoraVideoQualityAnalyzerExtension arm64  <7a6109d3c2f835148f175ec7f3d70bfc> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraVideoQualityAnalyzerExtension.framework/AgoraVideoQualityAnalyzerExtension
+        0x104488000 -         0x104493fff path_provider_foundation arm64  <4b9125fa664c30d587efef392d752e36> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/path_provider_foundation.framework/path_provider_foundation
+        0x1044bc000 -         0x1044cffff image_picker_ios arm64  <d5f8c8f2c1543534b7de68ec7022727f> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/image_picker_ios.framework/image_picker_ios
+        0x1044f0000 -         0x104503fff map_launcher arm64  <2eb9416e39b3319aba6af8fbec58af8a> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/map_launcher.framework/map_launcher
+        0x104558000 -         0x10456bfff shared_preferences_foundation arm64  <859aec0fc876381589a5ca0644bb3063> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/shared_preferences_foundation.framework/shared_preferences_foundation
+        0x104590000 -         0x10459ffff url_launcher_ios arm64  <3fc07523dccf3774b1d186614c8ade4f> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/url_launcher_ios.framework/url_launcher_ios
+        0x1045d4000 -         0x1045effff sqflite_darwin arm64  <1a4cd07239b935119d70157cc040a43b> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/sqflite_darwin.framework/sqflite_darwin
+        0x1046a8000 -         0x1047d3fff AgoraVideoSegmentationExtension arm64  <74173df14aa7346c8da58c4cc4bbb15c> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraVideoSegmentationExtension.framework/AgoraVideoSegmentationExtension
+        0x1049ec000 -         0x104af3fff video_dec arm64  <5f1a66554ef63086b7c1851eac3d92c4> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/video_dec.framework/video_dec
+        0x104b58000 -         0x104c5bfff FirebaseAuth arm64  <f48a144bc01b3418b06b70a04c89df98> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/FirebaseAuth.framework/FirebaseAuth
+        0x104dfc000 -         0x105f4bfff AgoraRtcKit arm64  <19dcfd3ec4723bd580b8221b8348456c> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/AgoraRtcKit.framework/AgoraRtcKit
+        0x10624c000 -         0x106603fff Agoraffmpeg arm64  <36dfebe81b6536beb4a9167363770b59> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/Agoraffmpeg.framework/Agoraffmpeg
+        0x106a30000 -         0x106b63fff video_enc arm64  <e9b75b66b8913865a8ef6244811aa698> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/video_enc.framework/video_enc
+        0x1074b0000 -         0x107cfffff Flutter arm64  <4c4c448855553144a16b084e8f1f6cdb> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/Flutter.framework/Flutter
+        0x111ca8000 -         0x112513fff App arm64  <9c99241a7832598e097fb4063704fec6> /private/var/containers/Bundle/Application/5B15B658-E2C8-4D39-8D23-53592FA22068/Runner.app/Frameworks/App.framework/App
+        0x195d69000 -         0x195e0e47f dyld arm64e  <0ba28ce287183cb3bef46dd44464ebe2> /usr/lib/dyld
+        0x195e2a000 -         0x1963c355f libswiftCore.dylib arm64e  <d6ee5f0012f23da4b35de50ad18bd17f> /usr/lib/swift/libswiftCore.dylib
+        0x1963c4000 -         0x19724dc1f Foundation arm64e  <1689fea517803efe8f31933d4db24ec4> /System/Library/Frameworks/Foundation.framework/Foundation
+        0x19724e000 -         0x1972d8925 libswift_Concurrency.dylib arm64e  <109d51b1f885397f85674c3ea69492ae> /usr/lib/swift/libswift_Concurrency.dylib
+        0x199133000 -         0x1996cf9bf CoreFoundation arm64e  <5565cad9494132ac8b107d3233c74151> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+        0x19ed74000 -         0x1a12b763f UIKitCore arm64e  <26334227f5583da7985d326a0c894dd4> /System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore
+        0x1a88a1000 -         0x1a8931a7b libc++.1.dylib arm64e  <ecfa0beb66b236f28fc09ffe326d2d1a> /usr/lib/libc++.1.dylib
+        0x1f8af2000 -         0x1f8afe4ef libsystem_pthread.dylib arm64e  <46b95807f7523dc2a1ba6290e8d7fe38> /usr/lib/system/libsystem_pthread.dylib
+        0x23f144000 -         0x23f14c7bf GraphicsServices arm64e  <7915658c77283149a5242164c163f3d2> /System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices
+        0x2489fb000 -         0x248a36b1f libsystem_kernel.dylib arm64e  <a11bf43317ab3f0188bc54c467ce6287> /usr/lib/system/libsystem_kernel.dylib
+
+EOF

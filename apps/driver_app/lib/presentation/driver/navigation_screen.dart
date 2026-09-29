@@ -1,0 +1,845 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:map_launcher/map_launcher.dart' as launcher;
+import 'package:geolocator/geolocator.dart';
+import 'package:shared_ui/app_colors.dart';
+import 'package:shared_models/request_status.dart';
+import 'package:shared_models/service_request_model.dart';
+import 'package:shared_models/user_model.dart';
+import 'package:shared_models/dispute_model.dart';
+import 'package:shared_services/dispute_repository.dart';
+import 'package:shared_ui/widgets/dispute_dialog.dart';
+import 'package:shared_services/auth_repository.dart';
+import 'package:shared_services/location_tracking_service.dart';
+import 'package:shared_services/routing_service.dart';
+import '../../providers/request_provider.dart';
+import '../../providers/auth_provider.dart';
+import 'package:shared_ui/widgets/map_widget.dart';
+import 'package:shared_ui/widgets/green_button.dart';
+
+class NavigationScreen extends ConsumerStatefulWidget {
+  final String requestId;
+  const NavigationScreen({super.key, required this.requestId});
+
+  @override
+  ConsumerState<NavigationScreen> createState() => _NavigationScreenState();
+}
+
+class _NavigationScreenState extends ConsumerState<NavigationScreen> {
+  bool _isActionLoading = false;
+  final LocationTrackingService _trackingService = LocationTrackingService();
+  final RoutingService _routingService = RoutingService();
+  List<LatLng> _routePoints = [];
+  List<LatLng> _fullRoutePoints = [];
+  LatLng? _driverLatLng;
+  String? _etaDuration;
+  String? _etaDistance;
+  bool _isTrackingStarted = false;
+  BuildContext? _incomingCallDialogContext;
+  bool _isCancellationDialogShown = false;
+
+  List<LatLng> _trimRoutePoints(List<LatLng> fullRoute, LatLng currentPos) {
+    if (fullRoute.length < 2) return fullRoute;
+
+    int closestIndex = 0;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < fullRoute.length; i++) {
+      final dist = Geolocator.distanceBetween(
+        currentPos.latitude,
+        currentPos.longitude,
+        fullRoute[i].latitude,
+        fullRoute[i].longitude,
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex >= fullRoute.length - 1) {
+      return [currentPos, fullRoute.last];
+    }
+    return [currentPos, ...fullRoute.sublist(closestIndex + 1)];
+  }
+
+  void _showIncomingCallDialog(BuildContext context, ServiceRequestModel request) {
+    if (_incomingCallDialogContext != null) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        _incomingCallDialogContext = dialogContext;
+        return AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.phone_in_talk, color: AppColors.accent),
+              SizedBox(width: 8),
+              Text('Gelen Arama', style: TextStyle(color: AppColors.textPrimary)),
+            ],
+          ),
+          content: const Text('Müşteriden gelen sesli aramayı yanıtlamak ister misiniz?', style: TextStyle(color: AppColors.textSecondary)),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                _incomingCallDialogContext = null;
+                Navigator.pop(dialogContext);
+                try {
+                  await ref.read(requestRepositoryProvider).updateCallStatus(request.id, null, null);
+                } catch (_) {}
+              },
+              child: const Text('Reddet', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _incomingCallDialogContext = null;
+                Navigator.pop(dialogContext);
+                context.push('/driver/call/${request.id}');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Cevapla', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    ).then((_) {
+      _incomingCallDialogContext = null;
+    });
+  }
+
+  Timer? _routeTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _initTrackingAndRouting();
+  }
+
+  Future<void> _initTrackingAndRouting() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        // OSRM rotasını ilk kez çiz ve harita takibini başlat
+        await _loadRoute();
+        _routeTimer?.cancel();
+        _routeTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+          if (mounted) _loadRoute();
+        });
+      } catch (e) {
+        debugPrint("Hata konum takibi başlatılırken: $e");
+      }
+    });
+  }
+
+  Future<void> _loadRoute() async {
+    try {
+      final req = await ref.read(requestRepositoryProvider).getRequestById(widget.requestId);
+      final driverPos = await Geolocator.getCurrentPosition();
+      
+      // Determine target coordinates based on status
+      double destLat = req.customerLat;
+      double destLng = req.customerLng;
+      
+      if (req.status == RequestStatus.inProgress) {
+        destLat = req.destinationLat ?? req.customerLat;
+        destLng = req.destinationLng ?? req.customerLng;
+      }
+
+      final routeCoords = await _routingService.getRoute(
+        originLat: driverPos.latitude,
+        originLng: driverPos.longitude,
+        destLat: destLat,
+        destLng: destLng,
+      );
+
+      final etaData = await _routingService.getETA(
+        originLat: driverPos.latitude,
+        originLng: driverPos.longitude,
+        destLat: destLat,
+        destLng: destLng,
+      );
+
+      if (mounted) {
+        setState(() {
+          _fullRoutePoints = routeCoords.map((p) => LatLng(p[0], p[1])).toList();
+          _routePoints = _driverLatLng != null 
+              ? _trimRoutePoints(_fullRoutePoints, _driverLatLng!)
+              : List.from(_fullRoutePoints);
+          if (etaData['success'] == true) {
+            _etaDuration = etaData['durationText'];
+            _etaDistance = etaData['distanceText'];
+          }
+        });
+      }
+
+      // Canlı veya Simülasyonlu Konum Yayınını Başlat
+      if (!_isTrackingStarted && routeCoords.isNotEmpty) {
+        final driver = ref.read(currentUserProvider).value;
+        if (driver != null) {
+          await _trackingService.startTracking(
+            requestId: widget.requestId,
+            driverId: driver.id,
+            isDebugMock: false, // Production mode: broadcasts actual device GPS coordinates via Geolocator
+            onLocationUpdate: (pos) {
+              if (mounted) {
+                final newPos = LatLng(pos.latitude, pos.longitude);
+                final distMeters = Geolocator.distanceBetween(
+                  newPos.latitude,
+                  newPos.longitude,
+                  destLat,
+                  destLng,
+                );
+                final distKm = distMeters / 1000.0;
+                final mins = (distKm * 2.0).round().clamp(1, 180);
+
+                setState(() {
+                  _driverLatLng = newPos;
+                  _etaDistance = '${distKm.toStringAsFixed(1)} km';
+                  _etaDuration = '$mins dk';
+                  if (_fullRoutePoints.isNotEmpty) {
+                    _routePoints = _trimRoutePoints(_fullRoutePoints, newPos);
+                  }
+                });
+              }
+            },
+            onInactivity: () {
+              if (mounted) {
+                _showInactivityDialog();
+              }
+            },
+          );
+          _isTrackingStarted = true;
+        }
+      }
+    } catch (e) {
+      debugPrint("Hata OSRM rotası çizilirken: $e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _routeTimer?.cancel();
+    _trackingService.stopTracking();
+    super.dispose();
+  }
+
+  Future<void> _updateStatus(ServiceRequestModel request, RequestStatus nextStatus) async {
+    // If passenger is boarding, navigate to verification screen first
+    if (nextStatus == RequestStatus.inProgress) {
+      context.push('/driver/complete/${request.id}');
+      return;
+    }
+
+    setState(() => _isActionLoading = true);
+    try {
+      final repo = ref.read(requestRepositoryProvider);
+      if (nextStatus == RequestStatus.completed) {
+        await repo.completeRequest(request.id);
+      } else {
+        await repo.updateRequestStatus(request.id, nextStatus);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+
+  Future<void> _openExternalNavigation(double lat, double lng, String name) async {
+    try {
+      final availableMaps = await launcher.MapLauncher.installedMaps;
+      if (mounted) {
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: AppColors.cardBackground,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (BuildContext context) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text(
+                        'Navigasyon Uygulaması Seçin',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
+                      ),
+                    ),
+                    const Divider(color: AppColors.divider),
+                    Flexible(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: availableMaps.length,
+                        itemBuilder: (context, index) {
+                          final map = availableMaps[index];
+                          return ListTile(
+                            onTap: () {
+                              map.showDirections(
+                                destination: launcher.Coords(lat, lng),
+                                destinationTitle: name,
+                              );
+                              Navigator.pop(context);
+                            },
+                            title: Text(map.mapName, style: const TextStyle(color: AppColors.textPrimary)),
+                            leading: SvgPicture.asset(
+                              map.icon.toString(),
+                              width: 32,
+                              height: 32,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Navigasyon başlatılamadı: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  Future<void> _cancelRequest(ServiceRequestModel req) async {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    final List<String> driverReasons = [
+      '💸 Fiyat Uyuşmazlığı',
+      '🚗 Müşteri Konumunda Yok / Ulaşılamıyor',
+      '🛠️ Araç Çekim Alanına Uygun Değil (Hasarlı/Kilitli)',
+      '🚨 Sürücü / Çekici Arızalandı',
+      '❓ Diğer',
+    ];
+
+    final selectedReason = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.cardBackground,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        String? chosen;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  top: 20,
+                  left: 20,
+                  right: 20,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Talebi İptal Etme Nedeni',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Lütfen iptal etme nedeninizi seçin:',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                    ),
+                    const SizedBox(height: 16),
+                    ...driverReasons.map((reason) {
+                      return RadioListTile<String>(
+                        value: reason,
+                        groupValue: chosen,
+                        activeColor: AppColors.error,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(reason, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                        onChanged: (val) {
+                          setModalState(() => chosen = val);
+                        },
+                      );
+                    }),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(ctx, null),
+                            child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: chosen == null
+                                ? null
+                                : () => Navigator.pop(ctx, chosen),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                            child: const Text('Talebi İptal Et'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (selectedReason == null) return;
+
+    try {
+      _trackingService.stopTracking();
+      _isTrackingStarted = false;
+      await ref.read(requestNotifierProvider.notifier).cancelRequest(req.id, user.id, selectedReason);
+      if (mounted) {
+        context.go('/driver');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('İptal edilemedi: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    }
+  }
+
+  void _showInactivityDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Hareket Algılanmadı', style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+          ],
+        ),
+        content: const Text(
+          '5 dakikadır konumunuz değişmedi. Müşteriye doğru yola çıktınız mı?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              final reqAsync = ref.read(requestStatusProvider(widget.requestId));
+              final req = reqAsync.value;
+              if (req != null) {
+                _cancelRequest(req);
+              }
+            },
+            child: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.error)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _trackingService.resetInactivityTimer();
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Yoldayım / Devam Et'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _reportDispute(ServiceRequestModel req) {
+    final user = ref.read(currentUserProvider).value;
+    if (user == null) return;
+
+    showDisputeDialog(
+      context: context,
+      onSubmit: (title, description) async {
+        final dispute = DisputeModel(
+          id: '',
+          requestId: req.id,
+          reporterId: user.id,
+          reportedId: req.customerId,
+          title: title,
+          description: description,
+          createdAt: DateTime.now(),
+        );
+        await DisputeRepository().createDispute(dispute);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sorun başarıyla bildirildi.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<AsyncValue<ServiceRequestModel>>(requestStatusProvider(widget.requestId), (prev, next) {
+      final request = next.value;
+      final prevRequest = prev?.value;
+      final user = ref.read(currentUserProvider).value;
+      if (request != null && user != null) {
+        if (prevRequest != null && prevRequest.status != request.status) {
+          _loadRoute();
+        }
+        if (request.status == RequestStatus.cancelled && !_isCancellationDialogShown) {
+          _isCancellationDialogShown = true;
+          _trackingService.stopTracking();
+          _isTrackingStarted = false;
+          ref.read(requestRepositoryProvider).resetDriverAvailability(user.id).catchError((_) {});
+          if (mounted) {
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (dialogCtx) => AlertDialog(
+                backgroundColor: AppColors.cardBackground,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text('Talep İptal Edildi', style: TextStyle(color: AppColors.textPrimary)),
+                  ],
+                ),
+                content: Text(
+                  request.cancellationReason != null && request.cancellationReason!.isNotEmpty
+                      ? 'Bu hizmet talebi müşteri tarafından iptal edilmiştir.\n\nİptal Nedeni: ${request.cancellationReason}'
+                      : 'Bu hizmet talebi müşteri tarafından iptal edilmiştir.',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(dialogCtx);
+                      context.go('/driver');
+                    },
+                    child: const Text('Tamam', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            );
+          }
+        } else if (request.status == RequestStatus.completed) {
+          _trackingService.stopTracking();
+          _isTrackingStarted = false;
+          if (mounted) {
+            context.go('/driver/rate/${request.id}/${request.customerId}?name=${request.customerName ?? 'Müşteri'}');
+          }
+        } else if (request.activeCallChannel != null && request.activeCallCallerId != user.id) {
+          if (GoRouterState.of(context).uri.path != '/driver/call/${widget.requestId}') {
+            _showIncomingCallDialog(context, request);
+          }
+        } else if (request.activeCallChannel == null && _incomingCallDialogContext != null) {
+          Navigator.pop(_incomingCallDialogContext!);
+          _incomingCallDialogContext = null;
+        }
+      }
+    });
+
+    final requestAsync = ref.watch(requestStatusProvider(widget.requestId));
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Navigasyon & Rota')),
+      body: requestAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.accent)),
+        error: (err, st) => Center(child: Text('Yüklenemedi: $err')),
+        data: (req) {
+          final customerLatLng = LatLng(req.customerLat, req.customerLng);
+          final isPickup = req.status == RequestStatus.accepted;
+          final initialLatLng = isPickup 
+              ? customerLatLng 
+              : (req.destinationLat != null && req.destinationLng != null
+                  ? LatLng(req.destinationLat!, req.destinationLng!)
+                  : customerLatLng);
+
+          // Bir sonraki aksiyon durumunu belirleme
+          String buttonText = '';
+          RequestStatus? nextStatus;
+          if (req.status == RequestStatus.accepted) {
+            buttonText = 'Müşteriye Ulaştım (Hizmet Başladı)';
+            nextStatus = RequestStatus.inProgress;
+          } else if (req.status == RequestStatus.inProgress) {
+            buttonText = 'Hizmeti Tamamla (İndirildi)';
+            nextStatus = RequestStatus.completed;
+          }
+
+          return Stack(
+            children: [
+              MapWidget(
+                initialPosition: initialLatLng,
+                markers: {
+                  if (_driverLatLng != null)
+                    Marker(
+                      markerId: const MarkerId('driver_live'),
+                      position: _driverLatLng!,
+                      infoWindow: const InfoWindow(title: 'Çekici (Siz)'),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+                    ),
+                  Marker(
+                    markerId: const MarkerId('pickup'),
+                    position: customerLatLng,
+                    infoWindow: const InfoWindow(title: 'Müşteri Alış Konumu (A)'),
+                    icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+                  ),
+                  if (req.destinationLat != null && req.destinationLng != null)
+                    Marker(
+                      markerId: const MarkerId('destination'),
+                      position: LatLng(req.destinationLat!, req.destinationLng!),
+                      infoWindow: const InfoWindow(title: 'Teslim Konumu (B)'),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+                    ),
+                },
+                polylines: _routePoints.isNotEmpty
+                    ? {
+                        Polyline(
+                          polylineId: const PolylineId('route'),
+                          points: _routePoints,
+                          color: AppColors.accent,
+                          width: 5,
+                        ),
+                      }
+                    : {},
+                showMyLocation: true,
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 15)],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+              Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                FutureBuilder<UserModel?>(
+                                  future: AuthRepository().getUserProfile(req.customerId),
+                                  builder: (context, userSnapshot) {
+                                    final name = userSnapshot.data?.fullName ?? 'Müşteri Yükleniyor...';
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                        ),
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.timer_outlined, size: 14, color: AppColors.accent),
+                                            const SizedBox(width: 4),
+                                            Flexible(
+                                              child: Text(
+                                                'Varış: ${_etaDuration ?? 'Hesaplanıyor...'} (${_etaDistance ?? '...'})',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.accent,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (req.price > 0) ...[
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        '₺${req.price.round().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: AppColors.primary,
+                                        ),
+                                      ),
+                                    ),
+                                    if (req.tollFee > 0) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        '🛣️ Köprü/HGS Dahil (+₺${req.tollFee.round()})',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.warning,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              if (req.customerPhone != null) ...[
+                                IconButton(
+                                  icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
+                                  onPressed: () => context.push('/driver/chat/${req.id}'),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  icon: const Icon(Icons.phone_in_talk, color: AppColors.accent, size: 28),
+                                  onPressed: () => context.push('/driver/call/${req.id}?initiator=true'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Yol Tarifi Al (Harita Entegrasyonu) Butonu
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                final lat = isPickup ? req.customerLat : (req.destinationLat ?? req.customerLat);
+                                final lng = isPickup ? req.customerLng : (req.destinationLng ?? req.customerLng);
+                                final name = isPickup 
+                                    ? (req.customerAddress ?? 'Müşteri Konumu') 
+                                    : (req.destinationAddress ?? 'Teslim Konumu');
+                                _openExternalNavigation(lat, lng, name);
+                              },
+                              icon: const Icon(Icons.navigation_outlined, color: AppColors.accent),
+                              label: const Text('Yol Tarifi Al', style: TextStyle(color: AppColors.accent)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.accent),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _reportDispute(req),
+                              icon: const Icon(Icons.gavel_rounded, color: AppColors.warning),
+                              label: const Text('Sorun Bildir', style: TextStyle(color: AppColors.warning)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.warning),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _cancelRequest(req),
+                              icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
+                              label: const Text('Talebi İptal Et', style: TextStyle(color: AppColors.error)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.error),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (req.vehiclePhotoUrl != null && req.vehiclePhotoUrl!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => Dialog(
+                                backgroundColor: Colors.black87,
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    req.vehiclePhotoUrl!,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Text('Fotoğraf yüklenemedi.', style: TextStyle(color: Colors.white)),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.photo_outlined, color: AppColors.accent, size: 18),
+                          label: const Text('Arıza Fotoğrafını Gör', style: TextStyle(color: AppColors.accent, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.accent),
+                            minimumSize: const Size.fromHeight(44),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      if (nextStatus != null)
+                        GreenButton(
+                          text: buttonText,
+                          onPressed: _isActionLoading ? null : () => _updateStatus(req, nextStatus!),
+                          isLoading: _isActionLoading,
+                        )
+                      else
+                        const Text('Talep tamamlandı veya iptal edildi.', style: TextStyle(color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}

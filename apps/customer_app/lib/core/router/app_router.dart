@@ -1,0 +1,128 @@
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_models/user_role.dart';
+import '../../providers/auth_provider.dart';
+import '../../presentation/splash_screen.dart';
+import '../../presentation/auth/login_screen.dart';
+import '../../presentation/auth/register_screen.dart';
+import '../../presentation/auth/forgot_password_screen.dart';
+import '../../presentation/auth/verify_otp_screen.dart';
+import '../../presentation/auth/reset_password_screen.dart';
+import '../../presentation/customer/customer_home_screen.dart';
+import '../../presentation/customer/request_service_screen.dart';
+import '../../presentation/customer/history_screen.dart';
+import '../../presentation/customer/profile_screen.dart';
+import '../../presentation/customer/tracking_screen.dart';
+import '../../presentation/customer/rating_screen.dart';
+import '../../presentation/customer/chat_screen.dart';
+import '../../presentation/customer/voip_call_screen.dart';
+import '../../presentation/customer/customer_disputes_screen.dart';
+
+import 'package:flutter/foundation.dart';
+
+class RouterRefreshListenable extends ChangeNotifier {
+  RouterRefreshListenable(Ref ref) {
+    ref.listen(authStateProvider, (_, __) => notifyListeners());
+    ref.listen(currentUserProvider, (_, __) => notifyListeners());
+  }
+}
+
+final routerRefreshListenableProvider = Provider<RouterRefreshListenable>((ref) {
+  return RouterRefreshListenable(ref);
+});
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final listenable = ref.watch(routerRefreshListenableProvider);
+
+  return GoRouter(
+    initialLocation: '/splash',
+    refreshListenable: listenable,
+    redirect: (context, state) {
+      final isSplashing = state.uri.path == '/splash';
+      final isAuthRoute = state.uri.path.startsWith('/login') ||
+          state.uri.path.startsWith('/forgot-password') ||
+          state.uri.path.startsWith('/verify-otp') ||
+          state.uri.path.startsWith('/reset-password');
+
+      if (isSplashing) return null;
+
+      final session = ref.read(authStateProvider).value?.session;
+      final isAuthenticated = session != null;
+
+      if (!isAuthenticated && !isAuthRoute) {
+        return '/login';
+      }
+
+      if (isAuthenticated) {
+        final currentUserAsync = ref.read(currentUserProvider);
+        if (currentUserAsync.isLoading) {
+          return null; // Stay on current screen while loading profile
+        }
+
+        if (currentUserAsync.hasValue) {
+          final userModel = currentUserAsync.value;
+          if (userModel == null || !userModel.isProfileComplete) {
+            // Profile is missing, redirect to registration/complete profile screen
+            if (state.uri.path != '/register' && state.uri.path != '/verify-otp') {
+              return '/register';
+            }
+            return null;
+          }
+
+          if (userModel.role == UserRole.customer || userModel.role == UserRole.driver) {
+            if (isAuthRoute || state.uri.path == '/register') return '/customer';
+          } else {
+            return '/login';
+          }
+        }
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/splash', builder: (context, state) => const SplashScreen()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
+      GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
+      GoRoute(
+        path: '/verify-otp',
+        builder: (context, state) {
+          final phone = state.uri.queryParameters['phone'] ?? '';
+          return VerifyOtpScreen(phone: phone);
+        },
+      ),
+      GoRoute(path: '/reset-password', builder: (context, state) => const ResetPasswordScreen()),
+      GoRoute(path: '/customer', builder: (context, state) => const CustomerHomeScreen()),
+      GoRoute(path: '/customer/request', builder: (context, state) => const RequestServiceScreen()),
+      GoRoute(path: '/customer/history', builder: (context, state) => const HistoryScreen()),
+      GoRoute(path: '/customer/profile', builder: (context, state) => const ProfileScreen()),
+      GoRoute(path: '/customer/disputes', builder: (context, state) => const CustomerDisputesScreen()),
+      GoRoute(path: '/customer/tracking/:requestId', builder: (context, state) => const TrackingScreen()),
+      GoRoute(
+        path: '/customer/rate/:requestId/:driverId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          final driverId = state.pathParameters['driverId'] ?? '';
+          final driverName = state.uri.queryParameters['name'] ?? 'Sürücü';
+          return CustomerRatingScreen(requestId: requestId, driverId: driverId, driverName: driverName);
+        },
+      ),
+      GoRoute(
+        path: '/customer/chat/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          return ChatScreen(requestId: requestId);
+        },
+      ),
+      GoRoute(
+        path: '/customer/call/:requestId',
+        builder: (context, state) {
+          final requestId = state.pathParameters['requestId'] ?? '';
+          final isInitiator = state.uri.queryParameters['initiator'] == 'true';
+          return VoIPCallScreen(requestId: requestId, isInitiator: isInitiator);
+        },
+      ),
+    ],
+  );
+});
