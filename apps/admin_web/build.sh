@@ -35,7 +35,8 @@ EOF
 flutter pub get
 
 # Derlemeyi yap
-flutter build web --release --no-pub
+flutter build web --release --no-pub --no-tree-shake-icons
+
 
 # Vercel'in okuyacağı public klasörünü oluştur ve dosyaları kopyala
 mkdir -p public
