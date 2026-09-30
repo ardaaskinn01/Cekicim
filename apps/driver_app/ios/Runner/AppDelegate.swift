@@ -11,7 +11,7 @@ import FirebaseAuth
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyBKqwiZoUGkmt2ub5ddae3HtTF5ug6ehVs")
+    GMSServices.provideAPIKey("AIzaSyCk1iShxbSo9HA2hk9fb7wsTtQjGerlDVE")
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
     }
