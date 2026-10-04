@@ -27,6 +27,7 @@ class DriverHomeScreen extends ConsumerStatefulWidget {
 class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   Timer? _verificationPollTimer;
   String? _lastNavigatedOfferId;
+  String? _lastNavigatedActiveRequestId;
   BitmapDescriptor? _towTruckIcon;
 
   @override
@@ -34,12 +35,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     super.initState();
     _loadCustomMarker();
     _startVerificationPolling();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = ref.read(currentUserProvider).value;
-      if (user != null) {
-        NotificationService().setupFCM(user.id);
-      }
-    });
   }
 
   Future<void> _loadCustomMarker() async {
@@ -125,11 +120,16 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     ref.listen<AsyncValue<ServiceRequestModel?>>(activeRequestProvider, (prev, next) {
       final req = next.value;
       if (req != null && req.status != RequestStatus.completed && req.status != RequestStatus.cancelled) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            context.go('/driver/navigate/${req.id}');
-          }
-        });
+        if (_lastNavigatedActiveRequestId != req.id) {
+          _lastNavigatedActiveRequestId = req.id;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.go('/driver/navigate/${req.id}');
+            }
+          });
+        }
+      } else {
+        _lastNavigatedActiveRequestId = null;
       }
     });
 

@@ -195,14 +195,35 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 
+  Timer? _searchTimer;
+  int _searchCountdown = 90;
+  bool _isSearchTimedOut = false;
+  bool _hasStartedSearchTimer = false;
+
+  void _startSearchTimer() {
+    _searchTimer?.cancel();
+    _searchCountdown = 90;
+    _isSearchTimedOut = false;
+    _searchTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_searchCountdown > 0) {
+        if (mounted) setState(() => _searchCountdown--);
+      } else {
+        timer.cancel();
+        if (mounted) setState(() => _isSearchTimedOut = true);
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _searchTimer?.cancel();
     _animationController?.dispose();
     _unsubscribeRealtime();
     super.dispose();
   }
 
   Future<void> _unsubscribeRealtime() async {
+    _isRealtimeSubscribed = false;
     if (_realtimeChannel != null) {
       await Supabase.instance.client.removeChannel(_realtimeChannel!);
       _realtimeChannel = null;
@@ -1041,12 +1062,55 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   if (request.status == RequestStatus.pending || request.status == RequestStatus.awaitingAcceptance) ...[
-                                    const CircularProgressIndicator(color: AppColors.accent),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      request.status == RequestStatus.pending ? 'En yakın çekiciler aranıyor...' : 'Çekicilerden onay bekleniyor...', 
-                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)
-                                    ),
+                                    if (!_hasStartedSearchTimer) ...[
+                                      Builder(builder: (ctx) {
+                                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                                          if (mounted && !_hasStartedSearchTimer) {
+                                            _hasStartedSearchTimer = true;
+                                            _startSearchTimer();
+                                          }
+                                        });
+                                        return const SizedBox.shrink();
+                                      }),
+                                    ],
+                                    if (!_isSearchTimedOut) ...[
+                                      const CircularProgressIndicator(color: AppColors.accent),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        request.status == RequestStatus.pending 
+                                            ? 'En yakın çekiciler aranıyor...' 
+                                            : 'Çekicilerden onay bekleniyor... (${_searchCountdown}sn)', 
+                                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)
+                                      ),
+                                    ] else ...[
+                                      const Icon(Icons.timer_off_rounded, color: AppColors.warning, size: 36),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'Yakında müsait çekici yanıt veremedi',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.warning),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Tekrar aramayı deneyebilir veya talebi iptal edebilirsiniz.',
+                                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      ElevatedButton.icon(
+                                        onPressed: () {
+                                          _startSearchTimer();
+                                          if (request.selectedDriverIds.isNotEmpty) {
+                                            ref.read(requestRepositoryProvider).sendAlarmToDrivers(
+                                              request.id, 
+                                              request.selectedDriverIds,
+                                            ).catchError((_) {});
+                                          }
+                                        },
+                                        icon: const Icon(Icons.refresh),
+                                        label: const Text('Talebi Yenile / Tekrar Ara'),
+                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                                      ),
+                                    ],
                                     const SizedBox(height: 16),
                                   ] else ...[
                                     driverInfoWidget,

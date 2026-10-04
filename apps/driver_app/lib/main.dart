@@ -23,10 +23,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   } catch (_) {}
 
   try {
-    final type = message.data['type'] as String?;
+    final type = (message.data['type'] ?? message.data['notification_type']) as String?;
+    final isVoip = (type == 'VOIP_CALL' || type == 'call');
     final notification = message.notification;
-    final title = notification?.title ?? message.data['title'] ?? (type == 'VOIP_CALL' ? '📞 Gelen Sesli Arama' : '🚨 Yeni Yol Yardım Talebi!');
-    final body = notification?.body ?? message.data['body'] ?? (type == 'VOIP_CALL' ? 'Çekici hizmetiniz için canlı sesli arama geliyor.' : 'Yakınınızda yeni bir talep var. Hemen inceleyin!');
+    final title = notification?.title ?? message.data['title'] ?? (isVoip ? '📞 Gelen Sesli Arama' : '🚨 Yeni Yol Yardım Talebi!');
+    final body = notification?.body ?? message.data['body'] ?? (isVoip ? 'Çekici hizmetiniz için canlı sesli arama geliyor.' : 'Yakınınızda yeni bir talep var. Hemen inceleyin!');
     final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
 
     final localNotifications = FlutterLocalNotificationsPlugin();
@@ -123,7 +124,8 @@ class DriverApp extends ConsumerWidget {
 
     // Set FCM notification tap handler — navigates to offer or call screen when tapped
     NotificationService.onNotificationTapped = (requestId, type) {
-      if (type == 'VOIP_CALL') {
+      final isVoip = (type == 'VOIP_CALL' || type == 'call');
+      if (isVoip) {
         router.push('/driver/call/$requestId');
       } else {
         router.go('/driver/offer/$requestId');

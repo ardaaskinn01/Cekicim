@@ -52,16 +52,25 @@ class NotificationService {
         ?.createNotificationChannel(androidChannel);
   }
 
+  bool _isFCMSetup = false;
+
   Future<void> setupFCM(String userId) async {
+    if (_isFCMSetup) {
+      debugPrint('FCM already setup. Skipping.');
+      return;
+    }
+    _isFCMSetup = true;
     try {
       // Safely check if Firebase has been initialized first
       try {
         if (Firebase.apps.isEmpty) {
           debugPrint('Firebase is not initialized. Skipping FCM setup.');
+          _isFCMSetup = false;
           return;
         }
       } catch (e) {
         debugPrint('Firebase checking error: $e. Skipping FCM setup.');
+        _isFCMSetup = false;
         return;
       }
 
@@ -136,7 +145,7 @@ class NotificationService {
       // Handle background taps
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
-        final type = message.data['type'] as String?;
+        final type = (message.data['type'] ?? message.data['notification_type']) as String?;
         if (requestId != null && onNotificationTapped != null) {
           onNotificationTapped!(requestId, type);
         }
@@ -146,13 +155,14 @@ class NotificationService {
       messaging.getInitialMessage().then((RemoteMessage? message) {
         if (message != null) {
           final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
-          final type = message.data['type'] as String?;
+          final type = (message.data['type'] ?? message.data['notification_type']) as String?;
           if (requestId != null && onNotificationTapped != null) {
             onNotificationTapped!(requestId, type);
           }
         }
       });
     } catch (e) {
+      _isFCMSetup = false;
       debugPrint('Error setting up FCM: $e');
     }
   }

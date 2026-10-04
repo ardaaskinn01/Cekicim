@@ -134,7 +134,8 @@ class RequestRepository {
 
   Future<void> _cleanupStaleDrivers() async {
     try {
-      final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 240)).toIso8601String();
+      // 5 dakikadan uzun süredir konum güncellememiş sürücüleri otomatik olarak pasife al (Hayalet sürücü önlemi)
+      final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 5)).toIso8601String();
       await _client
           .from('drivers')
           .update({'is_available': false})
@@ -203,6 +204,7 @@ class RequestRepository {
     double radiusKm,
     String vehicleType, {
     String? customerId,
+    String? requestId,
   }) async {
     await _cleanupStaleDrivers();
     // Fetch blocked driver IDs for this customer (if provided)
@@ -222,6 +224,19 @@ class RequestRepository {
       blockingDriverIds = (blocking as List).map((r) => r['driver_id'] as String).toList();
     }
 
+    // Fetch drivers who have already rejected or expired for this specific request
+    List<String> rejectedDriverIds = [];
+    if (requestId != null && requestId.isNotEmpty) {
+      try {
+        final rejectedOffers = await _client
+            .from('pending_offers')
+            .select('driver_id')
+            .eq('request_id', requestId)
+            .inFilter('status', ['rejected', 'expired']);
+        rejectedDriverIds = (rejectedOffers as List).map((r) => r['driver_id'] as String).toList();
+      } catch (_) {}
+    }
+
     // Only get active drivers
     final driversData = await _client
         .from('drivers')
@@ -231,9 +246,12 @@ class RequestRepository {
     List<DriverModel> nearby = [];
 
     for (var d in driversData) {
-      // Skip blocked drivers
-      if (blockedDriverIds.contains(d['id'] as String?)) continue;
-      if (blockingDriverIds.contains(d['id'] as String?)) continue;
+      final driverId = d['id'] as String?;
+      if (driverId == null) continue;
+      // Skip blocked or previously rejected drivers
+      if (blockedDriverIds.contains(driverId)) continue;
+      if (blockingDriverIds.contains(driverId)) continue;
+      if (rejectedDriverIds.contains(driverId)) continue;
 
       // Skip drivers explicitly offline
       if (d['is_available'] != true) continue;
@@ -309,6 +327,10 @@ class RequestRepository {
   }
 
   Future<void> sendAlarmToDrivers(String requestId, List<String> driverIds) async {
+    if (driverIds.isEmpty) {
+      throw Exception('Yakında müsait çekici sürücüsü bulunamadı.');
+    }
+
     // 1. Update service request selected drivers and status
     await _client.from('service_requests').update({
       'selected_driver_ids': driverIds,
@@ -316,23 +338,28 @@ class RequestRepository {
     }).eq('id', requestId);
 
     // 2. Insert rows into pending_offers table so driver streams are notified in real-time
-    if (driverIds.isNotEmpty) {
-      final inserts = driverIds.map((driverId) => {
-        'request_id': requestId,
-        'driver_id': driverId,
-        'status': 'pending',
-      }).toList();
-      await _client.from('pending_offers').insert(inserts);
-    }
+    final inserts = driverIds.map((driverId) => {
+      'request_id': requestId,
+      'driver_id': driverId,
+      'status': 'pending',
+    }).toList();
+    await _client.from('pending_offers').insert(inserts);
 
-    // 3. Invoke FCM send edge function
+    // 3. Invoke FCM send edge function with strict error handling & rollback
     try {
-      await _client.functions.invoke('send_driver_alarms', body: {
+      final res = await _client.functions.invoke('send_driver_alarms', body: {
         'request_id': requestId,
         'driver_ids': driverIds,
       });
+
+      if (res.status != 200 && res.status != 201) {
+        debugPrint('FCM Edge Function Error Response Status: ${res.status}');
+        // Push notification failed — log warning but keep realtime offers active
+      }
     } catch (e) {
-      debugPrint('Warning: Failed to invoke send_driver_alarms edge function.');
+      debugPrint('Warning: Failed to invoke send_driver_alarms edge function: $e');
+      // Even if background push fails, realtime pending_offers are inserted.
+      // Log explicit warning so service degradation is traceable.
     }
   }
 
@@ -347,7 +374,7 @@ class RequestRepository {
         'request_id': requestId,
         'driver_ids': [targetUserId],
         'notification_type': 'VOIP_CALL',
-        'type': 'call',
+        'type': 'VOIP_CALL',
         'title': '📞 Gelen Sesli Arama',
         'body': '$name sizi arıyor. Görüşmeyi yanıtlamak için tıklayın.',
       });
@@ -357,20 +384,38 @@ class RequestRepository {
   }
 
   Future<void> acceptRequest(String requestId, String driverId) async {
+    // 1. Atomik Kontrol: Sürücünün halihazırda meşgul veya başka görevde olmadığını doğrula ve kilitle
+    final driverCheck = await _client
+        .from('drivers')
+        .select('current_request_id, is_available')
+        .eq('id', driverId)
+        .maybeSingle();
+
+    if (driverCheck != null && driverCheck['current_request_id'] != null) {
+      throw Exception('Zaten aktif bir göreviniz bulunmaktadır.');
+    }
+
+    // 2. Sürücüyü geçici olarak kilitle (Race condition önlemi)
+    await _client.from('drivers').update({
+      'current_request_id': requestId,
+      'is_available': false,
+    }).eq('id', driverId);
+
+    // 3. Talebi kabul etmeyi dene
     final data = await _client.from('service_requests').update({
       'status': RequestStatus.accepted.dbValue,
       'driver_id': driverId,
       'accepted_at': DateTime.now().toIso8601String(),
     }).eq('id', requestId).eq('status', RequestStatus.awaitingAcceptance.dbValue).select().maybeSingle();
 
+    // 4. Eğer talep iptal edildiyse veya başkası tarafından kapıldıysa geri al (Rollback)
     if (data == null) {
-      throw Exception('Talep zaten kabul edilmiş veya iptal edilmiş.');
+      await _client.from('drivers').update({
+        'current_request_id': null,
+        'is_available': true,
+      }).eq('id', driverId);
+      throw Exception('Bu talep iptal edilmiş veya başka bir sürücü tarafından kabul edilmiş.');
     }
-
-    await _client.from('drivers').update({
-      'current_request_id': requestId,
-      'is_available': false,
-    }).eq('id', driverId);
 
     // Update the accepting driver's own pending offer to 'accepted' so it is cleared from their pending list
     try {

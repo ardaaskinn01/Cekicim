@@ -229,6 +229,10 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   void dispose() {
     _routeTimer?.cancel();
     _trackingService.stopTracking();
+    if (_incomingCallDialogContext != null && _incomingCallDialogContext!.mounted) {
+      Navigator.of(_incomingCallDialogContext!).pop();
+      _incomingCallDialogContext = null;
+    }
     super.dispose();
   }
 

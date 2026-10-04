@@ -19,6 +19,8 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
   final _codeController = TextEditingController();
   bool _isLoading = false;
   bool _isConfirmed = false;
+  int _failedAttempts = 0;
+  DateTime? _lockoutUntil;
 
   @override
   void dispose() {
@@ -27,6 +29,17 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
   }
 
   Future<void> _verifyPickupCode() async {
+    if (_lockoutUntil != null && DateTime.now().isBefore(_lockoutUntil!)) {
+      final remainingSecs = _lockoutUntil!.difference(DateTime.now()).inSeconds;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Çok fazla hatalı kod girdiniz. Lütfen $remainingSecs saniye bekleyin.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     final code = _codeController.text.trim();
     if (code.length != 4) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -46,6 +59,8 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
     try {
       await ref.read(requestRepositoryProvider).verifyPickupCode(widget.requestId, code);
       if (!mounted) return;
+      _failedAttempts = 0;
+      _lockoutUntil = null;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Yolcu binişi doğrulandı. Yolculuk başladı.'), backgroundColor: AppColors.primary),
       );
@@ -55,9 +70,21 @@ class _CompleteRequestScreenState extends ConsumerState<CompleteRequestScreen> {
         context.go('/driver/navigate/${widget.requestId}');
       }
     } catch (e) {
+      _failedAttempts++;
+      if (_failedAttempts >= 5) {
+        _lockoutUntil = DateTime.now().add(const Duration(minutes: 1));
+        _failedAttempts = 0;
+      }
+
       if (!mounted) return;
+      final cleanErr = e.toString().replaceAll('Exception: ', '');
+      final attemptsLeft = 5 - _failedAttempts;
+      final msg = _lockoutUntil != null
+          ? '5 defa hatalı kod girildi. Güvenlik nedeniyle 1 dakika kilitlendi. Müşteri ile teyit edin.'
+          : '$cleanErr (Kalan deneme: $attemptsLeft)';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hata: $e'), backgroundColor: AppColors.error),
+        SnackBar(content: Text(msg), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);

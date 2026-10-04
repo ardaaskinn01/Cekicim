@@ -54,9 +54,9 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
         }
         return;
       }
+      AlarmAudioService().startAlarm();
     });
 
-    AlarmAudioService().startAlarm();
     _startTimer();
     // If stream doesn't resolve within 5 seconds, show retry UI
     _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
@@ -150,9 +150,15 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
       if (!mounted) return;
       context.go('/driver/navigate/${widget.requestId}');
     } catch (e) {
+      await AlarmAudioService().stopAlarm();
       if (!mounted) return;
+      final cleanMsg = e.toString().replaceAll('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Kabul edilemedi: $e'), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text(cleanMsg),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 4),
+        ),
       );
       context.go('/driver'); // Go back to main
     } finally {

@@ -214,8 +214,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.accent),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(user?.email ?? '', style: const TextStyle(color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
                 // Average rating badge
                 if (user != null)
