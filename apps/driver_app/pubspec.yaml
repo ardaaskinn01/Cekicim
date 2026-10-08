@@ -2,7 +2,7 @@ name: driver_app
 description: "Çekici Driver Application"
 publish_to: 'none'
 
-version: 1.0.1+36
+version: 1.0.2+38
 
 
 environment:
@@ -42,7 +42,6 @@ dependencies:
   firebase_auth: ^5.5.1
   google_sign_in: ^6.2.2
   sign_in_with_apple: ^6.1.4
-  flutter_facebook_auth: ^7.1.1
 
 dev_dependencies:
   flutter_test:
