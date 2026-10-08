@@ -31,16 +31,11 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.aasoft.cekici"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
+        minSdk = 24
         targetSdk = 36
         versionCode = flutter.versionCode
-        ndk {
-            abiFilters.addAll(setOf("armeabi-v7a", "arm64-v8a", "x86_64"))
-        }
+        versionName = flutter.versionName
     }
 
     val keystorePropertiesFile = rootProject.file("key.properties")
