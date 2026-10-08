@@ -100,7 +100,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       AppTextField(
                         controller: _emailController,
                         label: 'E-posta Adresi',
-                        hint: 'admin@ornek.com',
+
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
                         validator: (val) {
