@@ -57,6 +57,8 @@ void main() async {
 
   try {
     await NotificationService().initialize();
+    // Müşteri uygulamayı kullandığında 7 gün sonrasına hatırlatıcı zamanla
+    await NotificationService().scheduleCustomerInactivityReminder();
   } catch (e) {
     debugPrint("Failed to initialize local notifications: $e");
   }
@@ -64,11 +66,36 @@ void main() async {
   runApp(const ProviderScope(child: CekiciApp()));
 }
 
-class CekiciApp extends ConsumerWidget {
+class CekiciApp extends ConsumerStatefulWidget {
   const CekiciApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CekiciApp> createState() => _CekiciAppState();
+}
+
+class _CekiciAppState extends ConsumerState<CekiciApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    NotificationService().scheduleCustomerInactivityReminder();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      NotificationService().scheduleCustomerInactivityReminder();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
 

@@ -36,6 +36,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>504769736096-k6qokj219doqo3nkcghjqg1q0etgah93.apps.googleusercontent.com</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

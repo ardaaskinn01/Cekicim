@@ -108,6 +108,8 @@ void main() async {
 
   try {
     await NotificationService().initialize();
+    // Uygulama açıldığında 3 gün sonrasına hatırlatıcı zamanla
+    await NotificationService().scheduleInactivityReminder(days: 3);
   } catch (e) {
     debugPrint("Failed to initialize local notifications: $e");
   }

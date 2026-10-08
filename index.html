@@ -4,113 +4,314 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gizlilik Politikası - Çekicim & Çekicim Hizmet Veren</title>
+    <title>Hukuki Metinler & Gizlilik Politikası - ÇEKİCİM</title>
     <style>
+        :root {
+            --primary: #10b981;
+            --primary-dark: #059669;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --border: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.7;
+            color: var(--text-main);
+            background-color: var(--bg-body);
+            padding: 20px 12px;
+        }
+
+        .container {
+            max-width: 860px;
             margin: 0 auto;
-            padding: 20px;
+            background: var(--bg-card);
+            padding: 36px 28px;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
         }
 
-        h1,
-        h2 {
-            color: #1e293b;
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border);
         }
 
-        h1 {
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 10px;
+        header h1 {
+            font-size: 26px;
+            color: var(--text-main);
+            margin-bottom: 6px;
         }
 
-        .highlight {
-            background-color: #f1f5f9;
-            padding: 15px;
+        header p {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 28px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+
+        .tab-btn {
+            background: #f1f5f9;
+            border: none;
+            padding: 10px 16px;
             border-radius: 8px;
-            border-left: 4px solid #0284c7;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tab-btn:hover {
+            background: #e2e8f0;
+            color: var(--text-main);
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: #ffffff;
+        }
+
+        .doc-section {
+            display: none;
+        }
+
+        .doc-section.active {
+            display: block;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            color: #0f172a;
+            border-left: 4px solid var(--primary);
+            padding-left: 10px;
+        }
+
+        h3 {
+            font-size: 16px;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+
+        p, ul, ol {
+            margin-bottom: 14px;
+            font-size: 15px;
+        }
+
+        ul, ol {
+            padding-left: 24px;
+        }
+
+        li {
+            margin-bottom: 6px;
+        }
+
+        .highlight-box {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            border-left: 5px solid var(--primary);
+            padding: 18px;
+            border-radius: 10px;
             margin: 20px 0;
+        }
+
+        .highlight-box h3 {
+            color: #065f46;
+            margin-top: 0;
+        }
+
+        a {
+            color: var(--primary-dark);
+            text-decoration: underline;
         }
 
         footer {
             margin-top: 40px;
-            font-size: 0.9em;
-            color: #64748b;
-            border-top: 1px solid #e2e8f0;
             padding-top: 20px;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 16px;
+            }
+
+            .tab-btn {
+                width: 100%;
+                text-align: left;
+            }
         }
     </style>
 </head>
 
 <body>
 
-    <h1>Gizlilik Politikası (Privacy Policy)</h1>
-    <p>Son Güncelleme Tarihi: 5 Ağustos 2026</p>
+    <div class="container">
+        <header>
+            <h1>ÇEKİCİM Mobil Uygulaması</h1>
+            <p>Yasal Bildirimler, Gizlilik Politikası ve Kullanım Koşulları</p>
+        </header>
 
-    <p><strong>Çekicim</strong> ("Şirket", "Biz"), kullanıcılarımızın ("Siz") kişisel verilerinin korunmasına ve
-        gizliliğine büyük önem vermektedir. Bu Gizlilik Politikası, <strong>Çekicim</strong> ve <strong>Çekicim Hizmet Veren</strong> mobil uygulamalarımız aracılığıyla toplanan verilerin türlerini, işlenme amaçlarını ve
-        haklarınızı açıklar.</p>
+        <nav class="tabs">
+            <button class="tab-btn active" onclick="switchTab('privacy')">Gizlilik Politikası</button>
+            <button class="tab-btn" onclick="switchTab('kvkk')">KVKK Aydınlatma Metni</button>
+            <button class="tab-btn" onclick="switchTab('terms')">Kullanım Koşulları</button>
+            <button class="tab-btn" onclick="switchTab('consent')">Açık Rıza Metni</button>
+        </nav>
 
-    <h2>1. Toplanan Veriler ve Kullanım Amaçları</h2>
-    <ul>
-        <li><strong>Konum Bilgileri (Hassas Konum):</strong> Müşterilerin en yakın oto çekiciyi bulması ve sürücülerin
-            müşteriye ulaşarak hizmeti gerçekleştirebilmesi amacıyla ön plan ve sürücü uygulamasında arka plan konum
-            verisi işlenir.</li>
-        <li><strong>Kişisel İletişim Bilgileri:</strong> Ad, soyad, e-posta adresi ve telefon numarası kayıt oluşturma,
-            SMS doğrulama ve iletişim amaçlı toplanır.</li>
-        <li><strong>Sürücü ve Araç Belgeleri (Sadece Çekicim Hizmet Veren Uygulaması):</strong> Hizmet güvenliği için ehliyet, araç
-            ruhsatı ve plaka bilgileri toplanır ve doğrulanır.</li>
-        <li><strong>Finansal Bilgiler (Sadece Çekicim Hizmet Veren Uygulaması):</strong> Kazanç ödemelerinin yapılabilmesi için IBAN
-            ve hesap sahibi bilgisi saklanır.</li>
-        <li><strong>Cihaz ve Bildirim Tanımlayıcıları:</strong> Anlık çekici talebi bildirimleri ve alarm gönderimleri
-            için cihaz Push Notification (FCM) token bilgisi kullanılır.</li>
-    </ul>
+        <!-- 1. GİZLİLİK POLİTİKASI -->
+        <section id="privacy" class="doc-section active">
+            <h2>ÇEKİCİM GİZLİLİK POLİTİKASI (PRIVACY POLICY)</h2>
+            <p><strong>Son Güncelleme Tarihi:</strong> 06.10.2026</p>
 
-    <h2>2. Verilerin Üçüncü Taraflarla Paylaşımı</h2>
-    <p>Kişisel verileriniz hiçbir şekilde üçüncü taraflara satılmaz veya pazarlama amacıyla paylaşılmaz. Verileriniz
-        yalnızca hizmetin ifası (örneğin müşteri ve sürücü arasında adres/konum paylaşımı) ve altyapı sağlayıcılarımız
-        (güvenli veritabanı sağlayıcısı Supabase) bünyesinde şifreli olarak işlenir.</p>
+            <h3>1. Giriş ve Kapsam</h3>
+            <p>İşbu Gizlilik Politikası, <strong>Arda Çağan MANTAŞ</strong> (“Platform”, “Biz”) tarafından işletilen <strong>ÇEKİCİM</strong> mobil uygulamasını (“Uygulama”) kullanan araç sahipleri/hizmet alanlar (“Kullanıcı”) ile bağımsız çekici ve yol yardım sürücülerinin (“Çekici / Hizmet Veren”) hangi verilerinin toplandığını, cihaz izinlerinin nasıl kullanıldığını ve veri silme süreçlerini açıklamak amacıyla hazırlanmıştır.</p>
 
-    <div class="highlight" id="hesap-silme">
-        <h2>3. Hesap ve Veri Silme Talebi (Account & Data Deletion Policy)</h2>
-        <p><strong>Çekicim</strong> ve <strong>Çekicim Hizmet Veren</strong> uygulamalarımızın kullanıcıları, diledikleri zaman hesaplarının ve tüm ilişkili kişisel verilerinin silinmesini talep etme hakkına sahiptir.</p>
-        
-        <h3>Hesap Silme Adımları:</h3>
-        <ul>
-            <li><strong>Uygulama İçi Silme:</strong> Uygulama içerisinden <em>Profil ➔ Ayarlar ➔ Hesabımı Sil</em> adımlarını takip ederek hesabınızı ve verilerinizi anında silinecek şekilde işleme alabilirsiniz.</li>
-            <li><strong>Web / E-posta Üzerinden Talep:</strong> Uygulamaya erişiminiz yoksa, kayıtlı e-posta adresinizden <a href="mailto:cekicimapp@gmail.com">cekicimapp@gmail.com</a> adresine <em>"Hesap Silme Talebi"</em> konu başlığıyla e-posta gönderebilirsiniz. Talebiniz en geç 24-48 saat içerisinde tamamlanacaktır.</li>
-        </ul>
+            <h3>2. Toplanan Veriler ve Cihaz İzinleri (App Permissions)</h3>
+            <ul>
+                <li><strong>2.1. Konum Verileri (Ön Plan ve Arka Plan Konum İzni):</strong>
+                    <ul>
+                        <li><em>Kullanıcılar İçin:</em> Uygulama açıkken (ön planda), arızalanan veya çekilecek aracın tam konumunu belirlemek, en yakın çekiciyi listelemek ve mesafe/ücret hesaplaması yapmak amacıyla hassas konum (GPS) verisi toplanır.</li>
+                        <li><em>Çekiciler (Hizmet Verenler) İçin:</em> Çekici sürücüsü "Müsait / Çağrıya Açık" durumundayken veya aktif bir taşıma işlemi devam ederken, <strong>uygulama arka planda çalışsa veya ekran kapalı olsa dahi (Background Location)</strong> en yakın çekici talebini yönlendirmek ve araç sahibine çekicinin canlı yaklaşma rotasını göstermek amacıyla konum verisi toplanır. Sürücü dilediği zaman uygulama içinden çevrimdışı olarak veya cihaz ayarlarından konum iznini kapatabilir.</li>
+                    </ul>
+                </li>
+                <li><strong>2.2. Kamera ve Fotoğraf Galerisi İzni:</strong> Kullanıcıların çekilecek aracın mevcut durumunu, arıza/kaza fotoğraflarını ve ruhsat bilgilerini yükleyebilmesi; Çekicilerin ise profil fotoğrafı, ehliyet, kimlik, çekici ruhsatı, yetki belgeleri ve taşıma öncesi/sonrası araç durum fotoğraflarını sisteme yükleyebilmesi amacıyla kamera ve galeri erişim izni kullanılır.</li>
+                <li><strong>2.3. Kimlik, İletişim ve Araç Bilgileri:</strong> Ad, soyad, telefon numarası, e-posta adresi, T.C. kimlik numarası, araç plakası, marka/model bilgisi ve Hizmet Verenler için sürücü belgesi ile mesleki yeterlilik belgeleri.</li>
+                <li><strong>2.4. Cihaz, Log ve Tanılama Verileri:</strong> Uygulama çökmelerini (crash logs) tespit etmek, siber güvenliği sağlamak ve 5651 sayılı Kanun kapsamındaki yasal yükümlülükleri yerine getirmek amacıyla IP adresi, cihaz modeli, işletim sistemi sürümü ve uygulama içi etkileşim kayıtları toplanır.</li>
+                <li><strong>2.5. Anlık Bildirimler (Push Notifications):</strong> Çağrı durumu, çekici eşleşmesi, sürücünün varışı ve güvenlik bildirimlerini iletmek amacıyla bildirim izni kullanılır.</li>
+            </ul>
 
-        <h3>Silinen Veriler:</h3>
-        <p>Hesap silme işlemi tamamlandığında aşağıdaki veriler kalıcı olarak sistemlerimizden silinir veya anonim hale getirilir:</p>
-        <ul>
-            <li>Kişisel profil bilgileri (Ad, Soyad, E-posta, Telefon Numarası)</li>
-            <li>Konum ve adres geçmişi verileri</li>
-            <li>Araç ve Sürücü belgeleri (Ehliyet, Ruhsat, Plaka görselleri)</li>
-            <li>Sohbet ve mesajlaşma kayıtları</li>
-            <li>Cihaz bildirim (FCM Token) tanımlayıcıları</li>
-        </ul>
+            <h3>3. Verilerin Kullanım Amaçları</h3>
+            <p>Toplanan veriler; Kullanıcı ile en uygun ve en yakın Çekici'nin eşleştirilmesi, mesafe bazlı öngörülebilir ücret ve tahmini varış süresi hesaplamalarının yapılması, sürücülerin kimlik, ehliyet ve araç yetki doğrulamalarının yapılarak platform güvenliğinin sağlanması, taşıma öncesi ve sonrası çekilen araç fotoğraflarıyla olası hasar uyuşmazlıklarının önlenmesi, müşteri destek süreçlerinin yürütülmesi ve yasal yükümlülüklerin yerine getirilmesi amacıyla kullanılır. <strong>Kişisel verileriniz hiçbir koşulda üçüncü taraf reklam ağlarına satılmaz veya kiralanmaz.</strong></p>
 
-        <h3>Saklanan Veriler ve Ek Saklama Süreleri:</h3>
-        <p>Yasal yükümlülüklerimiz (Türk Ticaret Kanunu, Vergi Usul Kanunu ve KVKK) uyarınca:</p>
-        <ul>
-            <li>Ödeme, fatura ve tamamlanmış hizmet işlem geçmişi kayıtları, yasal mevzuat gereği <strong>10 yıl</strong> süreyle şifrelenmiş finansal arşiv sunucularında saklanır ve bu süre sonunda otomatik olarak yok edilir.</li>
-        </ul>
+            <h3>4. Verilerin Paylaşımı ve Üçüncü Taraf Servis Sağlayıcılar (SDK'lar)</h3>
+            <ul>
+                <li><strong>Taraflar Arası Paylaşım:</strong> Bir çekici talebi onaylandığında; Kullanıcı’nın ad-soyad, telefon, konum, araç ve arıza fotoğrafları ilgili Çekici ile; Çekicinin ad-soyad, fotoğraf, iletişim, plaka/araç ve canlı konum bilgileri ise ilgili Kullanıcı ile paylaşılır.</li>
+                <li><strong>Altyapı ve Harita Servisleri:</strong> Uygulamanın çalışması için harita/navigasyon servisleri (örn. Google Maps / Apple Maps), bulut veritabanı, kimlik doğrulama ve hata analiz servisleri (Supabase, Firebase) gibi güvenilir altyapı sağlayıcılarından yararlanılır.</li>
+                <li><strong>Resmi Makamlar:</strong> Yasal bir zorunluluk veya adli/idari bir makamın usulüne uygun talebi olması halinde veriler yetkili kamu kurumlarıyla paylaşılabilir.</li>
+            </ul>
+
+            <h3>5. Veri Güvenliği</h3>
+            <p>Uygulama ile sunucularımız arasındaki tüm veri trafiği endüstri standardı olan <strong>SSL/TLS (HTTPS)</strong> şifreleme protokolleri ile korunmaktadır. Yüklenen sürücü ve araç belgeleri yetkisiz erişime karşı erişim kontrolü uygulanan güvenli bulut sunucularda muhafaza edilir.</p>
+
+            <div class="highlight-box" id="hesap-silme">
+                <h3>6. Hesap Silme ve Verilerin İmhası (Account & Data Deletion)</h3>
+                <p>Kullanıcılar ve Çekiciler, diledikleri zaman hesaplarını ve kişisel verilerini silme hakkına sahiptir:</p>
+                <ol>
+                    <li><strong>Uygulama İçinden Silme:</strong> Uygulama içerisindeki <em>Profil ➔ Ayarlar ➔ Hesabımı Sil</em> adımlarını takip ederek hesabınızı anında ve kalıcı olarak silebilirsiniz.</li>
+                    <li><strong>Web / E-posta Üzerinden Silme:</strong> Uygulamaya erişiminiz yoksa, <a href="mailto:cekicimapp@gmail.com">cekicimapp@gmail.com</a> veya <a href="mailto:ardamantas94@gmail.com">ardamantas94@gmail.com</a> adresine e-posta göndererek hesap silme talebinde bulunabilirsiniz.</li>
+                </ol>
+                <p><strong>Silme İşleminin Sonucu:</strong> Hesap silme talebiniz üzerine profiliniz, fotoğraflarınız ve aktif verileriniz derhal silinir veya anonim hale getirilir. Yalnızca geçmiş işlemlere ilişkin fatura/ödeme kayıtları, trafik logları ve olası hukuki uyuşmazlık delilleri, ilgili mevzuatta (5651 s. Kanun, TTK, Vergi Usul Kanunu) öngörülen yasal zamanaşımı süreleri boyunca erişimi kısıtlanarak saklanır ve süre sonunda otomatik olarak imha edilir.</p>
+            </div>
+
+            <h3>7. Çocukların Gizliliği (Yaş Sınırı)</h3>
+            <p>Uygulamamız araç sahipleri ve profesyonel çekici sürücülerine yönelik olup <strong>18 yaşın altındaki bireylere hitap etmemektedir</strong>. 18 yaş altı kişilerden bilerek kişisel veri toplamıyoruz.</p>
+
+            <h3>8. İletişim</h3>
+            <p>Gizlilik Politikamız, kişisel verileriniz veya hesap silme süreçlerinizle ilgili her türlü soru ve talebiniz için bizimle iletişime geçebilirsiniz:</p>
+            <ul>
+                <li><strong>Veri Sorumlusu / İşletici:</strong> Arda Çağan Mantaş</li>
+                <li><strong>E-posta (Google Play İletişim):</strong> <a href="mailto:cekicimapp@gmail.com">cekicimapp@gmail.com</a></li>
+                <li><strong>E-posta (App Store İletişim):</strong> <a href="mailto:ardamantas94@gmail.com">ardamantas94@gmail.com</a></li>
+                <li><strong>Adres:</strong> Kavaklıdere Mah. Paris Cad. No: 11/16 Çankaya / Ankara</li>
+            </ul>
+        </section>
+
+        <!-- 2. KVKK AYDINLATMA METNİ -->
+        <section id="kvkk" class="doc-section">
+            <h2>ÇEKİCİM MOBİL UYGULAMASI KİŞİSEL VERİLERİN KORUNMASI VE İŞLENMESİ AYDINLATMA METNİ</h2>
+            <p><strong>1. Veri Sorumlusunun Kimliği:</strong> 6698 sayılı Kişisel Verilerin Korunması Kanunu (“KVKK”) uyarınca kişisel verileriniz; veri sorumlusu sıfatıyla <strong>Arda Çağan MANTAŞ</strong> (Adres: Kavaklıdere Mah. Paris Cad. No: 11/16 Çankaya / Ankara, E-posta: cekicimapp@gmail.com / ardamantas94@gmail.com) tarafından, ÇEKİCİM mobil uygulaması (“Uygulama”) kapsamında aşağıda açıklanan amaçlar ve hukuki sebepler doğrultusunda işlenmektedir.</p>
+
+            <p><strong>2. İşlenen Kişisel Veriler, İşleme Amaçları ve Hukuki Sebepleri:</strong> Uygulamamız, araç sahipleri/kullanıcılar (“Kullanıcı”) ile çekici/yol yardım hizmeti sunan bağımsız sürücüleri (“Çekici / Hizmet Veren”) bir araya getiren bir teknoloji platformudur.</p>
+
+            <h3>A. Tüm Üyeler (Kullanıcılar ve Çekiciler) İçin Ortak Veriler:</h3>
+            <ul>
+                <li><strong>Kimlik ve İletişim Bilgileri:</strong> Üyelik kaydının oluşturulması, kimlik doğrulama (SMS OTP) ve taraflar arası iletişimin sağlanması amacıyla KVKK m. 5/2-c (Sözleşmenin kurulması veya ifası) hukuki sebebine dayanarak.</li>
+                <li><strong>Konum Bilgileri:</strong> Kullanıcıya en yakın çekicinin tespit edilmesi, öngörülebilir rota/fiyat hesaplamasının yapılması ve canlı takip edilebilmesi amacıyla KVKK m. 5/2-c hukuki sebebine dayanarak.</li>
+                <li><strong>İşlem Güvenliği Bilgileri:</strong> Bilgi güvenliği süreçlerinin yürütülmesi ve 5651 sayılı Kanun kapsamındaki yükümlülüklerin yerine getirilmesi amacıyla KVKK m. 5/2-ç ve m. 5/2-f hukuki sebeplerine dayanarak.</li>
+                <li><strong>Müşteri İşlem ve Finans Bilgileri:</strong> Hizmet süreçlerinin yürütülmesi ve finans/muhasebe işlerinin takibi amacıyla KVKK m. 5/2-c ve m. 5/2-ç hukuki sebeplerine dayanarak.</li>
+            </ul>
+
+            <h3>B. Yalnızca Kullanıcılar (Hizmet Alan Araç Sahipleri) İçin:</h3>
+            <ul>
+                <li><strong>Araç ve Görsel Bilgileri:</strong> Çekilecek aracın niteliğine uygun çekici tipinin belirlenmesi, hizmet maliyetinin öngörülmesi ve olası hasar uyuşmazlıklarında delil teşkil etmesi amacıyla KVKK m. 5/2-c ve m. 5/2-e hukuki sebeplerine dayanarak.</li>
+            </ul>
+
+            <h3>C. Yalnızca Çekiciler (Hizmet Veren Sürücüler) İçin:</h3>
+            <ul>
+                <li><strong>Sürücü, Araç ve Mesleki Yeterlilik Belgeleri:</strong> Hizmet verenlerin kimlik ve mesleki yeterliliklerinin doğrulanması ve platform güvenliğinin sağlanması amacıyla KVKK m. 5/2-c ve m. 5/2-f hukuki sebebine dayanarak.</li>
+            </ul>
+
+            <p><strong>3. Kişisel Verilerin Aktarılması:</strong> Kişisel verileriniz; talep oluşturulduğunda Kullanıcının ve Çekicinin gerekli bilgileri eşleşmenin gerçekleşmesi için karşılıklı olarak, yasal zorunluluk halinde yetkili kamu kurumlarıyla ve altyapı sağlayıcı tedarikçilerle KVKK m. 8 ve m. 9 hükümlerine uygun olarak paylaşılır.</p>
+        </section>
+
+        <!-- 3. KULLANIM KOŞULLARI -->
+        <section id="terms" class="doc-section">
+            <h2>ÇEKİCİM SORUMLULUK REDDİ BEYANI VE PLATFORM KULLANIM KOŞULLARI</h2>
+
+            <h3>1. Platformun Hukuki Niteliği ve Aracı Statüsü</h3>
+            <p>1.1. ÇEKİCİM mobil uygulaması (“Platform”), araç sahipleri veya zilyetleri (“Kullanıcı”) ile bağımsız olarak çekici, kurtarıcı ve yol yardım hizmeti sunan gerçek veya tüzel kişileri (“Çekici / Hizmet Veren”) çevrimiçi ortamda bir araya getiren bir teknoloji ve eşleştirme platformudur.</p>
+            <p>1.2. Platform işleticisi Arda Çağan MANTAŞ, 6102 sayılı Türk Ticaret Kanunu anlamında “Taşıyıcı”, “Nakliyeci” veya “Taşıma İşleri Komisyoncusu” değildir. Platformun bünyesinde kendine ait çekici aracı veya bordrolu sürücü bulunmamaktadır.</p>
+            <p>1.3. Çekici ve yol yardım hizmetine ilişkin taşıma sözleşmesi, yalnızca ve doğrudan Kullanıcı ile Çekici arasında kurulur. Platform, bu sözleşmenin tarafı, kefili veya garantörü değildir.</p>
+
+            <h3>2. Taşıma Süreci, Araç Hasarları ve Maddi/Bedeni Zararlar</h3>
+            <p>2.1. Aracın bulunduğu yerden alınması, çekiciye yüklenmesi, sabitlenmesi, taşınması ve varış noktasında indirilmesi süreçlerinin tamamı bağımsız Hizmet Veren’in (Çekici’nin) mesleki uzmanlığı, kontrolü ve sorumluluğu altındadır.</p>
+            <p>2.2. Yükleme, taşıma veya indirme esnasında taşınan araçta, üçüncü kişilerin malvarlığında veya şahıslarda meydana gelebilecek her türlü çizik, göçük, mekanik arıza, kaza, devrilme, yangın, ziya, hasar veya bedeni zararlardan Platform hiçbir şekilde sorumlu tutulamaz.</p>
+            <p>2.3. Çekilecek araç içerisinde bırakılan nakit para, kıymetli evrak, elektronik cihaz veya sair özel eşyaların güvenliği tamamen Kullanıcı’nın sorumluluğundadır.</p>
+
+            <h3>3. Tahmini Ücret, Mesafe ve Varış Süresi</h3>
+            <p>3.1. Platform üzerinden sunulan ücret hesaplamaları, rota çizimleri ve tahmini varış süreleri; GPS verileri ve Kullanıcı beyanı üzerinden algoritmik üretilen tahmin niteliğindedir. Yol durumu veya hatalı bildirim kaynaklı süre/fiyat farklarından Platform sorumlu değildir.</p>
+        </section>
+
+        <!-- 4. AÇIK RIZA METNİ -->
+        <section id="consent" class="doc-section">
+            <h2>ÇEKİCİM AÇIK RIZA METNİ</h2>
+            <p>ÇEKİCİM Aydınlatma Metni’ni okudum ve inceledim. Bu kapsamda;</p>
+            <ol>
+                <li><strong>Belge Görsellerindeki Özel Nitelikli Veriler:</strong> Kimlik, ehliyet ve yetki doğrulaması amacıyla Uygulamaya kendi irademle yüklediğim belgeler üzerindeki kan grubu vb. özel nitelikli kişisel verilerimin saklanmasına,</li>
+                <li><strong>Konum Bazlı İyileştirme ve Analiz:</strong> Uygulamayı aktif kullanmadığım zamanlarda da özel tekliflerin sunulabilmesi için konum verilerimin işlenmesine,</li>
+                <li><strong>Pazarlama ve Kampanyalar:</strong> Bana özel indirim ve fırsatların oluşturulması amacıyla iletişim verilerimin işlenmesine,</li>
+            </ol>
+            <p>her zaman geri alma hakkım saklı kalmak kaydıyla, özgür irademle <strong>açık rıza veriyorum.</strong></p>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 ÇEKİCİM - Arda Çağan Mantaş. Tüm hakları saklıdır.</p>
+        </footer>
     </div>
 
-    <h2>4. Güvenlik</h2>
-    <p>Toplanan tüm veriler aktarım sırasında SSL/TLS (HTTPS) protokolü ile şifrelenir ve güvenli sunucularda muhafaza
-        edilir.</p>
+    <script>
+        function switchTab(tabId) {
+            document.querySelectorAll('.doc-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
 
-    <h2>5. İletişim</h2>
-    <p>Gizlilik politikamız veya verilerinizle ilgili sorularınız için bizimle iletişime geçebilirsiniz:</p>
-    <p>E-posta: <a href="mailto:cekicimapp@gmail.com">cekicimapp@gmail.com</a></p>
-
-    <footer>
-        <p>&copy; 2026 Çekicim Yol Yardım Hizmetleri. Tüm hakları saklıdır.</p>
-    </footer>
-
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+    </script>
 </body>
 
 </html>

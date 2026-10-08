@@ -86,6 +86,10 @@ Deno.serve(async (req) => {
           title = '📞 Gelen Sesli Arama'
           body = 'Çekici hizmetiniz için canlı sesli arama geliyor. Cevaplamak için tıklayın.'
           type = 'VOIP_CALL'
+        } else if (notification_type === 'OFFLINE_DRIVER_REMINDER') {
+          title = 'Yakınında Yolda Kalan Biri Var! 🚨'
+          body = 'Yakınında yeni bir çekici talebi oluşturuldu. Çevrimiçi ol ve hemen işi al! 🚜'
+          type = 'OFFLINE_DRIVER_REMINDER'
         }
 
         const messageBody = {

@@ -18,15 +18,14 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
-  final _otpController = TextEditingController();
-  bool _codeSent = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _otpController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -35,31 +34,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final phone = _phoneController.text.trim();
-      if (!_codeSent) {
-        // Send OTP
-        await ref.read(authNotifierProvider.notifier).sendSMSCode(phone);
-        setState(() {
-          _codeSent = true;
-        });
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Doğrulama kodu gönderildi!'), backgroundColor: AppColors.success),
-        );
-      } else {
-        // Verify OTP
-        final code = _otpController.text.trim();
-        await ref.read(authNotifierProvider.notifier).verifySMSCode(phone, code);
-        
-        // Let's verify if the logged in user is actually an admin!
-        final currentUser = await ref.read(currentUserProvider.future);
-        if (currentUser == null || currentUser.role != UserRole.admin) {
-          throw Exception('Bu telefon numarası yetkili bir yönetici (admin) hesabına ait değil!');
-        }
-        
-        if (!mounted) return;
-        context.go('/admin');
+      final email = _emailController.text.trim();
+      final password = _passwordController.text.trim();
+
+      await ref.read(authNotifierProvider.notifier).signIn(email, password);
+
+      // Verify the logged in user is actually an admin
+      final currentUser = await ref.read(currentUserProvider.future);
+      if (currentUser == null || currentUser.role != UserRole.admin) {
+        throw Exception('Bu hesap yetkili bir yönetici (admin) hesabı değil!');
       }
+
+      if (!mounted) return;
+      context.go('/admin');
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,7 +64,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     return LoadingOverlay(
       isLoading: _isLoading,
-      message: _codeSent ? 'Giriş yapılıyor...' : 'Kod gönderiliyor...',
+      message: 'Giriş yapılıyor...',
       child: Scaffold(
         body: Center(
           child: Container(
@@ -110,35 +97,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      if (!_codeSent) ...[
-                        AppTextField(
-                          controller: _phoneController,
-                          label: 'Telefon Numarası',
-                          hint: '05... veya +905...',
-                          prefixIcon: Icons.phone_outlined,
-                          keyboardType: TextInputType.phone,
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) return 'Telefon numarası gereklidir';
-                            return null;
-                          },
-                        ),
-                      ] else ...[
-                        AppTextField(
-                          controller: _otpController,
-                          label: 'Doğrulama Kodu',
-                          hint: '6 Haneli OTP Kodu',
-                          prefixIcon: Icons.security_rounded,
-                          keyboardType: TextInputType.number,
-                          validator: (val) {
-                            if (val == null || val.trim().isEmpty) return 'Kod gereklidir';
-                            if (val.length < 6) return 'Kod en az 6 haneli olmalıdır';
-                            return null;
-                          },
-                        ),
-                      ],
+                      AppTextField(
+                        controller: _emailController,
+                        label: 'E-posta Adresi',
+                        hint: 'admin@ornek.com',
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'E-posta gereklidir';
+                          if (!val.contains('@')) return 'Geçerli bir e-posta giriniz';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      AppTextField(
+                        controller: _passwordController,
+                        label: 'Şifre',
+                        hint: '••••••••',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        isPassword: true,
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Şifre gereklidir';
+                          if (val.length < 6) return 'Şifre en az 6 karakter olmalıdır';
+                          return null;
+                        },
+                      ),
                       const SizedBox(height: 32),
                       GreenButton(
-                        text: _codeSent ? 'Giriş Yap' : 'Kod Gönder',
+                        text: 'Giriş Yap',
                         onPressed: _handleLogin,
                         isLoading: _isLoading,
                       ),

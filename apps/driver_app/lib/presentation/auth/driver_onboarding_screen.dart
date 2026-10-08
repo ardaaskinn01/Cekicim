@@ -10,6 +10,7 @@ import 'package:shared_ui/widgets/loading_overlay.dart';
 import 'package:shared_models/driver_model.dart';
 import 'package:shared_services/iban_input_formatter.dart';
 import 'package:shared_services/app_error_handler.dart';
+import 'package:shared_ui/widgets/legal_documents_dialog.dart';
 import '../../providers/auth_provider.dart';
 
 class DriverOnboardingScreen extends ConsumerStatefulWidget {
@@ -711,6 +712,26 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
             _buildDocTile('Adli Sicil Kaydı (E-Devlet)', _criminalRecord, 'criminal'),
 
             _buildDocTile('Vergi Levhası / Oda Kaydı', _taxPlate, 'tax_plate', isRequired: false),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => LegalDocumentsDialog.show(context, LegalDocumentType.consent),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: RichText(
+                  text: const TextSpan(
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                    children: [
+                      TextSpan(text: 'Yüklediğiniz belgeler üzerindeki kimlik ve doğrulama verileri hizmetin ifası kapsamında işlenmektedir. Belge görsellerinde yer alabilecek özel nitelikli kişisel veriler için '),
+                      TextSpan(
+                        text: 'Açık Rıza Metni',
+                        style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+                      ),
+                      TextSpan(text: '\'ni inceleyebilirsiniz.'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         );
       case 1:

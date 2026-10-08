@@ -24,7 +24,7 @@ class DriverHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<DriverHomeScreen> createState() => _DriverHomeScreenState();
 }
 
-class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
+class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with WidgetsBindingObserver {
   Timer? _verificationPollTimer;
   String? _lastNavigatedOfferId;
   String? _lastNavigatedActiveRequestId;
@@ -33,8 +33,26 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCustomMarker();
     _startVerificationPolling();
+    // Uygulama her açıldığında 3 günlük yerel bildirimi 3 gün sonrasına yenile
+    NotificationService().scheduleInactivityReminder(days: 3);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _verificationPollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Sürücü uygulamaya her geri döndüğünde zamanlayıcıyı sıfırla
+      NotificationService().scheduleInactivityReminder(days: 3);
+    }
   }
 
   Future<void> _loadCustomMarker() async {
@@ -82,12 +100,6 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> {
     final ui.Image image = await pictureRecorder.endRecording().toImage(width, height);
     final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
-  }
-
-  @override
-  void dispose() {
-    _verificationPollTimer?.cancel();
-    super.dispose();
   }
 
   void _startVerificationPolling() {

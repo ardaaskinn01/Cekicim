@@ -59,9 +59,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     }
   }
 
+  @Deprecated('SMS ile giriş devre dışı bırakılmıştır.')
   Future<void> sendSMSCode(String phone) async {
     state = const AsyncValue.loading();
     try {
+      // ignore: deprecated_member_use
       await _repository.signInWithPhone(phone);
       state = const AsyncValue.data(null);
     } catch (e, st) {
@@ -70,11 +72,59 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     }
   }
 
+  @Deprecated('SMS ile giriş devre dışı bırakılmıştır.')
   Future<void> verifySMSCode(String phone, String code) async {
     state = const AsyncValue.loading();
     try {
+      // ignore: deprecated_member_use
       await _repository.verifyPhoneOTP(phone, code);
       final user = await _repository.getCurrentUser(UserRole.driver);
+      state = AsyncValue.data(user);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> signInWithGoogle() async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _repository.signInWithGoogle(UserRole.driver);
+      state = AsyncValue.data(user);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> signInWithApple() async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _repository.signInWithApple(UserRole.driver);
+      state = AsyncValue.data(user);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      rethrow;
+    }
+  }
+
+  Future<void> signUp({
+    required String email,
+    required String password,
+    required String fullName,
+    required String phone,
+    String? vehiclePlate,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final user = await _repository.signUpWithEmail(
+        email: email,
+        password: password,
+        fullName: fullName,
+        phone: phone,
+        role: UserRole.driver,
+        vehiclePlate: vehiclePlate,
+      );
       state = AsyncValue.data(user);
     } catch (e, st) {
       state = AsyncValue.error(e, st);

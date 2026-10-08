@@ -419,6 +419,20 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
       await repo.sendAlarmToDrivers(requestId, _selectedDriverIds);
 
+      // Çevredeki (30 km) offline sürücülere tatlı hatırlatma bildirimi gönder
+      try {
+        final offlineDriverIds = await repo.findNearbyOfflineDrivers(
+          _selectedLatLng.latitude,
+          _selectedLatLng.longitude,
+          radiusKm: 30.0,
+        );
+        if (offlineDriverIds.isNotEmpty) {
+          repo.notifyOfflineDrivers(requestId, offlineDriverIds);
+        }
+      } catch (e) {
+        debugPrint('Offline sürücü bildirimi hatası: $e');
+      }
+
       if (!mounted) return;
       context.go('/customer/tracking/$requestId');
     } catch (e) {

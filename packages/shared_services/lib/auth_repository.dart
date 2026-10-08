@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart' hide User;
+import 'package:firebase_auth/firebase_auth.dart' hide User, OAuthProvider;
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_models/user_role.dart';
 import 'package:shared_models/user_model.dart';
@@ -10,9 +16,6 @@ import 'supabase_service.dart';
 
 class AuthRepository {
   final SupabaseClient _client = SupabaseService.instance.client;
-  static String? _verificationId;
-  static int? _resendToken;
-  static ConfirmationResult? _webConfirmationResult;
 
   Future<UserModel> signInWithEmail(String email, String password) async {
     final response = await _client.auth.signInWithPassword(
@@ -53,56 +56,222 @@ class AuthRepository {
     String? vehiclePlate,
   }) async {
     final response = await _client.auth.signUp(
-      email: email,
+      email: email.trim(),
       password: password,
       data: {
-        'full_name': fullName,
-        'phone': phone,
+        'full_name': fullName.trim(),
+        'phone': phone.trim(),
         'role': role.dbValue,
-        if (vehiclePlate != null) 'vehicle_plate': vehiclePlate,
+        if (vehiclePlate != null) 'vehicle_plate': vehiclePlate.trim(),
       },
     );
 
     final user = response.user;
     if (user == null) {
-      throw Exception('Kayıt oluşturulamadı.');
+      throw Exception('Kayıt oluşturulamadı. Lütfen bilgilerinizi kontrol ediniz.');
+    }
+
+    // Ensure database profile is created immediately
+    try {
+      await _client.from('profiles').upsert({
+        'id': user.id,
+        'email': email.trim(),
+        'full_name': fullName.trim(),
+        'phone': phone.trim(),
+        'role': role.dbValue,
+        'is_verified': false,
+      }, onConflict: 'id');
+
+      if (role == UserRole.driver) {
+        await _client.from('drivers').upsert({
+          'id': user.id,
+          'vehicle_plate': vehiclePlate?.trim() ?? '',
+          'is_onboarding_completed': false,
+          'is_verified': false,
+        }, onConflict: 'id');
+      }
+    } catch (e) {
+      debugPrint('signUpWithEmail profile upsert notice: $e');
     }
 
     final userModel = UserModel(
       id: user.id,
-      email: email,
-      fullName: fullName,
-      phone: phone,
+      email: email.trim(),
+      fullName: fullName.trim(),
+      phone: phone.trim(),
       role: role,
       createdAt: DateTime.now(),
+      isProfileComplete: fullName.trim().isNotEmpty,
     );
 
     if (role == UserRole.driver && vehiclePlate != null) {
       return DriverModel(
         id: user.id,
-        email: email,
-        fullName: fullName,
-        phone: phone,
+        email: email.trim(),
+        fullName: fullName.trim(),
+        phone: phone.trim(),
         role: role,
         createdAt: DateTime.now(),
-        vehiclePlate: vehiclePlate,
+        vehiclePlate: vehiclePlate.trim(),
+        isProfileComplete: fullName.trim().isNotEmpty,
       );
     }
 
     return userModel;
   }
 
+  Future<UserModel> signInWithGoogle(UserRole role) async {
+    final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+    final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID'];
+
+    final GoogleSignIn googleSignIn = GoogleSignIn(
+      clientId: (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) ? iosClientId : null,
+      serverClientId: webClientId,
+      scopes: const ['email', 'profile'],
+    );
+
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw Exception('Google ile giriş işlemi iptal edildi.');
+    }
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final idToken = googleAuth.idToken;
+    final accessToken = googleAuth.accessToken;
+
+    if (idToken == null) {
+      throw Exception('Google kimlik belirteci (ID Token) alınamadı. Lütfen Web Client ID ayarlarını kontrol ediniz.');
+    }
+
+    final response = await _client.auth.signInWithIdToken(
+      provider: OAuthProvider.google,
+      idToken: idToken,
+      accessToken: accessToken,
+    );
+
+    final user = response.user;
+    if (user == null) {
+      throw Exception('Google ile oturum açılamadı.');
+    }
+
+    return await _ensureProfileAfterOAuth(
+      user: user,
+      role: role,
+      defaultFullName: googleUser.displayName ?? '',
+      defaultEmail: googleUser.email,
+      avatarUrl: googleUser.photoUrl,
+    );
+  }
+
+  Future<UserModel> signInWithApple(UserRole role) async {
+    final rawNonce = _client.auth.generateRawNonce();
+    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
+
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+      nonce: hashedNonce,
+    );
+
+    final idToken = credential.identityToken;
+    if (idToken == null) {
+      throw Exception('Apple kimlik belirteci alınamadı.');
+    }
+
+    final response = await _client.auth.signInWithIdToken(
+      provider: OAuthProvider.apple,
+      idToken: idToken,
+      nonce: rawNonce,
+    );
+
+    final user = response.user;
+    if (user == null) {
+      throw Exception('Apple ile oturum açılamadı.');
+    }
+
+    String appleFullName = '';
+    if (credential.givenName != null || credential.familyName != null) {
+      appleFullName = '${credential.givenName ?? ''} ${credential.familyName ?? ''}'.trim();
+    }
+
+    return await _ensureProfileAfterOAuth(
+      user: user,
+      role: role,
+      defaultFullName: appleFullName,
+      defaultEmail: credential.email ?? user.email ?? '',
+    );
+  }
+
+  Future<UserModel> _ensureProfileAfterOAuth({
+    required User user,
+    required UserRole role,
+    required String defaultFullName,
+    required String defaultEmail,
+    String? avatarUrl,
+  }) async {
+    Map<String, dynamic>? profileData = await _client
+        .from('profiles')
+        .select()
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (profileData == null) {
+      final metaName = (user.userMetadata?['full_name'] ?? user.userMetadata?['name']) as String? ?? '';
+      final name = defaultFullName.isNotEmpty ? defaultFullName : metaName;
+      final email = defaultEmail.isNotEmpty ? defaultEmail : (user.email ?? '');
+
+      await _client.from('profiles').upsert({
+        'id': user.id,
+        'email': email,
+        'full_name': name,
+        'phone': user.phone ?? (user.userMetadata?['phone'] as String? ?? ''),
+        'role': role.dbValue,
+        'avatar_url': avatarUrl ?? (user.userMetadata?['avatar_url'] as String?),
+        'is_verified': false,
+      }, onConflict: 'id');
+
+      if (role == UserRole.driver) {
+        await _client.from('drivers').upsert({
+          'id': user.id,
+          'vehicle_plate': '',
+          'is_onboarding_completed': false,
+          'is_verified': false,
+        }, onConflict: 'id');
+      }
+    } else {
+      final currentName = profileData['full_name'] as String? ?? '';
+      final updates = <String, dynamic>{};
+      if (currentName.isEmpty && defaultFullName.isNotEmpty) {
+        updates['full_name'] = defaultFullName;
+      }
+      if (profileData['avatar_url'] == null && avatarUrl != null) {
+        updates['avatar_url'] = avatarUrl;
+      }
+      if (updates.isNotEmpty) {
+        await _client.from('profiles').update(updates).eq('id', user.id);
+      }
+    }
+
+    final userModel = await getCurrentUser(role);
+    if (userModel == null) {
+      throw Exception('Kullanıcı profili alınamadı.');
+    }
+    return userModel;
+  }
+
   Future<void> sendPasswordResetOTP(String email) async {
     await _client.auth.resetPasswordForEmail(
-      email,
+      email.trim(),
       redirectTo: 'io.supabase.cekici://login-callback',
     );
   }
 
   Future<void> verifyOTP(String email, String token) async {
     await _client.auth.verifyOTP(
-      email: email,
-      token: token,
+      email: email.trim(),
+      token: token.trim(),
       type: OtpType.recovery,
     );
   }
@@ -114,6 +283,12 @@ class AuthRepository {
   }
 
   Future<void> signOut() async {
+    try {
+      final googleSignIn = GoogleSignIn();
+      if (await googleSignIn.isSignedIn()) {
+        await googleSignIn.signOut();
+      }
+    } catch (_) {}
     try {
       await FirebaseAuth.instance.signOut();
     } catch (_) {}
@@ -240,203 +415,14 @@ class AuthRepository {
     return userModel;
   }
 
-  String _mapFirebaseError(FirebaseAuthException e) {
-    debugPrint('Firebase Auth Error: ${e.code} - ${e.message}');
-    switch (e.code) {
-      case 'invalid-phone-number':
-        return 'Geçersiz telefon numarası girdiniz.';
-      case 'invalid-verification-code':
-        return 'Girdiğiniz doğrulama kodu hatalı. Lütfen kontrol ediniz.';
-      case 'session-expired':
-        return 'Doğrulama kodunun geçerlilik süresi doldu. Lütfen yeni bir kod isteyiniz.';
-      case 'too-many-requests':
-        return 'Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyiniz.';
-      case 'quota-exceeded':
-        return 'SMS gönderim kotası aşıldı. Lütfen daha sonra tekrar deneyiniz.';
-      case 'network-request-failed':
-        return 'İnternet bağlantınızı kontrol ediniz.';
-      default:
-        return e.message ?? 'Doğrulama sırasında bir hata oluştu.';
-    }
-  }
-
+  @Deprecated('SMS ile giriş devre dışı bırakılmıştır.')
   Future<void> signInWithPhone(String phone) async {
-    final cleanDigits = phone.replaceAll(RegExp(r'\D'), '');
-    if (cleanDigits.length < 10) {
-      throw Exception('Lütfen telefon numaranızı 10 hane olarak eksiksiz giriniz (Örn: 5551234567).');
-    }
-    var normalizedPhone = phone.trim();
-    if (!normalizedPhone.startsWith('+')) {
-      if (normalizedPhone.startsWith('0')) {
-        normalizedPhone = '+90${normalizedPhone.substring(1)}';
-      } else if (normalizedPhone.startsWith('90')) {
-        normalizedPhone = '+$normalizedPhone';
-      } else {
-        normalizedPhone = '+90$normalizedPhone';
-      }
-    }
-
-    if (kIsWeb) {
-      try {
-        _webConfirmationResult = await FirebaseAuth.instance.signInWithPhoneNumber(normalizedPhone);
-        return;
-      } on FirebaseAuthException catch (e) {
-        throw Exception(_mapFirebaseError(e));
-      }
-    }
-
-    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-      String? apnsToken;
-      for (int i = 0; i < 10; i++) {
-        apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-        if (apnsToken != null) break;
-        await Future.delayed(const Duration(seconds: 1));
-      }
-      debugPrint('iOS APNs Token durumu (verifyPhoneNumber öncesi): $apnsToken');
-      if (apnsToken == null) {
-        // APNs token alınamadı: bildirim izni kapalı olabilir veya ağ sorunu var.
-        // Firebase'e null token ile gidersek native SDK crash verir (uiDelegate nil).
-        // Crash önlemek için burada kontrollü hata fırlatıyoruz.
-        throw Exception(
-          'SMS doğrulama için bildirim izni gereklidir. '
-          'Lütfen uygulama ayarlarından bildirimlere izin verin ve tekrar deneyin.',
-        );
-      }
-    }
-
-
-    final completer = Completer<void>();
-
-    try {
-      await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: normalizedPhone,
-        timeout: const Duration(seconds: 60),
-        forceResendingToken: _resendToken,
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          // Kullanıcının kodu ekrana kendi eliyle yazması için otomatik girişi devre dışı bırakıyoruz.
-          // Kod gelince ekranda beklenir, kullanıcı 6 haneli kodu yazıp 'Doğrula' butonuna basar.
-          debugPrint('SMS otomatik algılandı, ancak kullanıcının kodu elle girmesi bekleniyor.');
-        },
-        verificationFailed: (FirebaseAuthException e) async {
-          debugPrint('verifyPhoneNumber verificationFailed: ${e.code} - ${e.message}');
-          // If Play Integrity or app authorization fails, attempt web / recaptcha fallback
-          final isIntegrityError = e.code == 'app-not-authorized' ||
-              e.message?.contains('play_integrity') == true ||
-              e.message?.contains('SHA-256') == true;
-
-          if (isIntegrityError) {
-            try {
-              debugPrint('Attempting signInWithPhoneNumber web/recaptcha fallback...');
-              _webConfirmationResult = await FirebaseAuth.instance.signInWithPhoneNumber(normalizedPhone);
-              if (!completer.isCompleted) {
-                completer.complete();
-              }
-              return;
-            } catch (fallbackErr) {
-              debugPrint('Fallback signInWithPhoneNumber failed: $fallbackErr');
-            }
-          }
-
-          if (!completer.isCompleted) {
-            completer.completeError(Exception(_mapFirebaseError(e)));
-          }
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          _verificationId = verificationId;
-          _resendToken = resendToken;
-          if (!completer.isCompleted) {
-            completer.complete();
-          }
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {
-          _verificationId = verificationId;
-        },
-      );
-    } catch (e) {
-      if (!completer.isCompleted) {
-        completer.completeError(e);
-      }
-    }
-
-    return completer.future;
+    throw Exception('SMS ile giriş devre dışı bırakılmıştır. Lütfen E-posta, Google veya Apple ile giriş yapınız.');
   }
 
+  @Deprecated('SMS ile giriş devre dışı bırakılmıştır.')
   Future<void> verifyPhoneOTP(String phone, String token) async {
-    var normalizedPhone = phone.trim();
-    if (!normalizedPhone.startsWith('+')) {
-      if (normalizedPhone.startsWith('0')) {
-        normalizedPhone = '+90${normalizedPhone.substring(1)}';
-      } else if (normalizedPhone.startsWith('90')) {
-        normalizedPhone = '+$normalizedPhone';
-      } else {
-        normalizedPhone = '+90$normalizedPhone';
-      }
-    }
-
-    if (_webConfirmationResult != null) {
-      try {
-        await _webConfirmationResult!.confirm(token.trim());
-      } on FirebaseAuthException catch (e) {
-        throw Exception(_mapFirebaseError(e));
-      }
-    } else {
-      if (_verificationId == null) {
-        throw Exception('SMS oturumu bulunamadı. Lütfen tekrar kod isteyiniz.');
-      }
-      try {
-        final credential = PhoneAuthProvider.credential(
-          verificationId: _verificationId!,
-          smsCode: token.trim(),
-        );
-        await FirebaseAuth.instance.signInWithCredential(credential);
-      } on FirebaseAuthException catch (e) {
-        throw Exception(_mapFirebaseError(e));
-      }
-    }
-
-    // Firebase SMS onaylandı; Supabase veritabanı oturumunu senkronize et
-    await _syncFirebaseWithSupabase(normalizedPhone);
-  }
-
-  Future<void> _syncFirebaseWithSupabase(String normalizedPhone) async {
-    final cleanDigits = normalizedPhone.replaceAll(RegExp(r'\D'), '');
-    final email = 'phone_$cleanDigits@cekiciapp.com';
-    final password = 'CekiciAuth!_${cleanDigits}_Secure2026#';
-
-    try {
-      await _client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-    } on AuthException catch (e) {
-      final errorMsg = e.message.toLowerCase();
-      if (errorMsg.contains('invalid login credentials') ||
-          errorMsg.contains('invalid_grant') ||
-          e.statusCode == '400') {
-        try {
-          final res = await _client.auth.signUp(
-            email: email,
-            password: password,
-            data: {
-              'phone': normalizedPhone,
-              'role': 'customer',
-            },
-          );
-          if (res.session == null) {
-            await _client.auth.signInWithPassword(
-              email: email,
-              password: password,
-            );
-          }
-        } catch (signUpErr) {
-          debugPrint('Supabase signUp error during phone sync: $signUpErr');
-          rethrow;
-        }
-      } else {
-        debugPrint('Supabase signIn error during phone sync: $e');
-        rethrow;
-      }
-    }
+    throw Exception('SMS ile doğrulama devre dışı bırakılmıştır. Lütfen E-posta, Google veya Apple ile giriş yapınız.');
   }
 
   Future<UserModel> createUserProfile({

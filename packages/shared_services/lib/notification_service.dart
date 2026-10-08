@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'auth_repository.dart';
 
 class NotificationService {
@@ -14,6 +16,7 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
+    tz.initializeTimeZones();
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -200,5 +203,127 @@ class NotificationService {
       notificationDetails,
       payload: payload,
     );
+  }
+
+  static const int _driver3DayNotificationId = 88883;
+  static const int _driver7DayNotificationId = 88887;
+  static const int _customer7DayNotificationId = 77777;
+
+  /// Sürücü uygulamayı kullanmadığında 3. gün ve 7. günde tetiklenecek 2 ayrı bildirim planlar.
+  Future<void> scheduleDriverInactivityReminders() async {
+    try {
+      await _flutterLocalNotificationsPlugin.cancel(_driver3DayNotificationId);
+      await _flutterLocalNotificationsPlugin.cancel(_driver7DayNotificationId);
+
+      const androidDetails = AndroidNotificationDetails(
+        'cekici_alerts_v2',
+        'Çekici Bildirimleri',
+        channelDescription: 'Sürücü hatırlatma bildirimleri',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        presentBanner: true,
+      );
+
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      // 3. Gün Bildirimi
+      final date3Days = tz.TZDateTime.now(tz.local).add(const Duration(days: 3));
+      await _flutterLocalNotificationsPlugin.zonedSchedule(
+        _driver3DayNotificationId,
+        'Hadi iş vakti! 🚜',
+        'Çevrende talepler artıyor! Hemen çevrimiçi ol ve kazanmaya başla 💰',
+        date3Days,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+
+      // 7. Gün Bildirimi (1 Hafta)
+      final date7Days = tz.TZDateTime.now(tz.local).add(const Duration(days: 7));
+      await _flutterLocalNotificationsPlugin.zonedSchedule(
+        _driver7DayNotificationId,
+        'Seni özledik! 🚜',
+        'Çevrendeki çekici ve yol yardım fırsatlarını kaçırmamak için hemen giriş yap!',
+        date7Days,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+
+      debugPrint('Driver inactivity notifications scheduled for: 3d ($date3Days), 7d ($date7Days)');
+    } catch (e) {
+      debugPrint('Error scheduling driver inactivity notifications: $e');
+    }
+  }
+
+  /// Müşteri uygulamayı 7 gün boyunca açmadığında tetiklenen hatırlatma bildirimi.
+  Future<void> scheduleCustomerInactivityReminder() async {
+    try {
+      await _flutterLocalNotificationsPlugin.cancel(_customer7DayNotificationId);
+
+      const androidDetails = AndroidNotificationDetails(
+        'cekici_alerts_v2',
+        'Çekici Bildirimleri',
+        channelDescription: 'Müşteri hatırlatma bildirimleri',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        presentBanner: true,
+      );
+
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
+
+      final date7Days = tz.TZDateTime.now(tz.local).add(const Duration(days: 7));
+      await _flutterLocalNotificationsPlugin.zonedSchedule(
+        _customer7DayNotificationId,
+        'Çekici veya Yol Yardımı Lazım mı? 🚗',
+        'Çekicim her an yanında! Aracınla ilgili bir yardıma ihtiyacın olursa tek tıkla ulaşabilirsin.',
+        date7Days,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+      );
+
+      debugPrint('Customer 7-day reminder scheduled for: $date7Days');
+    } catch (e) {
+      debugPrint('Error scheduling customer inactivity notification: $e');
+    }
+  }
+
+  /// Geriye dönük uyumluluk için eski metot çağrılarını sürdürüyoruz.
+  Future<void> scheduleInactivityReminder({int days = 3}) async {
+    await scheduleDriverInactivityReminders();
+  }
+
+  Future<void> cancelInactivityReminder() async {
+    try {
+      await _flutterLocalNotificationsPlugin.cancel(_driver3DayNotificationId);
+      await _flutterLocalNotificationsPlugin.cancel(_driver7DayNotificationId);
+      await _flutterLocalNotificationsPlugin.cancel(_customer7DayNotificationId);
+    } catch (e) {
+      debugPrint('Error canceling inactivity notifications: $e');
+    }
   }
 }

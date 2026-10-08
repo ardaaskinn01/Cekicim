@@ -8,7 +8,6 @@ import '../../presentation/splash_screen.dart';
 import '../../presentation/auth/login_screen.dart';
 import '../../presentation/auth/register_screen.dart';
 import '../../presentation/auth/forgot_password_screen.dart';
-import '../../presentation/auth/verify_otp_screen.dart';
 import '../../presentation/auth/reset_password_screen.dart';
 import '../../presentation/auth/driver_onboarding_screen.dart';
 import '../../presentation/driver/driver_home_screen.dart';
@@ -44,8 +43,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final isSplashing = state.uri.path == '/splash';
       final isAuthRoute = state.uri.path.startsWith('/login') ||
+          state.uri.path.startsWith('/register') ||
           state.uri.path.startsWith('/forgot-password') ||
-          state.uri.path.startsWith('/verify-otp') ||
           state.uri.path.startsWith('/reset-password');
 
       if (isSplashing) return null;
@@ -67,7 +66,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           final userModel = currentUserAsync.value;
           if (userModel == null || !userModel.isProfileComplete) {
             // Profile is missing, redirect to registration/complete profile screen
-            if (state.uri.path != '/register' && state.uri.path != '/verify-otp') {
+            if (state.uri.path != '/register') {
               return '/register';
             }
             return null;
@@ -101,13 +100,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
-      GoRoute(
-        path: '/verify-otp',
-        builder: (context, state) {
-          final phone = state.uri.queryParameters['phone'] ?? '';
-          return VerifyOtpScreen(phone: phone);
-        },
-      ),
       GoRoute(path: '/reset-password', builder: (context, state) => const ResetPasswordScreen()),
       GoRoute(path: '/driver/onboarding', builder: (context, state) => const DriverOnboardingScreen()),
       GoRoute(path: '/driver', builder: (context, state) => const DriverHomeScreen()),

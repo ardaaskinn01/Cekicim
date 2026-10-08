@@ -326,6 +326,61 @@ class RequestRepository {
     return response['id'] as String;
   }
 
+  Future<List<String>> findNearbyOfflineDrivers(
+    double lat,
+    double lng, {
+    double radiusKm = 30.0,
+  }) async {
+    try {
+      final response = await _client.from('drivers').select('''
+        id,
+        latitude,
+        longitude,
+        is_online,
+        is_verified,
+        profiles!inner (
+          id,
+          is_suspended
+        )
+      ''').eq('is_online', false).eq('is_verified', true);
+
+      final List<String> offlineIds = [];
+      for (final d in response as List<dynamic>) {
+        final profile = d['profiles'] as Map<String, dynamic>?;
+        if (profile == null) continue;
+        if (profile['is_suspended'] == true) continue;
+
+        final driverLat = (d['latitude'] as num?)?.toDouble();
+        final driverLng = (d['longitude'] as num?)?.toDouble();
+
+        if (driverLat != null && driverLng != null) {
+          final dist = LocationUtils.distanceBetween(lat, lng, driverLat, driverLng);
+          if (dist <= radiusKm) {
+            offlineIds.add(profile['id'] as String);
+          }
+        }
+      }
+      return offlineIds;
+    } catch (e) {
+      debugPrint('Error finding nearby offline drivers: $e');
+      return [];
+    }
+  }
+
+  Future<void> notifyOfflineDrivers(String requestId, List<String> offlineDriverIds) async {
+    if (offlineDriverIds.isEmpty) return;
+    try {
+      await _client.functions.invoke('send_driver_alarms', body: {
+        'request_id': requestId,
+        'driver_ids': offlineDriverIds,
+        'notification_type': 'OFFLINE_DRIVER_REMINDER',
+      });
+      debugPrint('Notified ${offlineDriverIds.length} offline drivers about request $requestId');
+    } catch (e) {
+      debugPrint('Warning: Failed to notify offline drivers: $e');
+    }
+  }
+
   Future<void> sendAlarmToDrivers(String requestId, List<String> driverIds) async {
     if (driverIds.isEmpty) {
       throw Exception('Yakında müsait çekici sürücüsü bulunamadı.');
@@ -354,12 +409,9 @@ class RequestRepository {
 
       if (res.status != 200 && res.status != 201) {
         debugPrint('FCM Edge Function Error Response Status: ${res.status}');
-        // Push notification failed — log warning but keep realtime offers active
       }
     } catch (e) {
       debugPrint('Warning: Failed to invoke send_driver_alarms edge function: $e');
-      // Even if background push fails, realtime pending_offers are inserted.
-      // Log explicit warning so service degradation is traceable.
     }
   }
 
