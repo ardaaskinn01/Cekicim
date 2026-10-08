@@ -10,6 +10,7 @@ import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/social_auth_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
+import 'package:shared_ui/widgets/legal_consent_sheet.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -59,14 +60,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _handlePostSocialLoginSuccess() async {
+    final consentAccepted = await LegalConsentSheet.show(context);
+    if (!consentAccepted) {
+      await ref.read(authNotifierProvider.notifier).signOut();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Yasal şartlar onaylanmadığı için giriş işlemi tamamlanamadı.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    ref.invalidate(currentUserProvider);
+    context.go('/driver');
+  }
+
   Future<void> _handleGoogleLogin() async {
     setState(() => _isGoogleLoading = true);
     try {
       await ref.read(authNotifierProvider.notifier).signInWithGoogle();
 
       if (!mounted) return;
-      ref.invalidate(currentUserProvider);
-      context.go('/driver');
+      await _handlePostSocialLoginSuccess();
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
@@ -89,8 +109,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authNotifierProvider.notifier).signInWithApple();
 
       if (!mounted) return;
-      ref.invalidate(currentUserProvider);
-      context.go('/driver');
+      await _handlePostSocialLoginSuccess();
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString().toLowerCase();
@@ -167,7 +186,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     AppTextField(
                       controller: _emailController,
                       label: 'E-posta Adresi',
-                      hint: 'surucu@email.com',
+                      hint: '',
                       prefixIcon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       validator: (val) {
@@ -182,7 +201,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     AppTextField(
                       controller: _passwordController,
                       label: 'Şifre',
-                      hint: '••••••••',
+                      hint: '',
                       prefixIcon: Icons.lock_outline,
                       isPassword: true,
                       validator: (val) {

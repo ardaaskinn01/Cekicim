@@ -150,7 +150,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   AppTextField(
                     controller: _fullNameController,
                     label: 'Ad Soyad',
-                    hint: 'Mehmet Demir',
+                    hint: '',
                     prefixIcon: Icons.person_outline,
                     validator: (val) => val == null || val.trim().isEmpty ? 'Ad soyad gereklidir' : null,
                   ),
@@ -160,7 +160,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   AppTextField(
                     controller: _plateController,
                     label: 'Çekici Araç Plakası',
-                    hint: '34 ABC 123',
+                    hint: '',
                     prefixIcon: Icons.local_shipping_outlined,
                     textCapitalization: TextCapitalization.characters,
                     validator: (val) {
@@ -174,7 +174,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   AppTextField(
                     controller: _phoneController,
                     label: 'İletişim Telefon Numarası',
-                    hint: '0555 123 4567',
+                    hint: '',
                     prefixIcon: Icons.phone_android_outlined,
                     keyboardType: TextInputType.phone,
                     validator: (val) {
@@ -190,7 +190,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   AppTextField(
                     controller: _emailController,
                     label: 'E-posta Adresi',
-                    hint: 'surucu@email.com',
+                    hint: '',
                     prefixIcon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
                     readOnly: _isCompletingProfile && _emailController.text.isNotEmpty,
@@ -207,7 +207,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     AppTextField(
                       controller: _passwordController,
                       label: 'Şifre',
-                      hint: 'En az 6 karakter',
+                      hint: '',
                       prefixIcon: Icons.lock_outline,
                       isPassword: true,
                       validator: (val) {

@@ -189,7 +189,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     AppTextField(
                       controller: _passwordController,
                       label: 'Şifre',
-                      hint: 'En az 6 karakter',
+                      hint: '',
                       prefixIcon: Icons.lock_outline,
                       isPassword: true,
                       validator: (val) {
