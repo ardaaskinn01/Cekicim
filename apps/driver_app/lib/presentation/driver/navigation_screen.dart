@@ -729,17 +729,15 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                                 ),
                                 const SizedBox(width: 8),
                               ],
-                              if (req.customerPhone != null) ...[
-                                IconButton(
-                                  icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
-                                  onPressed: () => context.push('/driver/chat/${req.id}'),
-                                ),
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  icon: const Icon(Icons.phone_in_talk, color: AppColors.accent, size: 28),
-                                  onPressed: () => context.push('/driver/call/${req.id}?initiator=true'),
-                                ),
-                              ],
+                              IconButton(
+                                icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
+                                onPressed: () => context.push('/driver/chat/${req.id}'),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.phone_in_talk, color: AppColors.accent, size: 28),
+                                onPressed: () => context.push('/driver/call/${req.id}?initiator=true'),
+                              ),
                             ],
                           ),
                         ],

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -132,56 +133,233 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
   final ImagePicker _picker = ImagePicker();
 
-  Future<void> _pickImage(String docType) async {
+  void _setDocumentFile(String docType, XFile file) {
+    setState(() {
+      switch (docType) {
+        case 'license':
+          _driverLicense = file;
+          break;
+        case 'registration':
+          _vehicleRegistration = file;
+          break;
+        case 'tax_plate':
+          _taxPlate = file;
+          break;
+        case 'criminal':
+          _criminalRecord = file;
+          break;
+        case 'photo_front':
+          _photoFront = file;
+          break;
+        case 'photo_back':
+          _photoBack = file;
+          break;
+        case 'photo_left':
+          _photoLeft = file;
+          break;
+        case 'photo_right':
+          _photoRight = file;
+          break;
+      }
+    });
+  }
+
+  Future<void> _pickImage(String docType, {ImageSource source = ImageSource.camera}) async {
     try {
       final XFile? image = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 80,
-        maxWidth: 1080,
-        maxHeight: 1920,
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
       );
 
       if (image == null) return;
-
-      setState(() {
-        switch (docType) {
-          case 'license':
-            _driverLicense = image;
-            break;
-
-          case 'registration':
-            _vehicleRegistration = image;
-            break;
-          case 'tax_plate':
-            _taxPlate = image;
-            break;
-          case 'criminal':
-            _criminalRecord = image;
-            break;
-          case 'photo_front':
-            _photoFront = image;
-            break;
-          case 'photo_back':
-            _photoBack = image;
-            break;
-          case 'photo_left':
-            _photoLeft = image;
-            break;
-          case 'photo_right':
-            _photoRight = image;
-            break;
-        }
-      });
+      _setDocumentFile(docType, image);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hata oluştu: $e'), backgroundColor: AppColors.error),
+        SnackBar(content: Text('Görsel seçilirken hata oluştu: $e'), backgroundColor: AppColors.error),
       );
     }
   }
 
+  Future<void> _pickDocumentFile(String docType) async {
+    try {
+      final FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg'],
+      );
+
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      if (file.path == null) return;
+
+      _setDocumentFile(docType, XFile(file.path!, name: file.name));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Dosya seçilirken hata oluştu: $e'), backgroundColor: AppColors.error),
+      );
+    }
+  }
+
+  void _showDocumentSourceSheet(String docType, String docTitle) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Text(
+                  docTitle,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Belgeyi nasıl yüklemek istersiniz?',
+                  style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.picture_as_pdf_outlined, color: AppColors.primary),
+                  ),
+                  title: const Text('Dosya / PDF Seç', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Cihazınızdaki PDF veya belge dosyası (Örn: E-Devlet)', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickDocumentFile(docType);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+                  ),
+                  title: const Text('Galeriden Seç', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Daha önce çektiğiniz bir fotoğrafı yükleyin', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(docType, source: ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
+                  ),
+                  title: const Text('Kamerayla Çek', style: TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: const Text('Şimdi yeni bir fotoğraf çekin', style: TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(docType, source: ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showPhotoSourceSheet(String docType, String docTitle) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Text(
+                  docTitle,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
+                  title: const Text('Kamerayla Çek', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(docType, source: ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
+                  title: const Text('Galeriden Seç', style: TextStyle(fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(docType, source: ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildDocTile(String title, XFile? file, String docType, {bool isRequired = true}) {
     final hasFile = file != null;
+    final isPdf = hasFile && file.name.toLowerCase().endsWith('.pdf');
     return Card(
       color: AppColors.cardBackground,
       margin: const EdgeInsets.only(bottom: 12),
@@ -193,6 +371,21 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
+            if (hasFile) ...[
+              Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: isPdf ? Colors.red.withValues(alpha: 0.15) : AppColors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isPdf ? Icons.picture_as_pdf : Icons.image,
+                  color: isPdf ? Colors.redAccent : AppColors.primary,
+                  size: 22,
+                ),
+              ),
+            ],
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,7 +397,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    hasFile ? file.name : 'Seçilmedi',
+                    hasFile ? file.name : 'Seçilmedi (PDF veya Fotoğraf)',
                     style: TextStyle(
                       color: hasFile ? AppColors.primary : AppColors.textSecondary,
                       fontSize: 12,
@@ -241,16 +434,17 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
                 ],
               )
             else
-              ElevatedButton(
-                onPressed: () => _pickImage(docType),
+              ElevatedButton.icon(
+                onPressed: () => _showDocumentSourceSheet(docType, title),
+                icon: const Icon(Icons.file_upload_outlined, size: 16),
+                label: const Text('Yükle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  minimumSize: const Size(80, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  minimumSize: const Size(88, 36),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Yükle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
               ),
           ],
         ),
@@ -260,7 +454,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
 
   Widget _buildPhotoBox(String label, XFile? file, String key) {
     return GestureDetector(
-      onTap: () => _pickImage(key),
+      onTap: () => _showPhotoSourceSheet(key, label),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.cardBackground,
@@ -368,6 +562,13 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
               vehiclePlate: Supabase.instance.client.auth.currentUser?.userMetadata?['vehicle_plate'] as String? ?? '06ANK06',
             );
 
+      // Helper to determine filename with proper extension (.pdf, .png, .jpg, etc.)
+      String getDocFileName(String base, XFile file) {
+        final name = file.name.toLowerCase();
+        final ext = name.contains('.') ? name.split('.').last : 'jpg';
+        return '$base.$ext';
+      }
+
       // Require mandatory documents (must have selected file or existing valid URL)
       String licenseUrl = (driver.driverLicenseUrl != null && driver.driverLicenseUrl!.isNotEmpty && !driver.driverLicenseUrl!.contains('picsum'))
           ? driver.driverLicenseUrl!
@@ -378,7 +579,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         licenseUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'license',
-          fileName: 'license.jpg',
+          fileName: getDocFileName('license', _driverLicense!),
           fileBytes: await _driverLicense!.readAsBytes(),
         );
       }
@@ -393,7 +594,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         registrationUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'registration',
-          fileName: 'registration.jpg',
+          fileName: getDocFileName('registration', _vehicleRegistration!),
           fileBytes: await _vehicleRegistration!.readAsBytes(),
         );
       }
@@ -408,7 +609,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         criminalUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'criminal',
-          fileName: 'criminal.jpg',
+          fileName: getDocFileName('criminal', _criminalRecord!),
           fileBytes: await _criminalRecord!.readAsBytes(),
         );
       }
@@ -423,7 +624,7 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         taxUrl = await repo.uploadDriverDocument(
           driverId: driver.id,
           documentType: 'tax_plate',
-          fileName: 'tax_plate.jpg',
+          fileName: getDocFileName('tax_plate', _taxPlate!),
           fileBytes: await _taxPlate!.readAsBytes(),
         );
       }

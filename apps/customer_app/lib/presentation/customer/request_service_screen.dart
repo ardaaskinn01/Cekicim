@@ -411,7 +411,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         tollFee: _tollFee,
         status: RequestStatus.awaitingAcceptance,
         createdAt: DateTime.now(),
-        customerPhone: user.phone ?? '08501234567',
+        customerPhone: (user.phone != null && user.phone!.isNotEmpty) ? user.phone! : '08501234567',
         completionCode: random,
       );
 

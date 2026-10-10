@@ -51,16 +51,17 @@ class AuthRepository {
     required String email,
     required String password,
     required String fullName,
-    required String phone,
+    String? phone,
     required UserRole role,
     String? vehiclePlate,
   }) async {
+    final cleanPhone = phone?.trim();
     final response = await _client.auth.signUp(
       email: email.trim(),
       password: password,
       data: {
         'full_name': fullName.trim(),
-        'phone': phone.trim(),
+        if (cleanPhone != null && cleanPhone.isNotEmpty) 'phone': cleanPhone,
         'role': role.dbValue,
         if (vehiclePlate != null) 'vehicle_plate': vehiclePlate.trim(),
       },
@@ -77,7 +78,7 @@ class AuthRepository {
         'id': user.id,
         'email': email.trim(),
         'full_name': fullName.trim(),
-        'phone': phone.trim(),
+        if (cleanPhone != null && cleanPhone.isNotEmpty) 'phone': cleanPhone,
         'role': role.dbValue,
         'is_verified': false,
       }, onConflict: 'id');
@@ -98,7 +99,7 @@ class AuthRepository {
       id: user.id,
       email: email.trim(),
       fullName: fullName.trim(),
-      phone: phone.trim(),
+      phone: (cleanPhone != null && cleanPhone.isNotEmpty) ? cleanPhone : null,
       role: role,
       createdAt: DateTime.now(),
       isProfileComplete: fullName.trim().isNotEmpty,
@@ -109,7 +110,7 @@ class AuthRepository {
         id: user.id,
         email: email.trim(),
         fullName: fullName.trim(),
-        phone: phone.trim(),
+        phone: (cleanPhone != null && cleanPhone.isNotEmpty) ? cleanPhone : null,
         role: role,
         createdAt: DateTime.now(),
         vehiclePlate: vehiclePlate.trim(),
@@ -427,7 +428,7 @@ class AuthRepository {
 
   Future<UserModel> createUserProfile({
     required String fullName,
-    required String phone,
+    String? phone,
     required UserRole role,
     String? vehiclePlate,
     String? email,
@@ -437,14 +438,17 @@ class AuthRepository {
       throw Exception('Oturum bulunamadı.');
     }
 
-    var normalizedPhone = phone.trim();
-    if (!normalizedPhone.startsWith('+')) {
-      if (normalizedPhone.startsWith('0')) {
-        normalizedPhone = '+90${normalizedPhone.substring(1)}';
-      } else if (normalizedPhone.startsWith('90')) {
-        normalizedPhone = '+$normalizedPhone';
-      } else {
-        normalizedPhone = '+90$normalizedPhone';
+    String? normalizedPhone;
+    if (phone != null && phone.trim().isNotEmpty) {
+      normalizedPhone = phone.trim();
+      if (!normalizedPhone.startsWith('+')) {
+        if (normalizedPhone.startsWith('0')) {
+          normalizedPhone = '+90${normalizedPhone.substring(1)}';
+        } else if (normalizedPhone.startsWith('90')) {
+          normalizedPhone = '+$normalizedPhone';
+        } else {
+          normalizedPhone = '+90$normalizedPhone';
+        }
       }
     }
 
@@ -458,20 +462,26 @@ class AuthRepository {
     final isAlreadyVerified = existingProfile != null && (existingProfile['is_verified'] as bool? ?? false);
     final existingName = existingProfile != null ? existingProfile['full_name'] as String? : null;
 
-    await _client.from('profiles').upsert({
+    final profileUpsertData = <String, dynamic>{
       'id': user.id,
-      'email': email ?? user.email ?? '$normalizedPhone@phone.user',
+      'email': email ?? user.email ?? '',
       'full_name': (fullName.isNotEmpty) ? fullName : (existingName ?? ''),
-      'phone': normalizedPhone,
       'role': role.dbValue,
       'is_verified': isAlreadyVerified,
-    }, onConflict: 'id');
+    };
+    if (normalizedPhone != null) {
+      profileUpsertData['phone'] = normalizedPhone;
+    } else if (existingProfile != null && existingProfile['phone'] != null) {
+      profileUpsertData['phone'] = existingProfile['phone'];
+    }
+
+    await _client.from('profiles').upsert(profileUpsertData, onConflict: 'id');
 
     final userModel = UserModel(
       id: user.id,
-      email: user.email ?? '$normalizedPhone@phone.user',
+      email: email ?? user.email ?? '',
       fullName: (fullName.isNotEmpty) ? fullName : (existingName ?? ''),
-      phone: normalizedPhone,
+      phone: normalizedPhone ?? existingProfile?['phone'],
       role: role,
       createdAt: DateTime.now(),
       isVerified: isAlreadyVerified,
@@ -500,9 +510,9 @@ class AuthRepository {
 
       return DriverModel(
         id: user.id,
-        email: user.email ?? '$normalizedPhone@phone.user',
+        email: email ?? user.email ?? '',
         fullName: (fullName.isNotEmpty) ? fullName : (existingName ?? ''),
-        phone: normalizedPhone,
+        phone: normalizedPhone ?? existingProfile?['phone'],
         role: role,
         createdAt: DateTime.now(),
         vehiclePlate: (vehiclePlate != null && vehiclePlate.isNotEmpty)

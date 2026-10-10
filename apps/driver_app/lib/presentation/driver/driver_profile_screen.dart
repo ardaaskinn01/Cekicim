@@ -24,7 +24,6 @@ class DriverProfileScreen extends ConsumerStatefulWidget {
 class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
-  late TextEditingController _phoneController;
   late TextEditingController _plateController;
   late TextEditingController _brandController;
   late TextEditingController _modelController;
@@ -112,7 +111,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     final user = ref.read(currentUserProvider).value;
     final driver = user is DriverModel ? user : null;
     _nameController = TextEditingController(text: driver?.fullName ?? '');
-    _phoneController = TextEditingController(text: driver?.phone ?? '');
     _plateController = TextEditingController(text: driver?.vehiclePlate ?? '');
     _brandController = TextEditingController(text: driver?.vehicleBrand ?? '');
     _modelController = TextEditingController(text: driver?.vehicleModel ?? '');
@@ -125,7 +123,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _phoneController.dispose();
     _plateController.dispose();
     _brandController.dispose();
     _modelController.dispose();
@@ -146,7 +143,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
       if (current != null && current is DriverModel) {
         final updated = current.copyWith(
           fullName: _nameController.text.trim(),
-          phone: _phoneController.text.trim(),
           vehiclePlate: _plateController.text.trim(),
           vehicleBrand: _brandController.text.trim(),
           vehicleModel: _modelController.text.trim(),
@@ -360,17 +356,6 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     prefixIcon: Icons.person_outline,
                     validator: (val) {
                       if (val == null || val.trim().isEmpty) return 'Ad soyad gereklidir';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  AppTextField(
-                    controller: _phoneController,
-                    label: 'Telefon Numarası',
-                    prefixIcon: Icons.phone_outlined,
-                    keyboardType: TextInputType.phone,
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) return 'Telefon gereklidir';
                       return null;
                     },
                   ),

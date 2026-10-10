@@ -112,7 +112,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     required String email,
     required String password,
     required String fullName,
-    required String phone,
+    String? phone,
   }) async {
     state = const AsyncValue.loading();
     try {
@@ -132,7 +132,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserModel?>> {
 
   Future<void> completeProfile({
     required String fullName,
-    required String phone,
+    String? phone,
     String? email,
     String? vehiclePlate,
   }) async {

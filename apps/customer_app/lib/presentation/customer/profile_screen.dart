@@ -19,7 +19,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _fullNameController = TextEditingController();
-  final _phoneController = TextEditingController();
   bool _isLoading = false;
 
   void _showThemeDialog(BuildContext context, WidgetRef ref) {
@@ -100,14 +99,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.read(currentUserProvider).value;
     if (user != null) {
       _fullNameController.text = user.fullName;
-      _phoneController.text = user.phone ?? '';
     }
   }
 
   @override
   void dispose() {
     _fullNameController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
@@ -118,7 +115,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (user != null) {
         final updated = user.copyWith(
           fullName: _fullNameController.text.trim(),
-          phone: _phoneController.text.trim(),
         );
         final repo = ref.read(authRepositoryProvider);
         await repo.updateUserProfile(updated);
@@ -255,13 +251,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   controller: _fullNameController,
                   label: 'Ad Soyad',
                   prefixIcon: Icons.person_outline,
-                ),
-                const SizedBox(height: 16),
-                AppTextField(
-                  controller: _phoneController,
-                  label: 'Telefon Numarası',
-                  prefixIcon: Icons.phone_outlined,
-                  keyboardType: TextInputType.phone,
                 ),
                 const SizedBox(height: 24),
                 GreenButton(
