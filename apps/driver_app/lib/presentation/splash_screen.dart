@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/user_role.dart';
+import 'package:shared_services/supabase_service.dart';
 import '../providers/auth_provider.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -38,13 +39,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
       if (!mounted) return;
 
       if (user == null) {
-        context.go('/login');
+        final hasSession = SupabaseService.instance.client.auth.currentSession != null;
+        if (hasSession) {
+          context.go('/driver');
+        } else {
+          context.go('/login');
+        }
       } else {
         switch (user.role) {
           case UserRole.driver:
+          case UserRole.customer:
             context.go('/driver');
             break;
-          case UserRole.customer:
           case UserRole.admin:
             context.go('/login');
             break;
@@ -53,7 +59,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     } catch (e) {
       debugPrint("Splash screen auth error: $e");
       if (mounted) {
-        context.go('/login');
+        final hasSession = SupabaseService.instance.client.auth.currentSession != null;
+        if (hasSession) {
+          context.go('/driver');
+        } else {
+          context.go('/login');
+        }
       }
     }
   }

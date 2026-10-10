@@ -297,57 +297,80 @@ class AuthRepository {
   }
 
   Future<UserModel?> getCurrentUser(UserRole expectedRole) async {
-    if (_client.auth.currentSession == null) {
+    final session = _client.auth.currentSession;
+    if (session == null) {
       return null;
     }
 
-    User? user;
-    try {
-      final response = await _client.auth.getUser();
-      user = response.user;
-    } catch (e) {
-      debugPrint('getCurrentUser: session validation failed, signing out: $e');
+    User? user = _client.auth.currentUser ?? session.user;
+
+    // Eğer oturumun süresi dolmuşsa önce refreshSession ile sessizce yenilemeyi dene
+    if (session.isExpired) {
       try {
-        await signOut();
-      } catch (_) {}
-      return null;
+        final refreshResponse = await _client.auth.refreshSession();
+        user = refreshResponse.user ?? user;
+      } catch (e) {
+        debugPrint('getCurrentUser: refreshSession error: $e');
+        if (e is AuthException) {
+          final msg = e.message.toLowerCase();
+          if (msg.contains('invalid refresh token') ||
+              msg.contains('refresh token not found') ||
+              msg.contains('session expired') ||
+              msg.contains('user not found')) {
+            try {
+              await signOut();
+            } catch (_) {}
+            return null;
+          }
+        }
+        // Geçici ağ hatası veya bağlantı gecikmesinde oturumu ASLA silme!
+      }
     }
 
     if (user == null) return null;
 
-    Map<String, dynamic>? profileData = await _client
-        .from('profiles')
-        .select()
-        .eq('id', user.id)
-        .maybeSingle();
+    Map<String, dynamic>? profileData;
+    try {
+      profileData = await _client
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('getCurrentUser: failed to fetch profile from DB: $e');
+    }
 
     final rawPhone = user.phone ?? (user.userMetadata?['phone'] as String?);
     // Fallback: If profile is not found by Auth user.id, search by phone number (last 10 digits)
     if (profileData == null && rawPhone != null && rawPhone.trim().isNotEmpty) {
-      final phoneStr = rawPhone.trim();
-      final digits = phoneStr.replaceAll(RegExp(r'\D'), '');
-      final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+      try {
+        final phoneStr = rawPhone.trim();
+        final digits = phoneStr.replaceAll(RegExp(r'\D'), '');
+        final last10 = digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
 
-      final matches = await _client
-          .from('profiles')
-          .select()
-          .ilike('phone', '%$last10')
-          .limit(1);
+        final matches = await _client
+            .from('profiles')
+            .select()
+            .ilike('phone', '%$last10')
+            .limit(1);
 
-      if (matches.isNotEmpty) {
-        profileData = Map<String, dynamic>.from(matches.first);
-        final oldId = profileData['id'] as String;
-        if (oldId != user.id) {
-          try {
-            await _client.from('profiles').update({'id': user.id}).eq('id', oldId);
-            if (expectedRole == UserRole.driver) {
-              await _client.from('drivers').update({'id': user.id}).eq('id', oldId);
+        if (matches.isNotEmpty) {
+          profileData = Map<String, dynamic>.from(matches.first);
+          final oldId = profileData['id'] as String;
+          if (oldId != user.id) {
+            try {
+              await _client.from('profiles').update({'id': user.id}).eq('id', oldId);
+              if (expectedRole == UserRole.driver) {
+                await _client.from('drivers').update({'id': user.id}).eq('id', oldId);
+              }
+              profileData['id'] = user.id;
+            } catch (e) {
+              debugPrint('Failed to migrate profile ID to Auth user ID: $e');
             }
-            profileData['id'] = user.id;
-          } catch (e) {
-            debugPrint('Failed to migrate profile ID to Auth user ID: $e');
           }
         }
+      } catch (e) {
+        debugPrint('Phone fallback profile lookup failed: $e');
       }
     }
 
@@ -356,7 +379,7 @@ class AuthRepository {
       return UserModel(
         id: user.id,
         email: user.email ?? '',
-        fullName: metadataName,
+        fullName: metadataName.isNotEmpty ? metadataName : 'Kullanıcı',
         phone: user.phone ?? '',
         role: expectedRole,
         createdAt: DateTime.now(),
@@ -402,14 +425,18 @@ class AuthRepository {
     final userModel = UserModel.fromJson(profileDataCopy);
 
     if (expectedRole == UserRole.driver) {
-      final driverData = await _client
-          .from('drivers')
-          .select()
-          .eq('id', user.id)
-          .maybeSingle();
+      try {
+        final driverData = await _client
+            .from('drivers')
+            .select()
+            .eq('id', user.id)
+            .maybeSingle();
 
-      if (driverData != null) {
-        return DriverModel.fromJson(profileDataCopy, driverData);
+        if (driverData != null) {
+          return DriverModel.fromJson(profileDataCopy, driverData);
+        }
+      } catch (e) {
+        debugPrint('getCurrentUser: driver record fetch error: $e');
       }
     }
 

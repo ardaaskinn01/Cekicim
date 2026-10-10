@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_models/user_role.dart';
 import 'package:shared_models/driver_model.dart';
+import 'package:shared_services/supabase_service.dart';
 import '../../providers/auth_provider.dart';
 import '../../presentation/splash_screen.dart';
 import '../../presentation/auth/login_screen.dart';
@@ -49,7 +50,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isSplashing) return null;
 
-      final session = ref.read(authStateProvider).value?.session;
+      final session = SupabaseService.instance.client.auth.currentSession ??
+          ref.read(authStateProvider).value?.session;
       final isAuthenticated = session != null;
 
       if (!isAuthenticated && !isAuthRoute) {

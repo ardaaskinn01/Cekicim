@@ -33,11 +33,7 @@ final currentUserProvider = FutureProvider<UserModel?>((ref) async {
     }
     return user;
   } catch (e) {
-    // JWT geçersiz veya kullanıcı silinmiş — oturumu temizle
-    debugPrint('currentUserProvider error (auto sign-out): $e');
-    try {
-      await repo.signOut();
-    } catch (_) {}
+    debugPrint('currentUserProvider error (preserving session): $e');
     return null;
   }
 });
