@@ -112,7 +112,17 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         debugPrint('[AdminPanel] unverified drivers load error: $e');
       }
 
-      // 3. Fetch all drivers
+      // 3. Fetch all drivers (and ensure unverified drivers are offline)
+      try {
+        await client
+            .from('drivers')
+            .update({'is_available': false, 'is_online': false})
+            .eq('is_verified', false)
+            .eq('is_available', true);
+      } catch (e) {
+        debugPrint('[AdminPanel] unverified driver offline sync notice: $e');
+      }
+
       try {
         final allDriversData = await client
             .from('drivers')
@@ -1953,7 +1963,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Widget _buildLiveMapTab() {
     final isMobile = MediaQuery.of(context).size.width < 900;
     final activeRequests = _allRequests.where((r) => r.status.dbValue != 'completed' && r.status.dbValue != 'cancelled').toList();
-    final availableDrivers = _allDrivers.where((d) => d['is_available'] == true).toList();
+    final availableDrivers = _allDrivers.where((d) => d['is_available'] == true && d['is_verified'] == true).toList();
 
     Widget buildDriversList() {
       return Column(
@@ -2506,6 +2516,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final phone = profile?['phone'] ?? 'Telefon Yok';
     final plate = d['vehicle_plate'] ?? 'Plaka Yok';
     final score = d['rating'] as num? ?? 5.0;
+    final isVerified = d['is_verified'] as bool? ?? false;
 
     return Card(
       color: AppColors.surface,
@@ -2516,10 +2527,32 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           backgroundColor: AppColors.border,
           child: Icon(Icons.person, color: AppColors.textPrimary),
         ),
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isVerified ? Colors.green.withValues(alpha: 0.15) : Colors.orange.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                isVerified ? 'Onaylı' : 'Onaysız',
+                style: TextStyle(
+                  color: isVerified ? Colors.green : Colors.orange,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 4),
             Text('Plaka: $plate | Tel: $phone', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
             const SizedBox(height: 4),
             Row(

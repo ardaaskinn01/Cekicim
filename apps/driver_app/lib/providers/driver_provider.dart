@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_models/driver_model.dart';
 import 'package:shared_services/request_repository.dart';
 import 'package:shared_services/location_service.dart';
 import 'package:shared_services/supabase_service.dart';
@@ -22,12 +23,15 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
   final RequestRepository _requestRepo;
   final LocationService _locationService;
   final String _driverId;
+  final bool _isVerified;
   Timer? _locationTimer;
   Timer? _backgroundOfflineTimer;
   bool _wasOnlineBeforeBackground = false;
   DateTime? _backgroundTime;
 
-  DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId) : super(true) {
+  DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId, {bool isVerified = false})
+      : _isVerified = isVerified,
+        super(isVerified) {
     if (_driverId.isNotEmpty) {
       WidgetsBinding.instance.addObserver(this);
       _initStatus();
@@ -49,11 +53,21 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
         return val == 'online';
       }
     } catch (_) {}
-    return true; // Default to true so driver stays online after completing requests
+    return _isVerified; // Onaysızsa asla varsayılan true olamaz
   }
 
   Future<void> _initStatus() async {
+    if (_driverId.isEmpty) return;
     try {
+      // Sürücü yönetici tarafından onaylanmamışsa kesinlikle çevrimdışı tutulur!
+      if (!_isVerified) {
+        await _requestRepo.updateDriverOnlineStatus(_driverId, false);
+        await _setOnlinePreference(false);
+        state = false;
+        _stopLocationSharing();
+        return;
+      }
+
       final prefOnline = await _getOnlinePreference();
       
       if (prefOnline) {
@@ -83,7 +97,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
   @override
   // ignore: avoid_renaming_method_parameters
   void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
-    if (_driverId.isEmpty) return;
+    if (_driverId.isEmpty || !_isVerified) return;
 
     if (lifecycleState == AppLifecycleState.paused || lifecycleState == AppLifecycleState.inactive) {
       if (state) {
@@ -114,6 +128,11 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
   }
 
   Future<void> toggleOnlineStatus() async {
+    if (!_isVerified) {
+      state = false;
+      return;
+    }
+
     final nextStatus = !state;
     await _requestRepo.updateDriverOnlineStatus(_driverId, nextStatus);
     await _setOnlinePreference(nextStatus);
@@ -130,6 +149,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
   }
 
   void _startLocationSharing() {
+    if (!_isVerified) return;
     _locationTimer?.cancel();
     
     Future<void> updateLoc() async {
@@ -177,5 +197,7 @@ final driverStatusProvider = StateNotifierProvider<DriverStatusNotifier, bool>((
   final repo = ref.watch(requestRepositoryProvider);
   final locationService = ref.watch(locationServiceProvider);
   final user = ref.watch(currentUserProvider).value;
-  return DriverStatusNotifier(repo, locationService, user?.id ?? '');
+  final driver = user is DriverModel ? user : null;
+  final isVerified = driver?.isVerified ?? false;
+  return DriverStatusNotifier(repo, locationService, user?.id ?? '', isVerified: isVerified);
 });

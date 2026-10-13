@@ -20,16 +20,36 @@ class RequestRepository {
   }
 
   Future<void> updateDriverOnlineStatus(String driverId, bool isAvailable) async {
+    // Onaylanmamış (is_verified = false) sürücüler asla çevrimiçi olamaz!
+    if (isAvailable) {
+      final driver = await _client.from('drivers').select('is_verified').eq('id', driverId).maybeSingle();
+      final isVerified = driver?['is_verified'] as bool? ?? false;
+      if (!isVerified) {
+        debugPrint('Blocked updateDriverOnlineStatus: driver $driverId is not verified.');
+        await _client.from('drivers').update({
+          'is_available': false,
+          'is_online': false,
+        }).eq('id', driverId);
+        return;
+      }
+    }
+
     await _client.from('drivers').update({
       'is_available': isAvailable,
+      'is_online': isAvailable,
       if (isAvailable) 'current_request_id': null,
     }).eq('id', driverId);
   }
 
   Future<void> resetDriverAvailability(String driverId) async {
+    final driver = await _client.from('drivers').select('is_verified').eq('id', driverId).maybeSingle();
+    final isVerified = driver?['is_verified'] as bool? ?? false;
+    if (!isVerified) return;
+
     await _client.from('drivers').update({
       'current_request_id': null,
       'is_available': true,
+      'is_online': true,
     }).eq('id', driverId);
   }
 
@@ -134,11 +154,18 @@ class RequestRepository {
 
   Future<void> _cleanupStaleDrivers() async {
     try {
-      // 5 dakikadan uzun süredir konum güncellememiş sürücüleri otomatik olarak pasife al (Hayalet sürücü önlemi)
+      // 1. Onaylanmamış (is_verified = false) sürücüleri veritabanında da otomatik olarak pasife al
+      await _client
+          .from('drivers')
+          .update({'is_available': false, 'is_online': false})
+          .eq('is_verified', false)
+          .eq('is_available', true);
+
+      // 2. 5 dakikadan uzun süredir konum güncellememiş sürücüleri otomatik olarak pasife al (Hayalet sürücü önlemi)
       final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 5)).toIso8601String();
       await _client
           .from('drivers')
-          .update({'is_available': false})
+          .update({'is_available': false, 'is_online': false})
           .eq('is_available', true)
           .not('location_updated_at', 'is', null)
           .lt('location_updated_at', cutoff);
@@ -169,12 +196,14 @@ class RequestRepository {
     final driversData = await _client
         .from('drivers')
         .select('*, profiles(*)')
-        .eq('is_available', true);
+        .eq('is_available', true)
+        .eq('is_verified', true);
 
     List<DriverModel> list = [];
     for (var d in driversData) {
       final driverId = d['id'] as String?;
       if (driverId == null) continue;
+      if (d['is_verified'] != true) continue;
       if (blockedDriverIds.contains(driverId)) continue;
       if (blockingDriverIds.contains(driverId)) continue;
       if (d['is_available'] != true) continue;
@@ -237,17 +266,20 @@ class RequestRepository {
       } catch (_) {}
     }
 
-    // Only get active drivers
+    // Only get active and verified drivers
     final driversData = await _client
         .from('drivers')
         .select('*, profiles(*)')
-        .eq('is_available', true);
+        .eq('is_available', true)
+        .eq('is_verified', true);
 
     List<DriverModel> nearby = [];
 
     for (var d in driversData) {
       final driverId = d['id'] as String?;
       if (driverId == null) continue;
+      // Skip unverified drivers
+      if (d['is_verified'] != true) continue;
       // Skip blocked or previously rejected drivers
       if (blockedDriverIds.contains(driverId)) continue;
       if (blockingDriverIds.contains(driverId)) continue;
