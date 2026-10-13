@@ -28,7 +28,6 @@ class RequestRepository {
         debugPrint('Blocked updateDriverOnlineStatus: driver $driverId is not verified.');
         await _client.from('drivers').update({
           'is_available': false,
-          'is_online': false,
         }).eq('id', driverId);
         return;
       }
@@ -36,7 +35,6 @@ class RequestRepository {
 
     await _client.from('drivers').update({
       'is_available': isAvailable,
-      'is_online': isAvailable,
       if (isAvailable) 'current_request_id': null,
     }).eq('id', driverId);
   }
@@ -49,7 +47,6 @@ class RequestRepository {
     await _client.from('drivers').update({
       'current_request_id': null,
       'is_available': true,
-      'is_online': true,
     }).eq('id', driverId);
   }
 
@@ -157,7 +154,7 @@ class RequestRepository {
       // 1. Onaylanmamış (is_verified = false) sürücüleri veritabanında da otomatik olarak pasife al
       await _client
           .from('drivers')
-          .update({'is_available': false, 'is_online': false})
+          .update({'is_available': false})
           .eq('is_verified', false)
           .eq('is_available', true);
 
@@ -165,7 +162,7 @@ class RequestRepository {
       final cutoff = DateTime.now().toUtc().subtract(const Duration(minutes: 5)).toIso8601String();
       await _client
           .from('drivers')
-          .update({'is_available': false, 'is_online': false})
+          .update({'is_available': false})
           .eq('is_available', true)
           .not('location_updated_at', 'is', null)
           .lt('location_updated_at', cutoff);
@@ -368,13 +365,13 @@ class RequestRepository {
         id,
         latitude,
         longitude,
-        is_online,
+        is_available,
         is_verified,
         profiles!inner (
           id,
           is_suspended
         )
-      ''').eq('is_online', false).eq('is_verified', true);
+      ''').eq('is_available', false).eq('is_verified', true);
 
       final List<String> offlineIds = [];
       for (final d in response as List<dynamic>) {

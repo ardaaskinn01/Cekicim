@@ -116,7 +116,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       try {
         await client
             .from('drivers')
-            .update({'is_available': false, 'is_online': false})
+            .update({'is_available': false})
             .eq('is_verified', false)
             .eq('is_available', true);
       } catch (e) {

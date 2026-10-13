@@ -2,7 +2,7 @@ name: driver_app
 description: "Çekici Driver Application"
 publish_to: 'none'
 
-version: 1.9.2+42
+version: 1.9.2+43
 
 
 environment:
