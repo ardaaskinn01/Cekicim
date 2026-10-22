@@ -46,6 +46,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   String? _pickupAddress;
   bool _isPickupSelected = false;
   String? _pickupSearchError;
+  Timer? _pickupDebounceTimer;
 
   // For dropoff (Step 1)
   final _dropoffSearchController = TextEditingController();
@@ -54,6 +55,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   LatLng? _destinationLatLng;
   String? _destinationAddress;
   String? _dropoffSearchError;
+  Timer? _dropoffDebounceTimer;
   
   List<DriverModel> _nearbyDrivers = [];
   List<String> _selectedDriverIds = [];
@@ -136,50 +138,58 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
 
   @override
   void dispose() {
+    _pickupDebounceTimer?.cancel();
+    _dropoffDebounceTimer?.cancel();
     _plateController.dispose();
     _pickupSearchController.dispose();
     _dropoffSearchController.dispose();
     super.dispose();
   }
 
-  Future<List<Map<String, dynamic>>> _searchAddress(String query) async {
+  Future<List<Map<String, dynamic>>> _searchPlacesAutocomplete(
+    String query, {
+    double? biasLat,
+    double? biasLng,
+  }) async {
     if (query.trim().isEmpty) return [];
 
     const googleApiKey = 'AIzaSyAgKEFl5fFWgP4Oncf9ee6yNyceR49t4NI';
-    const timeout = Duration(seconds: 8);
+    const timeout = Duration(seconds: 5);
 
-    // 1. Try Google Geocoding API with 8-second timeout
+    // 1. Google Places Autocomplete API with regional location bias
     try {
       final client = HttpClient();
       client.connectionTimeout = timeout;
+      final lat = biasLat ?? _selectedLatLng.latitude;
+      final lng = biasLng ?? _selectedLatLng.longitude;
       final uri = Uri.parse(
-        'https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(query)}&key=$googleApiKey&components=country:tr',
+        'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${Uri.encodeComponent(query)}&location=$lat,$lng&radius=50000&key=$googleApiKey&components=country:tr&language=tr',
       );
       final request = await client.getUrl(uri).timeout(timeout);
       final response = await request.close().timeout(timeout);
       if (response.statusCode == 200) {
         final responseBody = await response.transform(utf8.decoder).join().timeout(timeout);
         final Map<String, dynamic> data = json.decode(responseBody);
-        if (data['status'] == 'OK' && data['results'] != null) {
-          final List<dynamic> results = data['results'];
-          return results.map((item) {
-            final geometry = item['geometry']['location'];
+        if (data['status'] == 'OK' && data['predictions'] != null) {
+          final List<dynamic> predictions = data['predictions'];
+          return predictions.map((p) {
+            final structured = p['structured_formatting'] as Map<String, dynamic>?;
             return {
-              'display_name': item['formatted_address'] as String,
-              'lat': geometry['lat'] as double,
-              'lon': geometry['lng'] as double,
+              'place_id': p['place_id'] as String?,
+              'main_text': (structured?['main_text'] as String?) ?? (p['description'] as String),
+              'secondary_text': (structured?['secondary_text'] as String?) ?? '',
+              'description': p['description'] as String,
+              'lat': null,
+              'lon': null,
             };
           }).toList();
         }
       }
-    } on TimeoutException {
-      throw Exception('network_timeout');
     } catch (e) {
-      if (e.toString().contains('network_timeout')) rethrow;
-      debugPrint('Google Geocoding error: $e');
+      debugPrint('Google Places Autocomplete error: $e');
     }
 
-    // 2. Fallback to Nominatim with 8-second timeout
+    // 2. Fallback to OpenStreetMap / Nominatim
     try {
       final client = HttpClient();
       client.connectionTimeout = timeout;
@@ -193,20 +203,388 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         final responseBody = await response.transform(utf8.decoder).join().timeout(timeout);
         final List<dynamic> data = json.decode(responseBody);
         return data.map((item) {
+          final displayName = item['display_name'] as String;
+          final parts = displayName.split(',');
+          final main = parts.first.trim();
+          final secondary = parts.length > 1 ? parts.sublist(1).join(',').trim() : '';
           return {
-            'display_name': item['display_name'] as String,
-            'lat': double.parse(item['lat'] as String),
-            'lon': double.parse(item['lon'] as String),
+            'place_id': null,
+            'main_text': main,
+            'secondary_text': secondary,
+            'description': displayName,
+            'lat': double.tryParse(item['lat'] as String),
+            'lon': double.tryParse(item['lon'] as String),
           };
         }).toList();
       }
-    } on TimeoutException {
-      throw Exception('network_timeout');
     } catch (e) {
-      if (e.toString().contains('network_timeout')) rethrow;
       debugPrint('Address search fallback error: $e');
     }
     return [];
+  }
+
+  Future<LatLng?> _getCoordinatesForPlace(Map<String, dynamic> place) async {
+    final double? lat = place['lat'] as double?;
+    final double? lon = place['lon'] as double?;
+    if (lat != null && lon != null) {
+      return LatLng(lat, lon);
+    }
+
+    final placeId = place['place_id'] as String?;
+    const googleApiKey = 'AIzaSyAgKEFl5fFWgP4Oncf9ee6yNyceR49t4NI';
+    const timeout = Duration(seconds: 5);
+
+    if (placeId != null && placeId.isNotEmpty) {
+      try {
+        final client = HttpClient();
+        client.connectionTimeout = timeout;
+        final uri = Uri.parse(
+          'https://maps.googleapis.com/maps/api/place/details/json?place_id=$placeId&fields=geometry,formatted_address&key=$googleApiKey',
+        );
+        final request = await client.getUrl(uri).timeout(timeout);
+        final response = await request.close().timeout(timeout);
+        if (response.statusCode == 200) {
+          final responseBody = await response.transform(utf8.decoder).join().timeout(timeout);
+          final Map<String, dynamic> data = json.decode(responseBody);
+          if (data['status'] == 'OK' && data['result'] != null) {
+            final loc = data['result']['geometry']?['location'];
+            if (loc != null) {
+              final double resLat = (loc['lat'] as num).toDouble();
+              final double resLng = (loc['lng'] as num).toDouble();
+              return LatLng(resLat, resLng);
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Place Details error: $e');
+      }
+    }
+
+    // Fallback: Geocode by description
+    try {
+      final desc = place['description'] as String? ?? place['main_text'] as String?;
+      if (desc != null && desc.isNotEmpty) {
+        final client = HttpClient();
+        client.connectionTimeout = timeout;
+        final uri = Uri.parse(
+          'https://maps.googleapis.com/maps/api/geocode/json?address=${Uri.encodeComponent(desc)}&key=$googleApiKey&components=country:tr',
+        );
+        final request = await client.getUrl(uri).timeout(timeout);
+        final response = await request.close().timeout(timeout);
+        if (response.statusCode == 200) {
+          final responseBody = await response.transform(utf8.decoder).join().timeout(timeout);
+          final Map<String, dynamic> data = json.decode(responseBody);
+          if (data['status'] == 'OK' && data['results'] != null && (data['results'] as List).isNotEmpty) {
+            final loc = data['results'][0]['geometry']?['location'];
+            if (loc != null) {
+              return LatLng((loc['lat'] as num).toDouble(), (loc['lng'] as num).toDouble());
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
+  void _onPickupSearchChanged(String query) {
+    _pickupDebounceTimer?.cancel();
+    if (query.trim().length < 2) {
+      if (mounted) {
+        setState(() {
+          _pickupSearchResults = [];
+          _isSearchingPickup = false;
+          _pickupSearchError = null;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      _isSearchingPickup = true;
+      _pickupSearchError = null;
+    });
+
+    _pickupDebounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final results = await _searchPlacesAutocomplete(
+          query,
+          biasLat: _selectedLatLng.latitude,
+          biasLng: _selectedLatLng.longitude,
+        );
+        if (mounted) {
+          setState(() {
+            _pickupSearchResults = results;
+            _isSearchingPickup = false;
+            _pickupSearchError = results.isEmpty ? 'empty' : null;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isSearchingPickup = false;
+            _pickupSearchError = 'network';
+          });
+        }
+      }
+    });
+  }
+
+  void _onDropoffSearchChanged(String query) {
+    _dropoffDebounceTimer?.cancel();
+    if (query.trim().length < 2) {
+      if (mounted) {
+        setState(() {
+          _dropoffSearchResults = [];
+          _isSearchingDropoff = false;
+          _dropoffSearchError = null;
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      _isSearchingDropoff = true;
+      _dropoffSearchError = null;
+    });
+
+    _dropoffDebounceTimer = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final results = await _searchPlacesAutocomplete(
+          query,
+          biasLat: _destinationLatLng?.latitude ?? _selectedLatLng.latitude,
+          biasLng: _destinationLatLng?.longitude ?? _selectedLatLng.longitude,
+        );
+        if (mounted) {
+          setState(() {
+            _dropoffSearchResults = results;
+            _isSearchingDropoff = false;
+            _dropoffSearchError = results.isEmpty ? 'empty' : null;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isSearchingDropoff = false;
+            _dropoffSearchError = 'network';
+          });
+        }
+      }
+    });
+  }
+
+  Future<void> _selectPickupPlace(Map<String, dynamic> place) async {
+    FocusScope.of(context).unfocus();
+    setState(() => _isSearchingPickup = true);
+
+    final coords = await _getCoordinatesForPlace(place);
+    if (!mounted) return;
+
+    final displayName = (place['main_text'] as String? ?? '').isNotEmpty
+        ? (place['secondary_text'] as String? ?? '').isNotEmpty
+            ? '${place['main_text']}, ${place['secondary_text']}'
+            : (place['main_text'] as String)
+        : (place['description'] as String? ?? '');
+
+    setState(() {
+      if (coords != null) {
+        _selectedLatLng = coords;
+      }
+      _pickupAddress = displayName;
+      _isPickupSelected = true;
+      _pickupSearchResults = [];
+      _pickupSearchError = null;
+      _isSearchingPickup = false;
+      _pickupSearchController.text = displayName;
+    });
+  }
+
+  Future<void> _selectDropoffPlace(Map<String, dynamic> place) async {
+    FocusScope.of(context).unfocus();
+    setState(() => _isSearchingDropoff = true);
+
+    final coords = await _getCoordinatesForPlace(place);
+    if (!mounted) return;
+
+    final displayName = (place['main_text'] as String? ?? '').isNotEmpty
+        ? (place['secondary_text'] as String? ?? '').isNotEmpty
+            ? '${place['main_text']}, ${place['secondary_text']}'
+            : (place['main_text'] as String)
+        : (place['description'] as String? ?? '');
+
+    setState(() {
+      if (coords != null) {
+        _destinationLatLng = coords;
+      }
+      _destinationAddress = displayName;
+      _dropoffSearchResults = [];
+      _dropoffSearchError = null;
+      _isSearchingDropoff = false;
+      _dropoffSearchController.text = displayName;
+    });
+    _checkTolls();
+  }
+
+  Widget _buildLocationSearchBar({
+    required TextEditingController controller,
+    required String hintText,
+    required bool isSearching,
+    required ValueChanged<String> onChanged,
+    required VoidCallback onClear,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        style: TextStyle(color: textPrimary, fontSize: 14, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: TextStyle(
+            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF94A3B8),
+            fontSize: 14,
+          ),
+          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
+          suffixIcon: isSearching
+              ? Container(
+                  width: 20,
+                  height: 20,
+                  padding: const EdgeInsets.all(12),
+                  child: const CircularProgressIndicator(
+                    color: AppColors.primary,
+                    strokeWidth: 2,
+                  ),
+                )
+              : (controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      color: AppColors.textSecondary,
+                      onPressed: onClear,
+                    )
+                  : null),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuggestionsList({
+    required List<Map<String, dynamic>> results,
+    required Function(Map<String, dynamic>) onSelected,
+  }) {
+    if (results.isEmpty) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final borderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      constraints: const BoxConstraints(maxHeight: 250),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: results.length,
+          separatorBuilder: (context, index) => Divider(
+            height: 1,
+            color: borderColor.withValues(alpha: 0.6),
+            indent: 52,
+          ),
+          itemBuilder: (context, index) {
+            final place = results[index];
+            final mainText = place['main_text'] as String? ?? '';
+            final secondaryText = place['secondary_text'] as String? ?? '';
+
+            return InkWell(
+              onTap: () => onSelected(place),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.location_on_rounded,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            mainText,
+                            style: TextStyle(
+                              color: textPrimary,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (secondaryText.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              secondaryText,
+                              style: TextStyle(
+                                color: textSecondary,
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<String?> _reverseGeocode(double lat, double lon) async {
@@ -612,51 +990,22 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
           children: [
             const Text('Alınacak Konum *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    controller: _pickupSearchController,
-                    label: 'Konum Ara',
-                    hint: 'Alınacağınız adresi yazıp aratın',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _isSearchingPickup ? null : () async {
-                    if (_pickupSearchController.text.trim().isEmpty) return;
-                    setState(() {
-                      _isSearchingPickup = true;
-                      _pickupSearchError = null;
-                      _pickupSearchResults = [];
-                    });
-                    try {
-                      final results = await _searchAddress(_pickupSearchController.text);
-                      if (mounted) {
-                        setState(() {
-                          _pickupSearchResults = results;
-                          _pickupSearchError = results.isEmpty ? 'empty' : null;
-                          _isSearchingPickup = false;
-                        });
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        setState(() {
-                          _pickupSearchError = 'network';
-                          _isSearchingPickup = false;
-                        });
-                      }
-                    }
-                  },
-                  icon: _isSearchingPickup
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.search),
-                ),
-              ],
+            _buildLocationSearchBar(
+              controller: _pickupSearchController,
+              hintText: 'Alınacağınız adresi yazın (örn: Çankaya, Kızılay...)',
+              isSearching: _isSearchingPickup,
+              onChanged: _onPickupSearchChanged,
+              onClear: () {
+                _pickupSearchController.clear();
+                setState(() {
+                  _pickupSearchResults = [];
+                  _pickupSearchError = null;
+                });
+              },
+            ),
+            _buildSuggestionsList(
+              results: _pickupSearchResults,
+              onSelected: _selectPickupPlace,
             ),
             if (_pickupSearchError == 'network')
               Padding(
@@ -669,14 +1018,14 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                   ],
                 ),
               ),
-            if (_pickupSearchError == 'empty')
+            if (_pickupSearchError == 'empty' && _pickupSearchResults.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Row(
                   children: const [
                     Icon(Icons.search_off, color: AppColors.textSecondary, size: 16),
                     SizedBox(width: 6),
-                    Text('Sonuç bulunamadı', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                    Text('Eşleşen konum bulunamadı', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                   ],
                 ),
               ),
@@ -684,7 +1033,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TextButton.icon(
-                  onPressed: _useCurrentLocationForPickup,
+                  onPressed: () {
+                    _useCurrentLocationForPickup();
+                    setState(() {
+                      _pickupSearchResults = [];
+                      _pickupSearchError = null;
+                    });
+                  },
                   icon: const Icon(Icons.my_location, color: AppColors.primary, size: 18),
                   label: const Text(
                     'Şu Anki Konumumu Kullan',
@@ -693,28 +1048,6 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ],
             ),
-            if (_pickupSearchResults.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Card(
-                child: Column(
-                  children: _pickupSearchResults.map((res) {
-                    return ListTile(
-                      title: Text(res['display_name'], style: const TextStyle(fontSize: 13)),
-                      onTap: () {
-                        setState(() {
-                          _selectedLatLng = LatLng(res['lat'], res['lon']);
-                          _pickupAddress = res['display_name'];
-                          _isPickupSelected = true;
-                          _pickupSearchResults = [];
-                          _pickupSearchError = null;
-                          _pickupSearchController.text = res['display_name'];
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
             const SizedBox(height: 12),
             SizedBox(
               height: 250, // Make it a bit larger for premium feeling
@@ -917,51 +1250,22 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
           children: [
             const Text('Nereye Götürülecek? *', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    controller: _dropoffSearchController,
-                    label: 'Hedef Ara',
-                    hint: 'Gidilecek adresi yazıp aratın',
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _isSearchingDropoff ? null : () async {
-                    if (_dropoffSearchController.text.trim().isEmpty) return;
-                    setState(() {
-                      _isSearchingDropoff = true;
-                      _dropoffSearchError = null;
-                      _dropoffSearchResults = [];
-                    });
-                    try {
-                      final results = await _searchAddress(_dropoffSearchController.text);
-                      if (mounted) {
-                        setState(() {
-                          _dropoffSearchResults = results;
-                          _dropoffSearchError = results.isEmpty ? 'empty' : null;
-                          _isSearchingDropoff = false;
-                        });
-                      }
-                    } catch (e) {
-                      if (mounted) {
-                        setState(() {
-                          _dropoffSearchError = 'network';
-                          _isSearchingDropoff = false;
-                        });
-                      }
-                    }
-                  },
-                  icon: _isSearchingDropoff
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                        )
-                      : const Icon(Icons.search),
-                ),
-              ],
+            _buildLocationSearchBar(
+              controller: _dropoffSearchController,
+              hintText: 'Gidilecek adresi yazın (örn: Şaşmaz, Oto Sanayi...)',
+              isSearching: _isSearchingDropoff,
+              onChanged: _onDropoffSearchChanged,
+              onClear: () {
+                _dropoffSearchController.clear();
+                setState(() {
+                  _dropoffSearchResults = [];
+                  _dropoffSearchError = null;
+                });
+              },
+            ),
+            _buildSuggestionsList(
+              results: _dropoffSearchResults,
+              onSelected: _selectDropoffPlace,
             ),
             if (_dropoffSearchError == 'network')
               Padding(
@@ -974,14 +1278,14 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                   ],
                 ),
               ),
-            if (_dropoffSearchError == 'empty')
+            if (_dropoffSearchError == 'empty' && _dropoffSearchResults.isEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Row(
                   children: const [
                     Icon(Icons.search_off, color: AppColors.textSecondary, size: 16),
                     SizedBox(width: 6),
-                    Text('Sonuç bulunamadı', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                    Text('Eşleşen konum bulunamadı', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                   ],
                 ),
               ),
@@ -989,7 +1293,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 TextButton.icon(
-                  onPressed: _useCurrentLocationForDropoff,
+                  onPressed: () {
+                    _useCurrentLocationForDropoff();
+                    setState(() {
+                      _dropoffSearchResults = [];
+                      _dropoffSearchError = null;
+                    });
+                  },
                   icon: const Icon(Icons.my_location, color: AppColors.primary, size: 18),
                   label: const Text(
                     'Şu Anki Konumumu Kullan',
@@ -998,27 +1308,6 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                 ),
               ],
             ),
-            if (_dropoffSearchResults.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Card(
-                child: Column(
-                  children: _dropoffSearchResults.map((res) {
-                    return ListTile(
-                      title: Text(res['display_name'], style: const TextStyle(fontSize: 13)),
-                      onTap: () {
-                        setState(() {
-                          _destinationLatLng = LatLng(res['lat'], res['lon']);
-                          _destinationAddress = res['display_name'];
-                          _dropoffSearchResults = [];
-                          _dropoffSearchError = null;
-                          _dropoffSearchController.text = res['display_name'];
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
             const SizedBox(height: 16),
             SizedBox(
               height: 250, // Make it a bit larger for premium feeling

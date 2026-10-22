@@ -690,7 +690,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              driver.fullName, 
+                              driver.maskedName, 
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: -0.2),
                             ),
                             const SizedBox(height: 4),
@@ -982,12 +982,31 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Chat Button
-                      FloatingActionButton.small(
-                        heroTag: 'chat_action',
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        onPressed: () => context.push('/customer/chat/${request.id}'),
-                        child: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final messagesAsync = ref.watch(messagesStreamProvider(request.id));
+                          final currentUserId = ref.watch(currentUserProvider).value?.id;
+                          final unreadCount = messagesAsync.maybeWhen(
+                            data: (msgs) => msgs.where((m) => m.senderId != currentUserId).length,
+                            orElse: () => 0,
+                          );
+
+                          return Badge(
+                            isLabelVisible: unreadCount > 0,
+                            label: Text(
+                              unreadCount > 9 ? '9+' : '$unreadCount',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                            ),
+                            backgroundColor: Colors.redAccent,
+                            child: FloatingActionButton.small(
+                              heroTag: 'chat_action',
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              onPressed: () => context.push('/customer/chat/${request.id}'),
+                              child: const Icon(Icons.chat_bubble_outline_rounded, size: 20),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 12),
                       // VoIP Phone Button

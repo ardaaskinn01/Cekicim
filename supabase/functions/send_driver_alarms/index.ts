@@ -3,7 +3,10 @@ import { JWT } from 'npm:google-auth-library@9'
 
 Deno.serve(async (req) => {
   try {
-    const { request_id, driver_ids, notification_type } = await req.json()
+    const bodyJson = await req.json()
+    const { request_id, driver_ids, notification_type } = bodyJson
+    const customTitle = bodyJson.title
+    const customBody = bodyJson.body
 
     if (!request_id || !driver_ids || !Array.isArray(driver_ids)) {
       return new Response(JSON.stringify({ error: 'Missing request_id or driver_ids' }), {
@@ -17,7 +20,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Fetch FCM Tokens for the drivers
+    // Fetch FCM Tokens for the drivers/users
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('id, fcm_token')
@@ -74,22 +77,36 @@ Deno.serve(async (req) => {
     // Send notification to each token
     const results = await Promise.all(
       tokens.map(async (token: string) => {
-        let title = 'Yeni Yol Yardım Talebi!'
-        let body = 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.'
-        let type = 'NEW_REQUEST'
+        let title = customTitle || 'Yeni Yol Yardım Talebi!'
+        let body = customBody || 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.'
+        let type = notification_type || 'NEW_REQUEST'
+        let soundName = 'alarm'
+        let iosSound = 'alarm.mp3'
 
         if (notification_type === 'REQUEST_TAKEN') {
           title = 'Talep Alındı'
           body = 'İncelediğiniz talep başka bir sürücü tarafından kabul edildi.'
           type = 'REQUEST_TAKEN'
         } else if (notification_type === 'VOIP_CALL') {
-          title = '📞 Gelen Sesli Arama'
-          body = 'Çekici hizmetiniz için canlı sesli arama geliyor. Cevaplamak için tıklayın.'
+          title = customTitle || '📞 Gelen Sesli Arama'
+          body = customBody || 'Çekici hizmetiniz için canlı sesli arama geliyor. Cevaplamak için tıklayın.'
           type = 'VOIP_CALL'
         } else if (notification_type === 'OFFLINE_DRIVER_REMINDER') {
           title = 'Yakınında Yolda Kalan Biri Var! 🚨'
           body = 'Yakınında yeni bir çekici talebi oluşturuldu. Çevrimiçi ol ve hemen işi al! 🚜'
           type = 'OFFLINE_DRIVER_REMINDER'
+        } else if (notification_type === 'CHAT_MESSAGE') {
+          title = customTitle || '💬 Yeni Mesaj'
+          body = customBody || 'Yeni bir mesajınız var.'
+          type = 'CHAT_MESSAGE'
+          soundName = 'default'
+          iosSound = 'default'
+        } else if (notification_type === 'DRIVER_ARRIVING') {
+          title = customTitle || '🚜 Çekiciniz Yaklaştı!'
+          body = customBody || 'Çekici aracınız yaklaşık 250 metre mesafede. Lütfen aracınızın başında hazır olun.'
+          type = 'DRIVER_ARRIVING'
+          soundName = 'alarm'
+          iosSound = 'alarm.mp3'
         }
 
         const messageBody = {
@@ -106,7 +123,7 @@ Deno.serve(async (req) => {
             android: {
               priority: 'high',
               notification: {
-                sound: 'alarm',
+                sound: soundName,
                 channelId: 'cekici_alerts_v2',
               },
             },
@@ -122,7 +139,7 @@ Deno.serve(async (req) => {
                     title: title,
                     body: body,
                   },
-                  sound: 'alarm.mp3',
+                  sound: iosSound,
                   'content-available': 1,
                   'mutable-content': 1,
                 },

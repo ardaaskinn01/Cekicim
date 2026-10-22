@@ -127,7 +127,7 @@ class _DriverHistoryScreenState extends ConsumerState<DriverHistoryScreen> {
                               FutureBuilder<UserModel?>(
                                 future: AuthRepository().getUserProfile(req.customerId),
                                 builder: (context, userSnapshot) {
-                                  final name = userSnapshot.data?.fullName ?? '...';
+                                  final name = userSnapshot.data?.maskedName ?? '...';
                                   return Text('Müşteri: $name', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13));
                                 },
                               ),

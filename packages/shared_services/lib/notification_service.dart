@@ -34,9 +34,11 @@ class NotificationService {
         final payload = response.payload;
         if (payload != null && onNotificationTapped != null) {
           final parts = payload.split('|');
-          final reqId = parts[0];
-          final type = parts.length > 1 ? parts[1] : null;
-          onNotificationTapped!(reqId, type);
+          final reqId = parts[0].trim();
+          final type = parts.length > 1 ? parts[1].trim() : null;
+          if (reqId.isNotEmpty) {
+            onNotificationTapped!(reqId, type);
+          }
         }
       },
     );
@@ -149,8 +151,8 @@ class NotificationService {
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
         final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-        if (requestId != null && onNotificationTapped != null) {
-          onNotificationTapped!(requestId, type);
+        if (requestId != null && requestId.trim().isNotEmpty && onNotificationTapped != null) {
+          onNotificationTapped!(requestId.trim(), type);
         }
       });
 
@@ -159,8 +161,8 @@ class NotificationService {
         if (message != null) {
           final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
           final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-          if (requestId != null && onNotificationTapped != null) {
-            onNotificationTapped!(requestId, type);
+          if (requestId != null && requestId.trim().isNotEmpty && onNotificationTapped != null) {
+            onNotificationTapped!(requestId.trim(), type);
           }
         }
       });

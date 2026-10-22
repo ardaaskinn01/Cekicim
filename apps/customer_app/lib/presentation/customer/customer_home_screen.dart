@@ -75,7 +75,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          'Merhaba, ${user?.fullName ?? 'Müşteri'}',
+                          'Merhaba, ${(user?.fullName ?? 'Müşteri').trim().split(' ').first}',
                           style: TextStyle(
                             fontWeight: FontWeight.w700, 
                             fontSize: 13, 

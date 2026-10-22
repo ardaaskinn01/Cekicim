@@ -1,3 +1,4 @@
+import 'package:shared_models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -104,7 +105,7 @@ class _CustomerRatingScreenState extends ConsumerState<CustomerRatingScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${widget.driverName} sunduğu çekici hizmetini nasıl buldunuz?',
+                  '${UserModel.formatMaskedName(widget.driverName)} sunduğu çekici hizmetini nasıl buldunuz?',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 14),
                 ),

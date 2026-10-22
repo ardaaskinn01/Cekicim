@@ -1,4 +1,5 @@
 import 'request_status.dart';
+import 'user_model.dart';
 
 class ServiceRequestModel {
   final String id;
@@ -121,8 +122,8 @@ class ServiceRequestModel {
           : null,
       activeCallChannel: json['active_call_channel'] as String?,
       activeCallCallerId: json['active_call_caller_id'] as String?,
-      customerName: json['customer'] != null ? json['customer']['full_name'] as String? : null,
-      driverName: json['driver'] != null ? json['driver']['full_name'] as String? : null,
+      customerName: json['customer'] != null ? UserModel.formatMaskedName(json['customer']['full_name'] as String?) : null,
+      driverName: json['driver'] != null ? UserModel.formatMaskedName(json['driver']['full_name'] as String?) : null,
       customerRatingFromDriver: _parseCustomerRating(json['ratings'], json['customer_id'] as String),
       driverRatingFromCustomer: _parseDriverRating(json['ratings'], json['customer_id'] as String),
       tollFee: (json['toll_fee'] as num?)?.toDouble() ?? 0.0,

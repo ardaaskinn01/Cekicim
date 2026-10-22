@@ -118,9 +118,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/driver/offer',
+        redirect: (context, state) => '/driver',
+      ),
+      GoRoute(
         path: '/driver/offer/:requestId',
         builder: (context, state) {
           final requestId = state.pathParameters['requestId'] ?? '';
+          if (requestId.trim().isEmpty) {
+            return const DriverHomeScreen();
+          }
           return IncomingRequestScreen(requestId: requestId);
         },
       ),

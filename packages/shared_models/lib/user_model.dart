@@ -30,6 +30,19 @@ class UserModel {
     this.isProfileComplete = true,
   });
 
+  /// Adı tam bırakıp soyadın yalnızca baş harfini ve nokta ekler (Örn: "Arda Aşkın" -> "Arda A.").
+  static String formatMaskedName(String? name) {
+    if (name == null || name.trim().isEmpty) return '';
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.length <= 1) return parts.first;
+    final lastName = parts.last;
+    final firstNames = parts.sublist(0, parts.length - 1).join(' ');
+    final initial = lastName[0].toUpperCase();
+    return '$firstNames $initial.';
+  }
+
+  String get maskedName => formatMaskedName(fullName);
+
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
       id: json['id'] as String,

@@ -1,3 +1,4 @@
+import 'package:shared_models/user_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -160,7 +161,7 @@ class _RateCustomerScreenState extends ConsumerState<RateCustomerScreen> {
                         
                         // Customer Name
                         Text(
-                          widget.customerName,
+                          UserModel.formatMaskedName(widget.customerName),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 22,

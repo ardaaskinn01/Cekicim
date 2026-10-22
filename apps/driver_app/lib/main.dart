@@ -126,11 +126,20 @@ class DriverApp extends ConsumerWidget {
 
     // Set FCM notification tap handler — navigates to offer or call screen when tapped
     NotificationService.onNotificationTapped = (requestId, type) {
+      if (requestId.trim().isEmpty) {
+        debugPrint('[NotificationTap] requestId is empty, redirecting to /driver');
+        router.go('/driver');
+        return;
+      }
+      final cleanRequestId = requestId.trim();
       final isVoip = (type == 'VOIP_CALL' || type == 'call');
+      final isChat = (type == 'CHAT_MESSAGE' || type == 'chat');
       if (isVoip) {
-        router.push('/driver/call/$requestId');
+        router.push('/driver/call/$cleanRequestId');
+      } else if (isChat) {
+        router.push('/driver/chat/$cleanRequestId');
       } else {
-        router.go('/driver/offer/$requestId');
+        router.go('/driver/offer/$cleanRequestId');
       }
     };
 

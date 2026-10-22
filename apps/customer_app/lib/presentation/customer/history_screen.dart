@@ -127,7 +127,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                                FutureBuilder<UserModel?>(
                                  future: ref.read(authRepositoryProvider).getUserProfile(req.driverId!),
                                  builder: (context, snapshot) {
-                                   final driverName = snapshot.data?.fullName ?? 'Yükleniyor...';
+                                   final driverName = snapshot.data?.maskedName ?? 'Yükleniyor...';
                                    return Row(
                                      children: [
                                        const Icon(Icons.person_outline, size: 14, color: AppColors.textSecondary),

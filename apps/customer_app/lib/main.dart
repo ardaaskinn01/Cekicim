@@ -100,11 +100,16 @@ class _CekiciAppState extends ConsumerState<CekiciApp> with WidgetsBindingObserv
     final themeMode = ref.watch(themeModeProvider);
 
     NotificationService.onNotificationTapped = (requestId, type) {
+      if (requestId.trim().isEmpty) return;
+      final cleanRequestId = requestId.trim();
       final isVoip = (type == 'VOIP_CALL' || type == 'call');
+      final isChat = (type == 'CHAT_MESSAGE' || type == 'chat');
       if (isVoip) {
-        router.push('/customer/call/$requestId');
+        router.push('/customer/call/$cleanRequestId');
+      } else if (isChat) {
+        router.push('/customer/chat/$cleanRequestId');
       } else {
-        router.push('/customer/tracking/$requestId');
+        router.push('/customer/tracking/$cleanRequestId');
       }
     };
 

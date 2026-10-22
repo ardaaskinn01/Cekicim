@@ -41,6 +41,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
   bool _isTrackingStarted = false;
   BuildContext? _incomingCallDialogContext;
   bool _isCancellationDialogShown = false;
+  bool _hasSentArrivalNotification = false;
 
   List<LatLng> _trimRoutePoints(List<LatLng> fullRoute, LatLng currentPos) {
     if (fullRoute.length < 2) return fullRoute;
@@ -161,6 +162,27 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
         destLng: destLng,
       );
 
+      // Güvenlik yedeklemesi: 250m altında otomatik bildirim tetikle
+      final distMeters = Geolocator.distanceBetween(
+        driverPos.latitude,
+        driverPos.longitude,
+        destLat,
+        destLng,
+      );
+      if (!_hasSentArrivalNotification &&
+          req.status == RequestStatus.accepted &&
+          distMeters <= 250.0) {
+        _hasSentArrivalNotification = true;
+        final driver = ref.read(currentUserProvider).value;
+        ref.read(requestRepositoryProvider).sendArrivalNotification(
+          requestId: req.id,
+          customerId: req.customerId,
+          driverName: driver?.fullName,
+        ).catchError((e) {
+          debugPrint('Yedek rota periyodunda varış bildirimi hatası: $e');
+        });
+      }
+
       final etaData = await _routingService.getETA(
         originLat: driverPos.latitude,
         originLng: driverPos.longitude,
@@ -200,6 +222,20 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                 );
                 final distKm = distMeters / 1000.0;
                 final mins = (distKm * 2.0).round().clamp(1, 180);
+
+                // Sürücü müşteriyi almaya giderken son 250m mesafede otomatik bildirim gönder
+                if (!_hasSentArrivalNotification &&
+                    req.status == RequestStatus.accepted &&
+                    distMeters <= 250.0) {
+                  _hasSentArrivalNotification = true;
+                  ref.read(requestRepositoryProvider).sendArrivalNotification(
+                    requestId: req.id,
+                    customerId: req.customerId,
+                    driverName: driver.fullName,
+                  ).catchError((e) {
+                    debugPrint('Otomatik varış bildirimi gönderilirken hata: $e');
+                  });
+                }
 
                 setState(() {
                   _driverLatLng = newPos;
@@ -658,7 +694,7 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                                 FutureBuilder<UserModel?>(
                                   future: AuthRepository().getUserProfile(req.customerId),
                                   builder: (context, userSnapshot) {
-                                    final name = userSnapshot.data?.fullName ?? 'Müşteri Yükleniyor...';
+                                    final name = userSnapshot.data?.maskedName ?? 'Müşteri Yükleniyor...';
                                     return Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
@@ -729,9 +765,28 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                                 ),
                                 const SizedBox(width: 8),
                               ],
-                              IconButton(
-                                icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
-                                onPressed: () => context.push('/driver/chat/${req.id}'),
+                              Consumer(
+                                builder: (context, ref, child) {
+                                  final messagesAsync = ref.watch(messagesStreamProvider(req.id));
+                                  final currentUserId = ref.watch(currentUserProvider).value?.id;
+                                  final unreadCount = messagesAsync.maybeWhen(
+                                    data: (msgs) => msgs.where((m) => m.senderId != currentUserId).length,
+                                    orElse: () => 0,
+                                  );
+
+                                  return Badge(
+                                    isLabelVisible: unreadCount > 0,
+                                    label: Text(
+                                      unreadCount > 9 ? '9+' : '$unreadCount',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                                    ),
+                                    backgroundColor: Colors.redAccent,
+                                    child: IconButton(
+                                      icon: const Icon(Icons.chat_bubble, color: AppColors.accent, size: 28),
+                                      onPressed: () => context.push('/driver/chat/${req.id}'),
+                                    ),
+                                  );
+                                },
                               ),
                               const SizedBox(width: 4),
                               IconButton(

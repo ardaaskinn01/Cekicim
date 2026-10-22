@@ -55,7 +55,7 @@ class DriverSelectionCard extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            driver.fullName,
+                            driver.maskedName,
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

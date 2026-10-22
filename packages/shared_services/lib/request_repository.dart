@@ -464,6 +464,26 @@ class RequestRepository {
     }
   }
 
+  Future<void> sendArrivalNotification({
+    required String requestId,
+    required String customerId,
+    String? driverName,
+  }) async {
+    try {
+      final name = driverName ?? 'Çekiciniz';
+      await _client.functions.invoke('send_driver_alarms', body: {
+        'request_id': requestId,
+        'driver_ids': [customerId],
+        'notification_type': 'DRIVER_ARRIVING',
+        'type': 'DRIVER_ARRIVING',
+        'title': '🚜 Çekiciniz Yaklaştı!',
+        'body': '$name yaklaşık 250 metre mesafede. Lütfen aracınızın başında hazır olun.',
+      });
+    } catch (e) {
+      debugPrint('Warning: Failed to invoke send_driver_alarms for DRIVER_ARRIVING: $e');
+    }
+  }
+
   Future<void> acceptRequest(String requestId, String driverId) async {
     // 1. Atomik Kontrol: Sürücünün halihazırda meşgul veya başka görevde olmadığını doğrula ve kilitle
     final driverCheck = await _client
@@ -657,6 +677,40 @@ class RequestRepository {
       'sender_id': senderId,
       'content': content,
     });
+
+    // Send push notification to the counterpart (driver or customer)
+    try {
+      final reqData = await _client
+          .from('service_requests')
+          .select('customer_id, driver_id')
+          .eq('id', requestId)
+          .maybeSingle();
+
+      if (reqData != null) {
+        final customerId = reqData['customer_id'] as String?;
+        final driverId = reqData['driver_id'] as String?;
+        final targetUserId = (senderId == customerId) ? driverId : customerId;
+
+        if (targetUserId != null && targetUserId.isNotEmpty) {
+          final senderProfile = await _client
+              .from('profiles')
+              .select('full_name')
+              .eq('id', senderId)
+              .maybeSingle();
+          final senderName = senderProfile?['full_name'] as String? ?? 'Kullanıcı';
+
+          await _client.functions.invoke('send_driver_alarms', body: {
+            'request_id': requestId,
+            'driver_ids': [targetUserId],
+            'notification_type': 'CHAT_MESSAGE',
+            'title': '💬 $senderName',
+            'body': content,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Warning: Failed to send chat push notification: $e');
+    }
   }
 
   Future<String> uploadRequestPhoto({

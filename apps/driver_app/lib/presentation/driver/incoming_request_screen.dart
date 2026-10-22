@@ -292,7 +292,23 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
             }
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           },
-          error: (err, st) => Center(child: Text('Hata: $err', style: const TextStyle(color: Colors.white))),
+          error: (err, st) {
+            AlarmAudioService().stopAlarm();
+            _timer?.cancel();
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && !_navigationPending) {
+                _navigationPending = true;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Talep bulunamadı veya süresi doldu.'),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+                context.go('/driver');
+              }
+            });
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          },
           data: (request) {
             final user = ref.watch(currentUserProvider).value;
 
@@ -325,14 +341,19 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                   child: CircularProgressIndicator(color: AppColors.primary),
                 );
               }
-              // Only redirect if we previously loaded a valid awaitingAcceptance request
-              if (_hasLoadedRequest && !_navigationPending) {
+              // Redirect to driver home if request is cancelled, completed or taken by someone else
+              if (!_navigationPending) {
                 _navigationPending = true;
+                AlarmAudioService().stopAlarm();
+                _timer?.cancel();
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) {
+                    final msg = request.status == RequestStatus.cancelled
+                        ? 'Bu talep müşteri tarafından iptal edilmiş.'
+                        : 'Bu talep artık geçerli değil veya başka bir sürücü tarafından alındı.';
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Talep başka bir sürücü tarafından kabul edildi veya iptal edildi.'),
+                      SnackBar(
+                        content: Text(msg),
                         backgroundColor: AppColors.error,
                       ),
                     );
