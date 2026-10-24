@@ -1054,6 +1054,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: MapWidget(
+                  key: ValueKey('pickup_map_${_selectedLatLng.latitude}_${_selectedLatLng.longitude}'),
                   initialPosition: _selectedLatLng,
                   isSelectorMode: true,
                   fitMarkers: false,
@@ -1314,6 +1315,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: MapWidget(
+                  key: ValueKey('dropoff_map_${(_destinationLatLng ?? _selectedLatLng).latitude}_${(_destinationLatLng ?? _selectedLatLng).longitude}'),
                   initialPosition: _destinationLatLng ?? _selectedLatLng,
                   isSelectorMode: true,
                   fitMarkers: false,

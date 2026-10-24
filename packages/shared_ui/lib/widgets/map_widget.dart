@@ -87,23 +87,22 @@ class _MapWidgetState extends State<MapWidget> {
   @override
   void didUpdateWidget(covariant MapWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.initialPosition != oldWidget.initialPosition) {
-      _currentCameraTarget = widget.initialPosition;
-    }
     if (_mapController != null) {
       if (widget.fitMarkers && widget.markers.isNotEmpty && !_hasFittedMarkers) {
         _hasFittedMarkers = true;
         _zoomToFitMarkers();
       } else if (!widget.fitMarkers && widget.initialPosition != oldWidget.initialPosition) {
-        // Only animate if the camera is not already at the initialPosition (e.g. from search/current location clicks)
         final double latDiff = (widget.initialPosition.latitude - _currentCameraTarget.latitude).abs();
         final double lngDiff = (widget.initialPosition.longitude - _currentCameraTarget.longitude).abs();
-        if (latDiff > 0.00001 || lngDiff > 0.00001) {
+        if (latDiff > 0.0001 || lngDiff > 0.0001) {
+          _currentCameraTarget = widget.initialPosition;
           _mapController!.animateCamera(
-            CameraUpdate.newLatLng(widget.initialPosition),
+            CameraUpdate.newLatLngZoom(widget.initialPosition, 16.0),
           );
         }
       }
+    } else if (widget.initialPosition != oldWidget.initialPosition) {
+      _currentCameraTarget = widget.initialPosition;
     }
   }
 
