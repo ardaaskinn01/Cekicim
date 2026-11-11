@@ -142,20 +142,22 @@ class ExportService {
     downloadFileFromString(buffer.toString(), filename, 'text/csv;charset=utf-8');
   }
 
-  static void exportFinancialReportToCsv(List<ServiceRequestModel> requests) {
+  static void exportFinancialReportToCsv(List<ServiceRequestModel> requests, {Set<String>? excludedRequestIds}) {
     final buffer = StringBuffer();
     buffer.write('\uFEFF');
+
+    final validRequests = requests.where((r) => excludedRequestIds == null || !excludedRequestIds.contains(r.id)).toList();
 
     double totalGmv = 0.0;
     double totalDriverPayout = 0.0;
     double totalPlatformFee = 0.0;
 
-    for (var r in requests) {
+    for (var r in validRequests) {
       if (r.status.dbValue == 'completed') {
         totalGmv += r.price;
-        // Platform komisyon oranı: %15, Sürücü hakedişi: %85
-        totalDriverPayout += (r.price * 0.85);
-        totalPlatformFee += (r.price * 0.15);
+        // Platform komisyon oranı: %10, Sürücü hakedişi: %90
+        totalDriverPayout += (r.price * 0.90);
+        totalPlatformFee += (r.price * 0.10);
       }
     }
 
@@ -163,8 +165,8 @@ class ExportService {
     buffer.writeln('"ÇEKİCİM MALİ VE HAKEDİŞ DENETİM RAPORU"');
     buffer.writeln('"Rapor Tarihi";${_escapeCsv(_dateStamp())}');
     buffer.writeln('"Toplam Brüt Tahsilat (GMV)";"${totalGmv.toStringAsFixed(2)} TL"');
-    buffer.writeln('"Toplam Sürücü Hakediş Havuzu (%85)";"${totalDriverPayout.toStringAsFixed(2)} TL"');
-    buffer.writeln('"Net Platform Komisyon Geliri (%15)";"${totalPlatformFee.toStringAsFixed(2)} TL"');
+    buffer.writeln('"Toplam Sürücü Hakediş Havuzu (%90)";"${totalDriverPayout.toStringAsFixed(2)} TL"');
+    buffer.writeln('"Net Platform Komisyon Geliri (%10)";"${totalPlatformFee.toStringAsFixed(2)} TL"');
     buffer.writeln('');
 
     // Tablo Başlıkları
@@ -175,15 +177,15 @@ class ExportService {
       'Sürücü Adı',
       'Plaka',
       'Hizmet Bedeli (TL)',
-      'Sürücü Hakedişi (%85) (TL)',
-      'Platform Komisyonu (%15) (TL)',
+      'Sürücü Hakedişi (%90) (TL)',
+      'Platform Komisyonu (%10) (TL)',
       'Durum',
     ].map(_escapeCsv).join(';'));
 
-    for (var r in requests) {
+    for (var r in validRequests) {
       final isCompleted = r.status.dbValue == 'completed';
-      final driverShare = isCompleted ? (r.price * 0.85) : 0.0;
-      final platformShare = isCompleted ? (r.price * 0.15) : 0.0;
+      final driverShare = isCompleted ? (r.price * 0.90) : 0.0;
+      final platformShare = isCompleted ? (r.price * 0.10) : 0.0;
       final dateStr = '${r.createdAt.day.toString().padLeft(2, '0')}.${r.createdAt.month.toString().padLeft(2, '0')}.${r.createdAt.year}';
 
       buffer.writeln([

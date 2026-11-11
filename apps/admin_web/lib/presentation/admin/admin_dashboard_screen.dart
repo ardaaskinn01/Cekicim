@@ -42,6 +42,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   int _pendingApprovalsCount = 0;
   int _unresolvedDisputesCount = 0;
 
+  // Test requests tracking (excluded from financial calculations)
+  final Set<String> _testRequestIds = {};
+  bool _filterExcludeTestsInAudit = true;
+
   // Selection states for details view
   Map<String, dynamic>? _selectedDriverApproval;
   Map<String, dynamic>? _selectedArchiveDriver;
@@ -119,7 +123,18 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               .order('created_at', ascending: false);
         }
         _allRequests = (requestsData as List)
-            .map((json) => ServiceRequestModel.fromJson(Map<String, dynamic>.from(json)))
+            .map((json) {
+              final map = Map<String, dynamic>.from(json);
+              final req = ServiceRequestModel.fromJson(map);
+              // Check if marked as test in DB column or problemDescription tag
+              final isTest = map['is_test'] == true ||
+                  (req.problemDescription ?? '').trim().startsWith('[TEST]') ||
+                  (req.cancellationReason ?? '').trim().startsWith('[TEST]');
+              if (isTest) {
+                _testRequestIds.add(req.id);
+              }
+              return req;
+            })
             .toList();
       } catch (e) {
         debugPrint('[AdminPanel] service_requests load error: $e');
@@ -191,9 +206,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         debugPrint('[AdminPanel] ratings load error: $e');
       }
 
-      // Recalculate statistics
+      // Recalculate statistics (exclude test requests from financial totals)
       _totalEarnings = _allRequests
-          .where((r) => r.status.dbValue == 'completed')
+          .where((r) => r.status.dbValue == 'completed' && !_testRequestIds.contains(r.id))
           .fold(0.0, (sum, r) => sum + r.price);
 
       _activeRequestsCount = _allRequests
@@ -463,6 +478,28 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             ),
           ),
           actions: [
+            OutlinedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _toggleTestRequest(req.id);
+              },
+              icon: Icon(
+                _testRequestIds.contains(req.id) ? Icons.check_circle_outline : Icons.bug_report_outlined,
+                color: _testRequestIds.contains(req.id) ? AppColors.success : Colors.amber,
+                size: 16,
+              ),
+              label: Text(
+                _testRequestIds.contains(req.id) ? 'Testten Çıkar' : 'Test Olarak İşaretle',
+                style: TextStyle(
+                  color: _testRequestIds.contains(req.id) ? AppColors.success : Colors.amber,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: (_testRequestIds.contains(req.id) ? AppColors.success : Colors.amber).withValues(alpha: 0.6)),
+              ),
+            ),
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Kapat', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
@@ -789,107 +826,323 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
   }
 
-  void _showFinancialAuditDialog() {
-    double totalGmv = 0.0;
-    double totalDriverPayout = 0.0;
-    double totalPlatformFee = 0.0;
-    int completedCount = 0;
-
-    for (var r in _allRequests) {
-      if (r.status.dbValue == 'completed') {
-        completedCount++;
-        totalGmv += r.price;
-        totalDriverPayout += (r.price * 0.85);
-        totalPlatformFee += (r.price * 0.15);
+  Future<void> _toggleTestRequest(String requestId) async {
+    final willBeTest = !_testRequestIds.contains(requestId);
+    setState(() {
+      if (willBeTest) {
+        _testRequestIds.add(requestId);
+      } else {
+        _testRequestIds.remove(requestId);
       }
+      // Recalculate earnings
+      _totalEarnings = _allRequests
+          .where((r) => r.status.dbValue == 'completed' && !_testRequestIds.contains(r.id))
+          .fold(0.0, (sum, r) => sum + r.price);
+    });
+
+    try {
+      final client = SupabaseService.instance.client;
+      // Try updating is_test column directly
+      try {
+        await client.from('service_requests').update({'is_test': willBeTest}).eq('id', requestId);
+      } catch (colErr) {
+        debugPrint('[AdminPanel] is_test column update notice, tagging problem_description fallback: $colErr');
+        // Fallback: tag problem_description with [TEST] prefix
+        final req = _allRequests.firstWhere((r) => r.id == requestId);
+        String currentDesc = req.problemDescription ?? '';
+        if (willBeTest && !currentDesc.startsWith('[TEST]')) {
+          currentDesc = '[TEST] $currentDesc'.trim();
+        } else if (!willBeTest && currentDesc.startsWith('[TEST]')) {
+          currentDesc = currentDesc.replaceFirst('[TEST]', '').trim();
+        }
+        await client.from('service_requests').update({'problem_description': currentDesc}).eq('id', requestId);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(willBeTest
+                ? 'Talep TEST verisi olarak işaretlendi. Mali tablolardan hariç tutuldu.'
+                : 'Talep test işaretinden çıkarıldı ve mali tablolara dahil edildi.'),
+            backgroundColor: willBeTest ? AppColors.warning : AppColors.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AdminPanel] toggle test request error: $e');
     }
+  }
 
-    final avgTicket = completedCount > 0 ? (totalGmv / completedCount) : 0.0;
-
+  void _showFinancialAuditDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Row(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          double totalGmv = 0.0;
+          double totalDriverPayout = 0.0;
+          double totalPlatformFee = 0.0;
+          int completedCount = 0;
+
+          final completedRequests = _allRequests.where((r) => r.status.dbValue == 'completed').toList();
+
+          for (var r in completedRequests) {
+            final isTest = _testRequestIds.contains(r.id);
+            if (_filterExcludeTestsInAudit && isTest) continue;
+
+            completedCount++;
+            totalGmv += r.price;
+            // Platform komisyonu %10, Sürücü hakedişi %90
+            totalDriverPayout += (r.price * 0.90);
+            totalPlatformFee += (r.price * 0.10);
+          }
+
+          final avgTicket = completedCount > 0 ? (totalGmv / completedCount) : 0.0;
+          final testCount = completedRequests.where((r) => _testRequestIds.contains(r.id)).length;
+
+          return AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
+            title: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.account_balance_wallet_outlined, color: AppColors.accent),
-                SizedBox(width: 10),
-                Text('Finans & Hakediş Denetim Raporu', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                Row(
+                  children: [
+                    const Icon(Icons.account_balance_wallet_outlined, color: AppColors.accent),
+                    const SizedBox(width: 10),
+                    const Text('Finans & Hakediş Denetim Modülü', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                      ),
+                      child: const Text('Komisyon: %10', style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ],
             ),
-            IconButton(
-              icon: const Icon(Icons.close, color: AppColors.textSecondary),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 580,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+            content: SizedBox(
+              width: 720,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildAuditMetric('Brüt Ciro (GMV)', '${totalGmv.toStringAsFixed(0)} TL', AppColors.accent),
-                    _buildAuditMetric('Sürücü Hakediş (%85)', '${totalDriverPayout.toStringAsFixed(0)} TL', const Color(0xFF3B82F6)),
-                    _buildAuditMetric('Net Komisyon (%15)', '${totalPlatformFee.toStringAsFixed(0)} TL', AppColors.success),
+                    // Summary Cards
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildAuditMetric('Brüt Ciro (GMV)', '${totalGmv.toStringAsFixed(0)} TL', AppColors.accent),
+                          _buildAuditMetric('Sürücü Hakediş (%90)', '${totalDriverPayout.toStringAsFixed(0)} TL', const Color(0xFF3B82F6)),
+                          _buildAuditMetric('Net Komisyon (%10)', '${totalPlatformFee.toStringAsFixed(0)} TL', AppColors.success),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Test toggle control bar
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _filterExcludeTestsInAudit ? const Color(0xFF1E293B) : const Color(0xFF334155),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                _filterExcludeTestsInAudit ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                size: 18,
+                                color: _filterExcludeTestsInAudit ? Colors.amber : AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Test Taleplerini Hariç Tut ($testCount Test Kaydı)',
+                                style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: _filterExcludeTestsInAudit,
+                            activeColor: AppColors.accent,
+                            onChanged: (val) {
+                              setDialogState(() {
+                                _filterExcludeTestsInAudit = val;
+                              });
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Detail stats list
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardBackground,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildAuditRow('Dahil Edilen Görev Sayısı:', '$completedCount Adet'),
+                          const Divider(color: AppColors.border),
+                          _buildAuditRow('Ortalama Sefer Ücreti:', '${avgTicket.toStringAsFixed(1)} TL'),
+                          const Divider(color: AppColors.border),
+                          _buildAuditRow('Sürücülere Ödenecek Toplam Hakediş (%90):', '${totalDriverPayout.toStringAsFixed(2)} TL'),
+                          const Divider(color: AppColors.border),
+                          _buildAuditRow('Platform Kasa Bakiyesi (%10 Komisyon):', '${totalPlatformFee.toStringAsFixed(2)} TL', isBold: true, highlightColor: AppColors.accent),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Request Level Test Marking List
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Tamamlanan Talepler & Test Denetimi',
+                          style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          '${completedRequests.length} talep incelendi',
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 220,
+                      decoration: BoxDecoration(
+                        color: AppColors.surface.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: completedRequests.isEmpty
+                          ? const Center(child: Text('Tamamlanmış talep bulunmuyor.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)))
+                          : ListView.separated(
+                              padding: const EdgeInsets.all(8),
+                              itemCount: completedRequests.length,
+                              separatorBuilder: (context, _) => const Divider(color: AppColors.border, height: 1),
+                              itemBuilder: (context, idx) {
+                                final req = completedRequests[idx];
+                                final isTest = _testRequestIds.contains(req.id);
+
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isTest ? Colors.amber.withValues(alpha: 0.08) : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      if (isTest)
+                                        Container(
+                                          margin: const EdgeInsets.only(right: 8),
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+                                          ),
+                                          child: const Text('TEST', style: TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                                        ),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              '${req.carBrand} ${req.carModel} • ${req.price.toStringAsFixed(0)} TL',
+                                              style: TextStyle(
+                                                color: isTest ? AppColors.textSecondary : AppColors.textPrimary,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                                decoration: isTest ? TextDecoration.lineThrough : null,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Müşteri: ${req.customerName ?? "Bilinmiyor"}  •  Sürücü: ${req.driverName ?? "Bilinmiyor"}',
+                                              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      OutlinedButton.icon(
+                                        onPressed: () async {
+                                          await _toggleTestRequest(req.id);
+                                          setDialogState(() {});
+                                        },
+                                        icon: Icon(
+                                          isTest ? Icons.check_circle_outline : Icons.bug_report_outlined,
+                                          size: 14,
+                                          color: isTest ? AppColors.success : Colors.amber,
+                                        ),
+                                        label: Text(
+                                          isTest ? 'Testten Çıkar' : 'Test Olarak İşaretle',
+                                          style: TextStyle(
+                                            color: isTest ? AppColors.success : Colors.amber,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          side: BorderSide(color: (isTest ? AppColors.success : Colors.amber).withValues(alpha: 0.6)),
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  children: [
-                    _buildAuditRow('Tamamlanan Toplam Görev:', '$completedCount Adet'),
-                    const Divider(color: AppColors.border),
-                    _buildAuditRow('Ortalama Sefer Ücreti:', '${avgTicket.toStringAsFixed(1)} TL'),
-                    const Divider(color: AppColors.border),
-                    _buildAuditRow('Sürücülere Aktarılacak Net Havuz:', '${totalDriverPayout.toStringAsFixed(2)} TL'),
-                    const Divider(color: AppColors.border),
-                    _buildAuditRow('Platform Kasa Bakiyesi:', '${totalPlatformFee.toStringAsFixed(2)} TL', isBold: true, highlightColor: AppColors.accent),
-                  ],
-                ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Kapat', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  ExportService.exportFinancialReportToCsv(_allRequests, excludedRequestIds: _testRequestIds);
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Finansal rapor (%10 komisyon, testler hariç) CSV olarak indirildi.'), backgroundColor: AppColors.success),
+                  );
+                },
+                icon: const Icon(Icons.download, size: 16),
+                label: const Text('Mali Raporu İndir (CSV)'),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Kapat', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              ExportService.exportFinancialReportToCsv(_allRequests);
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Finansal rapor CSV olarak indirildi.'), backgroundColor: AppColors.success),
-              );
-            },
-            icon: const Icon(Icons.download, size: 16),
-            label: const Text('Mali Raporu İndir (CSV)'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -3274,15 +3527,33 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               DataColumn(label: Text('Durum')),
                               DataColumn(label: Text('Tutar')),
                               DataColumn(label: Text('Tarih')),
+                              DataColumn(label: Text('Test Durumu')),
                               DataColumn(label: Text('İncele')),
                             ],
                             rows: list.map((r) {
+                              final isTest = _testRequestIds.contains(r.id);
                               return DataRow(
                                 onSelectChanged: (_) => _showRequestDetailsDialog(r),
                                 cells: [
-                                  DataCell(Text(
-                                    r.id.length > 8 ? '${r.id.substring(0, 8)}...' : r.id,
-                                    style: const TextStyle(fontFamily: 'monospace', color: AppColors.textSecondary, fontSize: 12),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isTest)
+                                        Container(
+                                          margin: const EdgeInsets.only(right: 6),
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.amber.withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: Colors.amber.withValues(alpha: 0.6)),
+                                          ),
+                                          child: const Text('TEST', style: TextStyle(color: Colors.amber, fontSize: 9, fontWeight: FontWeight.bold)),
+                                        ),
+                                      Text(
+                                        r.id.length > 8 ? '${r.id.substring(0, 8)}...' : r.id,
+                                        style: const TextStyle(fontFamily: 'monospace', color: AppColors.textSecondary, fontSize: 12),
+                                      ),
+                                    ],
                                   )),
                                   DataCell(Text(r.customerName ?? 'Bilinmiyor', style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
                                   DataCell(Text(
@@ -3304,12 +3575,41 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                   )),
                                   DataCell(Text(
                                     '${r.price.toStringAsFixed(0)} TL',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.accent),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isTest ? AppColors.textSecondary : AppColors.accent,
+                                      decoration: isTest ? TextDecoration.lineThrough : null,
+                                    ),
                                   )),
                                   DataCell(Text(
                                     '${r.createdAt.day.toString().padLeft(2, '0')}.${r.createdAt.month.toString().padLeft(2, '0')}.${r.createdAt.year}',
                                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                                   )),
+                                  DataCell(
+                                    InkWell(
+                                      onTap: () => _toggleTestRequest(r.id),
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: (isTest ? Colors.amber : AppColors.surface).withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: isTest ? Colors.amber : AppColors.border),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(isTest ? Icons.bug_report : Icons.bug_report_outlined, size: 14, color: isTest ? Colors.amber : AppColors.textSecondary),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              isTest ? 'Test' : 'Canlı',
+                                              style: TextStyle(color: isTest ? Colors.amber : AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                   DataCell(
                                     const Icon(Icons.arrow_forward_ios, size: 13, color: AppColors.textSecondary),
                                   ),
@@ -3517,7 +3817,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
 
     for (var r in _allRequests) {
-      if (r.status.dbValue == 'completed' && r.completedAt != null) {
+      if (r.status.dbValue == 'completed' && r.completedAt != null && !_testRequestIds.contains(r.id)) {
         final key = '${r.completedAt!.day.toString().padLeft(2, '0')}/${r.completedAt!.month.toString().padLeft(2, '0')}';
         if (dailyData.containsKey(key)) {
           dailyData[key] = dailyData[key]! + r.price;
