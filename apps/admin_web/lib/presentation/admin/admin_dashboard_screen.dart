@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils/export_service.dart';
 import '../../providers/auth_provider.dart';
 
@@ -136,6 +137,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               return req;
             })
             .toList();
+
+        // Also merge persistently saved test IDs from local storage (survives page refresh)
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final localSavedTests = prefs.getStringList('admin_test_request_ids') ?? [];
+          _testRequestIds.addAll(localSavedTests);
+        } catch (prefsErr) {
+          debugPrint('[AdminPanel] prefs test request load error: $prefsErr');
+        }
       } catch (e) {
         debugPrint('[AdminPanel] service_requests load error: $e');
       }
@@ -840,29 +850,48 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           .fold(0.0, (sum, r) => sum + r.price);
     });
 
+    // 1. Instantly persist to SharedPreferences (survives web browser refresh)
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList('admin_test_request_ids', _testRequestIds.toList());
+    } catch (prefsErr) {
+      debugPrint('[AdminPanel] prefs test request save error: $prefsErr');
+    }
+
     try {
       final client = SupabaseService.instance.client;
-      // Try updating is_test column directly
+
+      // 2. Try RPC function admin_set_request_test_status (bypasses RLS)
       try {
-        await client.from('service_requests').update({'is_test': willBeTest}).eq('id', requestId);
-      } catch (colErr) {
-        debugPrint('[AdminPanel] is_test column update notice, tagging problem_description fallback: $colErr');
-        // Fallback: tag problem_description with [TEST] prefix
-        final req = _allRequests.firstWhere((r) => r.id == requestId);
-        String currentDesc = req.problemDescription ?? '';
-        if (willBeTest && !currentDesc.startsWith('[TEST]')) {
-          currentDesc = '[TEST] $currentDesc'.trim();
-        } else if (!willBeTest && currentDesc.startsWith('[TEST]')) {
-          currentDesc = currentDesc.replaceFirst('[TEST]', '').trim();
+        await client.rpc('admin_set_request_test_status', params: {
+          'target_request_id': requestId,
+          'is_test_flag': willBeTest,
+        });
+      } catch (rpcErr) {
+        // Fallback: direct table update if column exists
+        try {
+          await client.from('service_requests').update({'is_test': willBeTest}).eq('id', requestId);
+        } catch (_) {
+          // Fallback: tag problem_description with [TEST] prefix
+          final reqIndex = _allRequests.indexWhere((r) => r.id == requestId);
+          if (reqIndex != -1) {
+            final req = _allRequests[reqIndex];
+            String currentDesc = req.problemDescription ?? '';
+            if (willBeTest && !currentDesc.startsWith('[TEST]')) {
+              currentDesc = '[TEST] $currentDesc'.trim();
+            } else if (!willBeTest && currentDesc.startsWith('[TEST]')) {
+              currentDesc = currentDesc.replaceFirst('[TEST]', '').trim();
+            }
+            await client.from('service_requests').update({'problem_description': currentDesc}).eq('id', requestId);
+          }
         }
-        await client.from('service_requests').update({'problem_description': currentDesc}).eq('id', requestId);
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(willBeTest
-                ? 'Talep TEST verisi olarak işaretlendi. Mali tablolardan hariç tutuldu.'
+                ? 'Talep TEST verisi olarak işaretlendi ve kaydedildi. Mali tablolardan hariç tutuldu.'
                 : 'Talep test işaretinden çıkarıldı ve mali tablolara dahil edildi.'),
             backgroundColor: willBeTest ? AppColors.warning : AppColors.success,
             duration: const Duration(seconds: 2),
@@ -4194,7 +4223,21 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   Widget _buildLiveMapTab() {
     final isMobile = MediaQuery.of(context).size.width < 1000;
     final activeRequests = _allRequests.where((r) => r.status.dbValue != 'completed' && r.status.dbValue != 'cancelled').toList();
-    final availableDrivers = _allDrivers.where((d) => d['is_available'] == true && d['is_verified'] == true).toList();
+    final availableDrivers = _allDrivers.where((d) {
+      if (d['is_available'] != true || d['is_verified'] != true) return false;
+      // Konum güncellemesi üzerinden 15 dakikadan fazla geçmişse pasif sayılır (hayalet çevrimiçi engeli)
+      final locUpdated = d['location_updated_at'] ?? d['last_location_updated_at'];
+      if (locUpdated == null) return false;
+      try {
+        final dt = locUpdated is DateTime ? locUpdated : DateTime.parse(locUpdated.toString());
+        if (DateTime.now().toUtc().difference(dt.toUtc()).inMinutes > 15) {
+          return false;
+        }
+      } catch (_) {
+        return false;
+      }
+      return true;
+    }).toList();
 
     final markers = <Marker>{};
     final polylines = <Polyline>{};

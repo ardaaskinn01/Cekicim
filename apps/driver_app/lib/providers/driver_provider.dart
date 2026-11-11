@@ -31,7 +31,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
 
   DriverStatusNotifier(this._requestRepo, this._locationService, this._driverId, {bool isVerified = false})
       : _isVerified = isVerified,
-        super(isVerified) {
+        super(false) {
     if (_driverId.isNotEmpty) {
       WidgetsBinding.instance.addObserver(this);
       _initStatus();
@@ -53,7 +53,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
         return val == 'online';
       }
     } catch (_) {}
-    return _isVerified; // Onaysızsa asla varsayılan true olamaz
+    return false; // Varsayılan olarak her zaman kapalı (offline) başlasın
   }
 
   Future<void> _initStatus() async {
@@ -83,7 +83,7 @@ class DriverStatusNotifier extends StateNotifier<bool> with WidgetsBindingObserv
             .select('is_available')
             .eq('id', _driverId)
             .maybeSingle();
-        final isAvailable = data?['is_available'] as bool? ?? true;
+        final isAvailable = data?['is_available'] as bool? ?? false;
         state = isAvailable;
         if (isAvailable) {
           _startLocationSharing();
