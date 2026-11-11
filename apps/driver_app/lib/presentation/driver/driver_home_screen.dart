@@ -160,6 +160,9 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with Widget
           NotificationService().showLocalNotification(
             '🚨 Yeni Yol Yardım Talebi!',
             'Yakınınızda yeni bir talep var. Hemen inceleyin!',
+            // Aynı talep + tip → FCM'den gelen bildirimle aynı id: üst üste binmez
+            payload: '$reqId|NEW_REQUEST',
+            type: 'NEW_REQUEST',
           );
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) context.push('/driver/offer/$reqId');

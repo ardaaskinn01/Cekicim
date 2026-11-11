@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -15,15 +16,57 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
+  /// Alarm kanalı. Android'de kanal sesi/önemi oluşturulduktan sonra DEĞİŞTİRİLEMEZ;
+  /// eski 'cekici_alerts_v2' kanalı bozuk/sessiz kaldığı için yeni id (v3) kullanılır.
+  static const String alertChannelId = 'cekici_alerts_v3';
+  static const String _legacyAlertChannelId = 'cekici_alerts_v2';
+
+  /// Sessiz/normal sesli bildirimler (mesaj, hatırlatma, talep alındı vb.) için kanal.
+  static const String messageChannelId = 'cekici_messages_v1';
+
+  /// Alarm sesiyle çalması gereken bildirim tipleri.
+  static const Set<String> _alarmTypes = {
+    'NEW_REQUEST',
+    'VOIP_CALL',
+    'call',
+    'DRIVER_ARRIVING',
+    'OFFLINE_DRIVER_REMINDER',
+  };
+
+  bool _pluginInitialized = false;
+
+  /// Aynı iş (talep + tip) için HER ZAMAN aynı bildirim id'sini üretir (FNV-1a).
+  /// Böylece tekrar gelen bildirim öncekinin üstüne yazılır, birikmez.
+  static int notificationIdFor(String? requestId, String? type) {
+    final key = '${requestId ?? ''}|${type ?? ''}';
+    var hash = 0x811C9DC5;
+    for (final unit in key.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0x7FFFFFFF;
+    }
+    return hash;
+  }
+
   Future<void> initialize() async {
     tz.initializeTimeZones();
+    await _initPlugin(requestPermissions: true);
+  }
+
+  /// Arka plan isolate'ında (izin istemeden) eklentiyi hazırlar.
+  Future<void> ensureInitializedForBackground() async {
+    await _initPlugin(requestPermissions: false);
+  }
+
+  Future<void> _initPlugin({required bool requestPermissions}) async {
+    if (_pluginInitialized) return;
+
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
+    final iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: requestPermissions,
+      requestBadgePermission: requestPermissions,
+      requestSoundPermission: requestPermissions,
     );
-    const initSettings = InitializationSettings(
+    final initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
@@ -42,19 +85,46 @@ class NotificationService {
         }
       },
     );
+    _pluginInitialized = true;
 
     const androidChannel = AndroidNotificationChannel(
-      'cekici_alerts_v2',
-      'Çekici Bildirimleri',
-      description: 'Yeni teklif ve yol yardım bildirim kanalı',
+      alertChannelId,
+      'Çekici Alarmları',
+      description: 'Yeni talep, gelen arama ve çekici yaklaşma alarmları',
       importance: Importance.max,
       sound: RawResourceAndroidNotificationSound('alarm'),
       playSound: true,
+      enableVibration: true,
+      audioAttributesUsage: AudioAttributesUsage.alarm,
     );
 
-    await _flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(androidChannel);
+    const messageChannel = AndroidNotificationChannel(
+      messageChannelId,
+      'Mesajlar ve Bilgilendirmeler',
+      description: 'Sohbet mesajları, hatırlatmalar ve durum bilgilendirmeleri',
+      importance: Importance.high,
+      playSound: true,
+    );
+
+    const tripProgressChannel = AndroidNotificationChannel(
+      'cekici_trip_progress',
+      'Çekici Canlı Takip',
+      description: 'Sürücü gelişi ve çekici seferi canlı durum bildirim kanalı',
+      importance: Importance.high,
+      playSound: false,
+      enableVibration: false,
+      showBadge: true,
+    );
+
+    final androidPlugin = _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(androidChannel);
+    await androidPlugin?.createNotificationChannel(messageChannel);
+    await androidPlugin?.createNotificationChannel(tripProgressChannel);
+    // Sessiz kalan eski kanalı kaldır (kullanıcı ayarlarında çift kanal görünmesin)
+    try {
+      await androidPlugin?.deleteNotificationChannel(_legacyAlertChannelId);
+    } catch (_) {}
   }
 
   bool _isFCMSetup = false;
@@ -127,24 +197,9 @@ class NotificationService {
         await authRepo.updateFcmToken(userId, newToken);
       });
       
-      // Handle foreground messages
+      // Handle foreground messages (tek giriş noktası: handleRemoteMessage)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-        String title = message.notification?.title ?? message.data['title'] ?? 'Çekici';
-        String body = message.notification?.body ?? message.data['body'] ?? '';
-
-        if (type == 'call' || type == 'VOIP_CALL') {
-          title = message.data['title'] ?? '📞 Gelen Sesli Arama';
-          body = message.data['body'] ?? 'Sizi arıyorlar. Görüşmeyi yanıtlamak için tıklayın.';
-        }
-
-        final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
-
-        showLocalNotification(
-          title,
-          body,
-          payload: requestId != null ? '$requestId|${type ?? ""}' : null,
-        );
+        handleRemoteMessage(message, isForeground: true);
       });
 
       // Handle background taps
@@ -172,34 +227,128 @@ class NotificationService {
     }
   }
 
-  Future<void> showLocalNotification(String title, String body, {String? payload}) async {
-    const androidDetails = AndroidNotificationDetails(
-      'cekici_alerts_v2',
-      'Çekici Bildirimleri',
-      channelDescription: 'Yeni teklif ve yol yardım bildirim kanalı',
-      importance: Importance.max,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      sound: RawResourceAndroidNotificationSound('alarm'),
-      playSound: true,
-      fullScreenIntent: true,
-    );
+  /// Gelen FCM mesajını (ön plan / arka plan) TEK yerden işler.
+  ///
+  /// Çift bildirimi önleyen kurallar:
+  ///  * iOS: APNs `alert`'ini işletim sistemi zaten gösterir (ön planda
+  ///    `setForegroundNotificationPresentationOptions` ile) → yerel kopya ÜRETİLMEZ.
+  ///  * Android: sunucu data-only gönderir. Eski sürüm sunucudan `notification`
+  ///    bloğu gelirse ve uygulama arka plandaysa sistem tepsisi zaten gösterir → atlanır.
+  Future<void> handleRemoteMessage(RemoteMessage message, {required bool isForeground}) async {
+    try {
+      final data = message.data;
+      final type = (data['type'] ?? data['notification_type']) as String?;
+      final requestId = (data['request_id'] ?? data['requestId']) as String?;
 
-    const iosDetails = DarwinNotificationDetails(
+      // Talep başkası tarafından alındıysa, bu talep için çalan alarm bildirimini temizle
+      if (type == 'REQUEST_TAKEN' && requestId != null && requestId.isNotEmpty) {
+        await ensureInitializedForBackground();
+        await _flutterLocalNotificationsPlugin
+            .cancel(notificationIdFor(requestId, 'NEW_REQUEST'));
+        await _flutterLocalNotificationsPlugin
+            .cancel(notificationIdFor(requestId, 'OFFLINE_DRIVER_REMINDER'));
+      }
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) return;
+      if (!isForeground && message.notification != null) return;
+
+      final isVoip = (type == 'VOIP_CALL' || type == 'call');
+      final title = (data['title'] as String?) ??
+          message.notification?.title ??
+          (isVoip ? '📞 Gelen Sesli Arama' : 'Çekici');
+      final body = (data['body'] as String?) ??
+          message.notification?.body ??
+          (isVoip ? 'Çekici hizmetiniz için canlı sesli arama geliyor.' : '');
+
+      await ensureInitializedForBackground();
+      await showLocalNotification(
+        title,
+        body,
+        payload: requestId != null ? '$requestId|${type ?? ""}' : null,
+        type: type,
+      );
+    } catch (e) {
+      debugPrint('handleRemoteMessage error: $e');
+    }
+  }
+
+  /// Bir talebe ait alarm bildirimlerini (yeni talep / offline hatırlatma) kaldırır.
+  /// `cancelAll()` kullanılmaz; canlı takip bildirimini de silmesin diye.
+  Future<void> cancelRequestAlerts(String requestId) async {
+    try {
+      await _flutterLocalNotificationsPlugin
+          .cancel(notificationIdFor(requestId, 'NEW_REQUEST'));
+      await _flutterLocalNotificationsPlugin
+          .cancel(notificationIdFor(requestId, 'OFFLINE_DRIVER_REMINDER'));
+    } catch (e) {
+      debugPrint('cancelRequestAlerts error: $e');
+    }
+  }
+
+  Future<void> showLocalNotification(
+    String title,
+    String body, {
+    String? payload,
+    String? type,
+  }) async {
+    final parts = payload?.split('|');
+    final requestId = (parts != null && parts.isNotEmpty) ? parts[0].trim() : null;
+    var resolvedType = type;
+    if ((resolvedType == null || resolvedType.isEmpty) && parts != null && parts.length > 1) {
+      resolvedType = parts[1].trim();
+    }
+    if (resolvedType != null && resolvedType.isEmpty) resolvedType = null;
+
+    // Tip bilinmiyorsa eski davranış: alarm (yeni talep)
+    final isAlarm = resolvedType == null || _alarmTypes.contains(resolvedType);
+    final isVoip = resolvedType == 'VOIP_CALL' || resolvedType == 'call';
+    final effectiveType = resolvedType ?? 'NEW_REQUEST';
+
+    final androidDetails = isAlarm
+        ? AndroidNotificationDetails(
+            alertChannelId,
+            'Çekici Alarmları',
+            channelDescription: 'Yeni talep, gelen arama ve çekici yaklaşma alarmları',
+            importance: Importance.max,
+            priority: Priority.max,
+            icon: '@mipmap/ic_launcher',
+            sound: const RawResourceAndroidNotificationSound('alarm'),
+            playSound: true,
+            enableVibration: true,
+            audioAttributesUsage: AudioAttributesUsage.alarm,
+            category: isVoip ? AndroidNotificationCategory.call : AndroidNotificationCategory.alarm,
+            fullScreenIntent: true,
+            onlyAlertOnce: false,
+            // Eski/cevaplanmamış teklifler bildirim çubuğunda birikmesin
+            timeoutAfter: effectiveType == 'NEW_REQUEST' ? 90000 : null,
+          )
+        : const AndroidNotificationDetails(
+            messageChannelId,
+            'Mesajlar ve Bilgilendirmeler',
+            channelDescription: 'Sohbet mesajları, hatırlatmalar ve durum bilgilendirmeleri',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: '@mipmap/ic_launcher',
+            playSound: true,
+          );
+
+    final iosDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
       presentBanner: true,
-      sound: 'alarm.mp3',
-      interruptionLevel: InterruptionLevel.timeSensitive,
+      sound: isAlarm ? 'alarm.mp3' : null,
+      interruptionLevel: isAlarm ? InterruptionLevel.timeSensitive : InterruptionLevel.active,
+      threadIdentifier: requestId,
     );
 
-    const notificationDetails = NotificationDetails(
+    final notificationDetails = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
     await _flutterLocalNotificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      // Aynı talep + tip → aynı id → öncekinin üstüne yazar (birikme yok)
+      notificationIdFor(requestId, effectiveType),
       title,
       body,
       notificationDetails,
@@ -210,6 +359,68 @@ class NotificationService {
   static const int _driver3DayNotificationId = 88883;
   static const int _driver7DayNotificationId = 88887;
   static const int _customer7DayNotificationId = 77777;
+  static const int tripProgressNotificationId = 99990;
+
+  /// Kilit ekranında ve bildirim merkezinde sürücünün gelişini ve sefer ilerlemesini
+  /// canlı ilerleme çubuğuyla (Progress Bar) gösteren zengin bildirim widget'ı.
+  Future<void> showTripProgressNotification({
+    required String title,
+    required String body,
+    required int progressPercent, // 0 - 100
+    String? subText,
+    String? requestId,
+  }) async {
+    final clampedProgress = progressPercent.clamp(0, 100);
+
+    final androidDetails = AndroidNotificationDetails(
+      'cekici_trip_progress',
+      'Çekici Canlı Takip',
+      channelDescription: 'Sürücü gelişi ve çekici seferi canlı durum bildirim kanalı',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      ongoing: true, // Kullanıcı kazara kaydırıp kapatmasın
+      autoCancel: false,
+      onlyAlertOnce: true, // Her mesafe değişiminde ses/titreşim yapıp rahatsız etmesin
+      showProgress: true,
+      maxProgress: 100,
+      progress: clampedProgress,
+      subText: subText ?? 'Canlı Takip',
+      visibility: NotificationVisibility.public, // Kilit ekranında tam görünürlük
+      category: AndroidNotificationCategory.status,
+      color: const Color(0xFF00C853), // AppColors.accent / primary
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: false, // Her koordinatta banner fırlatmasın
+      presentBadge: false,
+      presentSound: false,
+      presentBanner: false,
+      interruptionLevel: InterruptionLevel.passive,
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _flutterLocalNotificationsPlugin.show(
+      tripProgressNotificationId,
+      title,
+      body,
+      details,
+      payload: requestId != null ? '$requestId|trip_tracking' : null,
+    );
+  }
+
+  /// Yolculuk bittiğinde veya iptal edildiğinde canlı bildirim çubuğunu temizler.
+  Future<void> cancelTripProgressNotification() async {
+    try {
+      await _flutterLocalNotificationsPlugin.cancel(tripProgressNotificationId);
+    } catch (e) {
+      debugPrint('Error canceling trip progress notification: $e');
+    }
+  }
 
   /// Sürücü uygulamayı kullanmadığında 3. gün ve 7. günde tetiklenecek 2 ayrı bildirim planlar.
   Future<void> scheduleDriverInactivityReminders() async {
@@ -218,8 +429,8 @@ class NotificationService {
       await _flutterLocalNotificationsPlugin.cancel(_driver7DayNotificationId);
 
       const androidDetails = AndroidNotificationDetails(
-        'cekici_alerts_v2',
-        'Çekici Bildirimleri',
+        messageChannelId,
+        'Mesajlar ve Bilgilendirmeler',
         channelDescription: 'Sürücü hatırlatma bildirimleri',
         importance: Importance.high,
         priority: Priority.high,
@@ -276,8 +487,8 @@ class NotificationService {
       await _flutterLocalNotificationsPlugin.cancel(_customer7DayNotificationId);
 
       const androidDetails = AndroidNotificationDetails(
-        'cekici_alerts_v2',
-        'Çekici Bildirimleri',
+        messageChannelId,
+        'Mesajlar ve Bilgilendirmeler',
         channelDescription: 'Müşteri hatırlatma bildirimleri',
         importance: Importance.high,
         priority: Priority.high,

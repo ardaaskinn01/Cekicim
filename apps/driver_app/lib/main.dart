@@ -10,10 +10,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-
-/// Top-level background message handler — must be a top-level function.
-/// Android requires this for background/terminated FCM messages.
+/// Top-level background message handler - must be a top-level function.
+/// Tum mantik NotificationService.handleRemoteMessage icinde (cift bildirim engelleme dahil).
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
@@ -22,63 +20,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
   } catch (_) {}
 
-  try {
-    final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-    final isVoip = (type == 'VOIP_CALL' || type == 'call');
-    final notification = message.notification;
-    final title = notification?.title ?? message.data['title'] ?? (isVoip ? '📞 Gelen Sesli Arama' : '🚨 Yeni Yol Yardım Talebi!');
-    final body = notification?.body ?? message.data['body'] ?? (isVoip ? 'Çekici hizmetiniz için canlı sesli arama geliyor.' : 'Yakınınızda yeni bir talep var. Hemen inceleyin!');
-    final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
-
-    final localNotifications = FlutterLocalNotificationsPlugin();
-    
-    // Initialize inside background isolate
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
-    );
-    await localNotifications.initialize(
-      const InitializationSettings(android: androidSettings, iOS: iosSettings),
-    );
-
-    const androidDetails = AndroidNotificationDetails(
-      'cekici_alerts_v2',
-      'Çekici Bildirimleri',
-      channelDescription: 'Yeni teklif ve yol yardım bildirim kanalı',
-      importance: Importance.max,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-      sound: RawResourceAndroidNotificationSound('alarm'),
-      playSound: true,
-      fullScreenIntent: true,
-    );
-
-    const iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-      presentBanner: true,
-      sound: 'alarm.mp3',
-      interruptionLevel: InterruptionLevel.timeSensitive,
-    );
-
-    const notificationDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
-    await localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      notificationDetails,
-      payload: requestId != null ? '$requestId|${type ?? ""}' : null,
-    );
-  } catch (e) {
-    debugPrint('Background message handler error: $e');
-  }
+  await NotificationService().handleRemoteMessage(message, isForeground: false);
 }
 
 void main() async {

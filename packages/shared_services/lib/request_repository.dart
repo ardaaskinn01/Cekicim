@@ -422,7 +422,18 @@ class RequestRepository {
     }).eq('id', requestId);
 
     // 2. Insert rows into pending_offers table so driver streams are notified in real-time
-    final inserts = driverIds.map((driverId) => {
+    // "Tekrar Ara" ile aynı talep birden fazla kez gönderilebilir: önce bekleyen eski
+    // teklifleri temizle ki sürücüde çift teklif/çift alarm oluşmasın.
+    try {
+      await _client
+          .from('pending_offers')
+          .delete()
+          .eq('request_id', requestId)
+          .eq('status', 'pending');
+    } catch (e) {
+      debugPrint('Warning: could not clear stale pending offers: $e');
+    }
+    final inserts = driverIds.toSet().map((driverId) => {
       'request_id': requestId,
       'driver_id': driverId,
       'status': 'pending',

@@ -13,11 +13,13 @@ import 'package:shared_models/dispute_model.dart';
 import 'package:shared_services/dispute_repository.dart';
 import 'package:shared_ui/widgets/dispute_dialog.dart';
 import 'package:shared_services/routing_service.dart';
+import 'package:shared_services/notification_service.dart';
 import 'package:shared_services/app_error_handler.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/rating_widget.dart';
+import 'package:shared_ui/widgets/trip_live_progress_card.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_ui/widgets/glass_container.dart';
 
@@ -49,6 +51,101 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
   String? _etaDistance;
   DateTime? _lastRouteFetchTime;
   BuildContext? _incomingCallDialogContext;
+
+  // Canlı bildirim çubuğu ve ilerleme takibi
+  double? _pickupInitialDistanceMeters;
+  double? _destinationInitialDistanceMeters;
+  DateTime? _lastNotificationUpdateTime;
+
+  void _updateLiveTripNotification({
+    required ServiceRequestModel request,
+    String? driverPlate,
+    String? driverName,
+  }) {
+    if (request.status != RequestStatus.accepted && request.status != RequestStatus.inProgress) {
+      NotificationService().cancelTripProgressNotification();
+      return;
+    }
+
+    if (_currentDriverLocation == null) return;
+
+    final isTowardsDestination = request.status == RequestStatus.inProgress;
+    final targetLat = isTowardsDestination && request.destinationLat != null
+        ? request.destinationLat!
+        : request.customerLat;
+    final targetLng = isTowardsDestination && request.destinationLng != null
+        ? request.destinationLng!
+        : request.customerLng;
+
+    final currentRemainingMeters = Geolocator.distanceBetween(
+      _currentDriverLocation!.latitude,
+      _currentDriverLocation!.longitude,
+      targetLat,
+      targetLng,
+    );
+
+    double ratio = 0.0;
+    int progressPercent;
+    String title;
+    String body;
+
+    if (!isTowardsDestination) {
+      // 1. FAZ: Sürücü müşterinin yanına gidiyor
+      if (_pickupInitialDistanceMeters == null || _pickupInitialDistanceMeters! < currentRemainingMeters) {
+        _pickupInitialDistanceMeters = currentRemainingMeters;
+      }
+      if (_pickupInitialDistanceMeters != null && _pickupInitialDistanceMeters! > 50) {
+        ratio = (1.0 - (currentRemainingMeters / _pickupInitialDistanceMeters!)).clamp(0.05, 0.98);
+      }
+
+      if (currentRemainingMeters < 80) {
+        progressPercent = 100;
+        title = '🚜 Çekici Konumunuza Ulaştı!';
+        body = '${driverPlate ?? "Çekici"} geldi. Lütfen araca geçiniz.';
+      } else {
+        progressPercent = (ratio * 100).round().clamp(5, 95);
+        title = '🚜 Çekici Konumunuza Geliyor';
+        final eta = _etaDuration != null ? 'Tahmini Varış: $_etaDuration' : 'Yolda';
+        final dist = _etaDistance != null ? ' ($_etaDistance)' : '';
+        body = '$eta$dist • ${driverPlate ?? ""}';
+      }
+    } else {
+      // 2. FAZ: Araç yüklendi, çekici hedef konuma (tamirhane/hedef adres) gidiyor (Çubuk sıfırlanıp hedefe göre ilerler)
+      if (_destinationInitialDistanceMeters == null || _destinationInitialDistanceMeters! < currentRemainingMeters) {
+        _destinationInitialDistanceMeters = currentRemainingMeters;
+      }
+      if (_destinationInitialDistanceMeters != null && _destinationInitialDistanceMeters! > 50) {
+        ratio = (1.0 - (currentRemainingMeters / _destinationInitialDistanceMeters!)).clamp(0.05, 0.98);
+      }
+
+      if (currentRemainingMeters < 100) {
+        progressPercent = 100;
+        title = '🏁 Hedefe Ulaşıldı!';
+        body = 'Çekici varış noktasına ulaştı. Araç teslim ediliyor.';
+      } else {
+        progressPercent = (ratio * 100).round().clamp(5, 95);
+        title = '🚗 Hedefe Gidiliyor (Araç Taşınıyor)';
+        final eta = _etaDuration != null ? 'Hedefe Varış: $_etaDuration' : 'Seyir halinde';
+        final dist = _etaDistance != null ? ' ($_etaDistance)' : '';
+        body = '$eta$dist • ${driverPlate ?? ""}';
+      }
+    }
+
+    // Bildirim sıklığını saniyede 1 kereden fazla yapmayarak işletim sistemi kısıtlamalarına uy
+    final now = DateTime.now();
+    if (_lastNotificationUpdateTime != null && now.difference(_lastNotificationUpdateTime!).inSeconds < 4) {
+      return;
+    }
+    _lastNotificationUpdateTime = now;
+
+    NotificationService().showTripProgressNotification(
+      title: title,
+      body: body,
+      progressPercent: progressPercent,
+      subText: isTowardsDestination ? 'Hedefe Yolculuk' : 'Müşteriye Gidiş',
+      requestId: request.id,
+    );
+  }
 
   void _showIncomingCallDialog(BuildContext context, ServiceRequestModel request) {
     if (_incomingCallDialogContext != null) return;
@@ -219,6 +316,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
     _searchTimer?.cancel();
     _animationController?.dispose();
     _unsubscribeRealtime();
+    NotificationService().cancelTripProgressNotification();
     super.dispose();
   }
 
@@ -548,6 +646,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
       error: (err, st) => Scaffold(body: Center(child: Text('Hata: $err'))),
       data: (request) {
         if (request.status == RequestStatus.cancelled) {
+          NotificationService().cancelTripProgressNotification();
           if (!_isCancellationDialogShown) {
             _isCancellationDialogShown = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -589,6 +688,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
         }
 
         if (request.status == RequestStatus.completed) {
+          NotificationService().cancelTripProgressNotification();
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               context.go('/customer/rate/${request.id}/${request.driverId ?? ""}');
@@ -670,6 +770,17 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                     icon: _driverIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
                   ),
                 );
+
+                // Canlı kilit ekranı ve bildirim çubuğunu güncelle
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _updateLiveTripNotification(
+                      request: request,
+                      driverPlate: driver.vehiclePlate,
+                      driverName: driver.fullName,
+                    );
+                  }
+                });
               }
 
               return Column(
@@ -1132,6 +1243,54 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen> with SingleTick
                                     ],
                                     const SizedBox(height: 16),
                                   ] else ...[
+                                    if (request.status == RequestStatus.accepted || request.status == RequestStatus.inProgress) ...[
+                                      TripLiveProgressCard(
+                                        statusTitle: request.status == RequestStatus.accepted
+                                            ? '🚜 Çekici Konumunuza Geliyor'
+                                            : '🚗 Hedefe Gidiliyor (Araç Taşınıyor)',
+                                        statusSubtitle: request.status == RequestStatus.accepted
+                                            ? 'Sürücü rota üzerinde ilerliyor'
+                                            : 'Varış noktasına doğru seyir halinde',
+                                        etaDuration: _etaDuration,
+                                        etaDistance: _etaDistance,
+                                        progressPercent: () {
+                                          if (_currentDriverLocation == null) return 0.1;
+                                          final isTowardsDestination = request.status == RequestStatus.inProgress;
+                                          final targetLat = isTowardsDestination && request.destinationLat != null
+                                              ? request.destinationLat!
+                                              : request.customerLat;
+                                          final targetLng = isTowardsDestination && request.destinationLng != null
+                                              ? request.destinationLng!
+                                              : request.customerLng;
+                                          final remMeters = Geolocator.distanceBetween(
+                                            _currentDriverLocation!.latitude,
+                                            _currentDriverLocation!.longitude,
+                                            targetLat,
+                                            targetLng,
+                                          );
+
+                                          if (!isTowardsDestination) {
+                                            if (_pickupInitialDistanceMeters == null || _pickupInitialDistanceMeters! < remMeters) {
+                                             _pickupInitialDistanceMeters = remMeters;
+                                            }
+                                            if (_pickupInitialDistanceMeters != null && _pickupInitialDistanceMeters! > 50) {
+                                              return (1.0 - (remMeters / _pickupInitialDistanceMeters!)).clamp(0.05, 0.98);
+                                            }
+                                          } else {
+                                            // 2. Faz: Hedefe taşınırken çubuk baştan sıfırlanır ve hedefe yaklaştıkça dolar
+                                            if (_destinationInitialDistanceMeters == null || _destinationInitialDistanceMeters! < remMeters) {
+                                              _destinationInitialDistanceMeters = remMeters;
+                                            }
+                                            if (_destinationInitialDistanceMeters != null && _destinationInitialDistanceMeters! > 50) {
+                                              return (1.0 - (remMeters / _destinationInitialDistanceMeters!)).clamp(0.05, 0.98);
+                                            }
+                                          }
+                                          return 0.15;
+                                        }(),
+                                        currentStep: request.status == RequestStatus.accepted ? 1 : 2,
+                                      ),
+                                      const SizedBox(height: 14),
+                                    ],
                                     driverInfoWidget,
                                     if (request.status == RequestStatus.accepted && request.completionCode != null) ...[
                                       const SizedBox(height: 10),

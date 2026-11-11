@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_services/notification_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_ui/app_colors.dart';
@@ -140,9 +140,8 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
       final user = ref.read(currentUserProvider).value;
       if (user == null) throw Exception('Kullanıcı bulunamadı.');
 
-      // Cancel the local notification and stop alarm sound
-      final notifPlugin = FlutterLocalNotificationsPlugin();
-      await notifPlugin.cancelAll();
+      // Cancel only this request's alert notification (cancelAll would also wipe live-trip notification) and stop alarm sound
+      await NotificationService().cancelRequestAlerts(widget.requestId);
       await AlarmAudioService().stopAlarm();
 
       await ref.read(requestNotifierProvider.notifier).acceptRequest(widget.requestId, user.id);

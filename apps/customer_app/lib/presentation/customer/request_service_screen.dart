@@ -847,6 +847,21 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lütfen gidilecek konumu aratıp seçin.')));
         return;
       }
+      final distanceInMeters = Geolocator.distanceBetween(
+        _selectedLatLng.latitude,
+        _selectedLatLng.longitude,
+        _destinationLatLng!.latitude,
+        _destinationLatLng!.longitude,
+      );
+      if (distanceInMeters < 100.0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lütfen hedef noktayı aracın bulunduğu yerden farklı bir konum olarak seçiniz.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
       _fetchDrivers();
       _checkTolls();
       setState(() => _currentStep++);

@@ -18,17 +18,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
   } catch (_) {}
 
-  final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-  final isVoip = (type == 'VOIP_CALL' || type == 'call');
-  final title = message.notification?.title ?? message.data['title'] ?? (isVoip ? '📞 Gelen Sesli Arama' : 'Çekici');
-  final body = message.notification?.body ?? message.data['body'] ?? (isVoip ? 'Çekici hizmetiniz için canlı sesli arama geliyor.' : '');
-  final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
-
-  await NotificationService().showLocalNotification(
-    title,
-    body,
-    payload: requestId != null ? '$requestId|${type ?? ""}' : null,
-  );
+  await NotificationService().handleRemoteMessage(message, isForeground: false);
 }
 
 void main() async {

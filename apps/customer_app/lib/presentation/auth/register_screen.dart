@@ -22,6 +22,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
@@ -42,6 +43,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final metaName = (currentUser.userMetadata?['full_name'] ?? currentUser.userMetadata?['name']) as String? ?? '';
       _fullNameController.text = metaName;
       _emailController.text = currentUser.email ?? '';
+      _phoneController.text = currentUser.phone ?? (currentUser.userMetadata?['phone'] as String? ?? '');
     }
   }
 
@@ -49,6 +51,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _fullNameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -69,11 +72,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isLoading = true);
     try {
       final fullName = _fullNameController.text.trim();
+      final phone = _phoneController.text.trim();
       final email = _emailController.text.trim();
 
       if (_isCompletingProfile) {
         await ref.read(authNotifierProvider.notifier).completeProfile(
           fullName: fullName,
+          phone: phone,
           email: email.isNotEmpty ? email : null,
         );
       } else {
@@ -82,6 +87,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           email: email,
           password: password,
           fullName: fullName,
+          phone: phone,
         );
       }
 
@@ -130,7 +136,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   Text(
                     _isCompletingProfile
-                        ? 'Hizmet alabilmeniz için lütfen bilgilerinizi tamamlayınız.'
+                        ? 'Hizmet alabilmeniz ve sürücülerin size ulaşabilmesi için bilgilerinizi tamamlayınız.'
                         : 'Çekicim hizmetlerinden yararlanmak için formu doldurunuz.',
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                   ),
@@ -143,6 +149,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     hint: '',
                     prefixIcon: Icons.person_outline,
                     validator: (val) => val == null || val.trim().isEmpty ? 'Ad soyad gereklidir' : null,
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Phone
+                  AppTextField(
+                    controller: _phoneController,
+                    label: 'İletişim Telefon Numarası',
+                    hint: '',
+                    prefixIcon: Icons.phone_android_outlined,
+                    keyboardType: TextInputType.phone,
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'Telefon numarası gereklidir';
+                      final digits = val.replaceAll(RegExp(r'\D'), '');
+                      if (digits.length < 10) return 'Lütfen geçerli 10 haneli telefon numarası giriniz';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
 

@@ -20,17 +20,22 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // Aynı kullanıcı/token birden fazla kez gelirse tek bildirim gitsin
+    const uniqueIds = [...new Set(driver_ids as string[])]
+
     // Fetch FCM Tokens for the drivers/users
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('id, fcm_token')
-      .in('id', driver_ids)
+      .in('id', uniqueIds)
 
     if (error) throw error
 
-    const tokens = profiles
-      .map((p: any) => p.fcm_token)
-      .filter((t: any) => !!t)
+    const tokens: string[] = [...new Set(
+      profiles
+        .map((p: any) => p.fcm_token)
+        .filter((t: any) => !!t)
+    )] as string[]
 
     if (tokens.length === 0) {
       return new Response(JSON.stringify({ message: 'No FCM tokens found' }), {
@@ -74,14 +79,24 @@ Deno.serve(async (req) => {
     const projectId = serviceAccount.project_id
     const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`
 
+    // Alarm sesiyle çalacak tipler (diğerleri normal bildirim sesi kullanır)
+    const alarmTypes = ['NEW_REQUEST', 'VOIP_CALL', 'DRIVER_ARRIVING', 'OFFLINE_DRIVER_REMINDER']
+    // Bildirimin geçerlilik süresi (sn): eski alarmlar sonradan çalmasın / birikmesin
+    const ttlByType: Record<string, number> = {
+      NEW_REQUEST: 90,
+      VOIP_CALL: 30,
+      DRIVER_ARRIVING: 300,
+      OFFLINE_DRIVER_REMINDER: 600,
+      REQUEST_TAKEN: 120,
+      CHAT_MESSAGE: 3600,
+    }
+
     // Send notification to each token
     const results = await Promise.all(
       tokens.map(async (token: string) => {
         let title = customTitle || 'Yeni Yol Yardım Talebi!'
         let body = customBody || 'Yakınınızda yeni bir çekici talebi var. Detaylar için tıklayın.'
         let type = notification_type || 'NEW_REQUEST'
-        let soundName = 'alarm'
-        let iosSound = 'alarm.mp3'
 
         if (notification_type === 'REQUEST_TAKEN') {
           title = 'Talep Alındı'
@@ -99,39 +114,44 @@ Deno.serve(async (req) => {
           title = customTitle || '💬 Yeni Mesaj'
           body = customBody || 'Yeni bir mesajınız var.'
           type = 'CHAT_MESSAGE'
-          soundName = 'default'
-          iosSound = 'default'
         } else if (notification_type === 'DRIVER_ARRIVING') {
           title = customTitle || '🚜 Çekiciniz Yaklaştı!'
           body = customBody || 'Çekici aracınız yaklaşık 250 metre mesafede. Lütfen aracınızın başında hazır olun.'
           type = 'DRIVER_ARRIVING'
-          soundName = 'alarm'
-          iosSound = 'alarm.mp3'
         }
 
+        const isAlarm = alarmTypes.includes(type)
+        const iosSound = isAlarm ? 'alarm.mp3' : 'default'
+        const ttl = ttlByType[type] ?? 3600
+        // Aynı talep + tip tekrar gelirse cihazda öncekinin yerini alır (birikme yok)
+        const collapseId = `${type}_${request_id}`.substring(0, 64)
+
+        // ANDROID: data-only (notification bloğu YOK). Böylece sistem + uygulama
+        // iki ayrı bildirim üretmez; ses/kanal istemcide (alarm kanalı) belirlenir.
+        // iOS: tek APNs alert (sistem gösterir; istemci iOS'ta yerel kopya üretmez).
         const messageBody = {
           message: {
             token: token,
-            notification: {
+            data: {
+              request_id: String(request_id),
+              type: String(type),
               title: title,
               body: body,
             },
-            data: {
-              request_id: request_id, // snake_case yapıldı
-              type: type,
-            },
             android: {
               priority: 'high',
-              notification: {
-                sound: soundName,
-                channelId: 'cekici_alerts_v2',
-              },
+              collapse_key: collapseId,
+              ttl: `${ttl}s`,
             },
             apns: {
               headers: {
                 'apns-priority': '10',
                 'apns-push-type': 'alert',
-                'apns-topic': 'com.aasoft.cekicimsurucu',
+                'apns-collapse-id': collapseId,
+                'apns-expiration': String(Math.floor(Date.now() / 1000) + ttl),
+                // NOT: apns-topic bilinçli olarak YOK. Sürücü bundle id'sini sabitlemek,
+                // müşteri uygulaması token'larında push'un reddedilmesine yol açıyordu.
+                // FCM, topic'i token'ın ait olduğu uygulamadan kendisi belirler.
               },
               payload: {
                 aps: {
@@ -140,8 +160,7 @@ Deno.serve(async (req) => {
                     body: body,
                   },
                   sound: iosSound,
-                  'content-available': 1,
-                  'mutable-content': 1,
+                  'thread-id': String(request_id),
                 },
               },
             },
@@ -159,6 +178,12 @@ Deno.serve(async (req) => {
 
         const resJson = await response.json()
         console.log(`FCM response for token ${token.substring(0, 10)}... :`, JSON.stringify(resJson))
+
+        // Geçersiz/eski token'ı temizle (ölü cihazlara tekrar tekrar gönderim yapılmasın)
+        const errCode = resJson?.error?.details?.[0]?.errorCode || resJson?.error?.status
+        if (errCode === 'UNREGISTERED' || errCode === 'NOT_FOUND') {
+          await supabase.from('profiles').update({ fcm_token: null }).eq('fcm_token', token)
+        }
         return resJson
       })
     )
