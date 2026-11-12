@@ -39,6 +39,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
 
   // Overview stats
   double _totalEarnings = 0.0;
+  double _revenueWeeklyGrowth = 0.0;
   int _activeRequestsCount = 0;
   int _pendingApprovalsCount = 0;
   int _unresolvedDisputesCount = 0;
@@ -217,9 +218,31 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       }
 
       // Recalculate statistics (exclude test requests from financial totals)
-      _totalEarnings = _allRequests
+      final validCompletedRequests = _allRequests
           .where((r) => r.status.dbValue == 'completed' && !_testRequestIds.contains(r.id))
+          .toList();
+
+      _totalEarnings = validCompletedRequests.fold(0.0, (sum, r) => sum + r.price);
+
+      // Gerçek haftalık ciro büyüme trendini hesapla: Son 7 gün vs önceki 7-14 gün
+      final now = DateTime.now();
+      final last7DaysEarnings = validCompletedRequests
+          .where((r) => now.difference(r.completedAt ?? r.createdAt).inDays <= 7)
           .fold(0.0, (sum, r) => sum + r.price);
+      final prev7DaysEarnings = validCompletedRequests
+          .where((r) {
+            final days = now.difference(r.completedAt ?? r.createdAt).inDays;
+            return days > 7 && days <= 14;
+          })
+          .fold(0.0, (sum, r) => sum + r.price);
+
+      if (prev7DaysEarnings > 0) {
+        _revenueWeeklyGrowth = ((last7DaysEarnings - prev7DaysEarnings) / prev7DaysEarnings) * 100;
+      } else if (last7DaysEarnings > 0) {
+        _revenueWeeklyGrowth = 100.0;
+      } else {
+        _revenueWeeklyGrowth = 0.0;
+      }
 
       _activeRequestsCount = _allRequests
           .where((r) => r.status.dbValue != 'completed' && r.status.dbValue != 'cancelled')
@@ -844,10 +867,30 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       } else {
         _testRequestIds.remove(requestId);
       }
-      // Recalculate earnings
-      _totalEarnings = _allRequests
+      // Recalculate earnings and weekly growth
+      final validReqs = _allRequests
           .where((r) => r.status.dbValue == 'completed' && !_testRequestIds.contains(r.id))
+          .toList();
+      _totalEarnings = validReqs.fold(0.0, (sum, r) => sum + r.price);
+
+      final now = DateTime.now();
+      final last7 = validReqs
+          .where((r) => now.difference(r.completedAt ?? r.createdAt).inDays <= 7)
           .fold(0.0, (sum, r) => sum + r.price);
+      final prev7 = validReqs
+          .where((r) {
+            final days = now.difference(r.completedAt ?? r.createdAt).inDays;
+            return days > 7 && days <= 14;
+          })
+          .fold(0.0, (sum, r) => sum + r.price);
+
+      if (prev7 > 0) {
+        _revenueWeeklyGrowth = ((last7 - prev7) / prev7) * 100;
+      } else if (last7 > 0) {
+        _revenueWeeklyGrowth = 100.0;
+      } else {
+        _revenueWeeklyGrowth = 0.0;
+      }
     });
 
     // 1. Instantly persist to SharedPreferences (survives web browser refresh)
@@ -1524,8 +1567,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 value: '${_totalEarnings.toStringAsFixed(2)} TL',
                 icon: Icons.monetization_on_outlined,
                 color: AppColors.accent,
-                trend: '+%14.2',
-                isPositiveTrend: true,
+                trend: _revenueWeeklyGrowth == 0.0
+                    ? '%0.0'
+                    : '${_revenueWeeklyGrowth > 0 ? '+' : ''}%${_revenueWeeklyGrowth.abs().toStringAsFixed(1)}',
+                isPositiveTrend: _revenueWeeklyGrowth >= 0,
                 subtitle: 'geçen haftaya göre',
               ),
               _buildStatCard(
