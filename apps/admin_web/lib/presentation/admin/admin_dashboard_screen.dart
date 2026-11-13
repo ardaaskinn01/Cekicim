@@ -15,6 +15,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_models/feedback_model.dart';
+import 'package:shared_services/feedback_repository.dart';
 import '../../core/utils/export_service.dart';
 import '../../providers/auth_provider.dart';
 
@@ -36,6 +38,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   List<UserModel> _allCustomers = [];
   List<DisputeModel> _allDisputes = [];
   List<Map<String, dynamic>> _allRatings = [];
+  List<FeedbackModel> _allFeedbacks = [];
+  FeedbackModel? _selectedFeedback;
+  String _feedbackFilterStatus = 'all';
+  String _feedbackFilterCategory = 'all';
 
   // Overview stats
   double _totalEarnings = 0.0;
@@ -217,6 +223,16 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         debugPrint('[AdminPanel] ratings load error: $e');
       }
 
+      // 7. Fetch all feedbacks
+      try {
+        _allFeedbacks = await FeedbackRepository().getAllFeedbacks();
+        if (_allFeedbacks.isNotEmpty && _selectedFeedback == null) {
+          _selectedFeedback = _allFeedbacks.first;
+        }
+      } catch (e) {
+        debugPrint('[AdminPanel] feedbacks load error: $e');
+      }
+
       // Recalculate statistics (exclude test requests from financial totals)
       final validCompletedRequests = _allRequests
           .where((r) => r.status.dbValue == 'completed' && !_testRequestIds.contains(r.id))
@@ -295,15 +311,24 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
-      // Use SECURITY DEFINER RPC to bypass RLS for admin operations
-      await client.rpc('admin_verify_driver', params: {'driver_id': driverId});
+      // Use SECURITY DEFINER RPC with notification, fallback to standard RPC + direct notification
+      try {
+        await client.rpc('admin_verify_driver_with_notification', params: {'driver_id': driverId});
+      } catch (_) {
+        await client.rpc('admin_verify_driver', params: {'driver_id': driverId});
+        await _sendNotificationToUser(
+          driverId,
+          '🎉 Başvurunuz Onaylandı!',
+          'Evraklarınız incelendi ve onaylandı. Artık Çekicim ağında çevrimiçi olup çekici çağrılarını kabul edebilirsiniz!',
+        );
+      }
 
       _selectedDriverApproval = null;
       await _loadDashboardData();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sürücü başvurusu onaylandı.'), backgroundColor: AppColors.success),
+          const SnackBar(content: Text('Sürücü başvurusu onaylandı ve bildirim gönderildi.'), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
@@ -321,21 +346,30 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
-      // Use SECURITY DEFINER RPC to bypass RLS for admin operations
-      await client.rpc('admin_reject_driver', params: {'driver_id': driverId, 'reason': reason});
+      // Use SECURITY DEFINER RPC with notification, fallback to standard RPC + direct notification
+      try {
+        await client.rpc('admin_reject_driver_with_notification', params: {'driver_id': driverId, 'reason': reason});
+      } catch (_) {
+        await client.rpc('admin_reject_driver', params: {'driver_id': driverId, 'reason': reason});
+        await _sendNotificationToUser(
+          driverId,
+          'Evrak / Başvuru Bildirimi',
+          'Başvurunuzla ilgili bilgilendirme: $reason',
+        );
+      }
 
       _selectedDriverApproval = null;
       await _loadDashboardData();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Başvuru reddedildi ve gerekçesi sürücüye iletildi.'), backgroundColor: AppColors.success),
+          const SnackBar(content: Text('Başvuru durumu güncellendi ve sürücüye bildirim iletildi.'), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Ret hatası: $e'), backgroundColor: AppColors.error),
+          SnackBar(content: Text('İşlem hatası: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -371,17 +405,40 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _toggleUserBlock(String userId, bool block) async {
+  Future<void> _toggleUserBlock(String userId, bool block, {String banType = 'permanent', String? reason}) async {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
       // Use SECURITY DEFINER RPC to bypass RLS for admin operations
-      await client.rpc('admin_toggle_user_block', params: {'target_user_id': userId, 'should_block': block});
+      try {
+        await client.rpc('admin_set_user_ban', params: {
+          'target_user_id': userId,
+          'should_ban': block,
+          'ban_type': banType,
+          'reason': reason,
+        });
+      } catch (_) {
+        // Fallback for backward compatibility
+        await client.rpc('admin_toggle_user_block', params: {
+          'target_user_id': userId,
+          'should_block': block,
+        });
+      }
       await _loadDashboardData();
 
       if (mounted) {
+        String message;
+        if (!block) {
+          message = 'Kullanıcının engeli kaldırıldı ve hesabı aktif edildi.';
+        } else if (banType == 'one_week') {
+          message = 'Kullanıcıya 1 haftalık geçici ban uygulandı.';
+        } else if (banType == 'indefinite') {
+          message = 'Kullanıcı süresiz geçici olarak banlandı (tekrar açılana kadar).';
+        } else {
+          message = 'Kullanıcı hesabı kalıcı olarak banlandı.';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(block ? 'Kullanıcı engellendi.' : 'Kullanıcı engeli kaldırıldı.'), backgroundColor: AppColors.success),
+          SnackBar(content: Text(message), backgroundColor: AppColors.success),
         );
       }
     } catch (e) {
@@ -393,6 +450,218 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _showBanUserDialog(String userId, String userName) {
+    // 0: Kalıcı Ban, 1: Geçici - Tekrar Açana Kadar, 2: Geçici - 1 Haftalık
+    int banCategory = 0; // 0 = Kalıcı, 1 = Geçici
+    int tempBanSubtype = 0; // 0 = Tekrar açana kadar, 1 = 1 Haftalık ban
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppColors.border),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.gavel_rounded, color: Colors.redAccent, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Kullanıcıyı Banla / Engelle', style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.bold)),
+                    Text(userName, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Ban Türü Seçiniz:', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 10),
+                  // Ana Tür Seçimi: Kalıcı vs Geçici
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setDialogState(() => banCategory = 0),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: banCategory == 0 ? Colors.redAccent.withValues(alpha: 0.15) : AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: banCategory == 0 ? Colors.redAccent : AppColors.border,
+                                width: banCategory == 0 ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(Icons.block, color: banCategory == 0 ? Colors.redAccent : AppColors.textSecondary, size: 22),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Kalıcı Ban',
+                                  style: TextStyle(
+                                    color: banCategory == 0 ? Colors.redAccent : AppColors.textSecondary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text('Süresiz engelleme', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setDialogState(() => banCategory = 1),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                            decoration: BoxDecoration(
+                              color: banCategory == 1 ? Colors.orangeAccent.withValues(alpha: 0.15) : AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: banCategory == 1 ? Colors.orangeAccent : AppColors.border,
+                                width: banCategory == 1 ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Icon(Icons.timer_outlined, color: banCategory == 1 ? Colors.orangeAccent : AppColors.textSecondary, size: 22),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Geçici Ban',
+                                  style: TextStyle(
+                                    color: banCategory == 1 ? Colors.orangeAccent : AppColors.textSecondary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text('Süreli / koşullu', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Geçici ban alt seçenekleri
+                  if (banCategory == 1) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Geçici Ban Seçenekleri:', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)),
+                          const SizedBox(height: 8),
+                          RadioListTile<int>(
+                            value: 0,
+                            groupValue: tempBanSubtype,
+                            activeColor: Colors.orangeAccent,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: const Text('Tekrar Açana Kadar', style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: const Text('Yönetici manuel olarak engeli kaldırana kadar hesap pasif kalır.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                            onChanged: (val) => setDialogState(() => tempBanSubtype = val ?? 0),
+                          ),
+                          const Divider(color: AppColors.border, height: 16),
+                          RadioListTile<int>(
+                            value: 1,
+                            groupValue: tempBanSubtype,
+                            activeColor: Colors.orangeAccent,
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            title: const Text('1 Haftalık Ban (7 Gün)', style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: const Text('7 gün sonunda hesap otomatik olarak yeniden aktif hale gelir.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                            onChanged: (val) => setDialogState(() => tempBanSubtype = val ?? 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Ban gerekçesi
+                  const Text('Ban Gerekçesi (İsteğe bağlı):', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: reasonController,
+                    maxLines: 2,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Kullanıcının neden banlandığını açıklayın...',
+                      hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 12),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Vazgeç', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                final banType = banCategory == 0
+                    ? 'permanent'
+                    : (tempBanSubtype == 1 ? 'one_week' : 'indefinite');
+                _toggleUserBlock(userId, true, banType: banType, reason: reasonController.text.trim());
+              },
+              icon: const Icon(Icons.block, size: 16),
+              label: Text(
+                banCategory == 0
+                    ? 'Kalıcı Olarak Banla'
+                    : (tempBanSubtype == 1 ? '1 Hafta Banla' : 'Tekrar Açana Kadar Banla'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: banCategory == 0 ? Colors.redAccent : Colors.orangeAccent,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _handleSignOut() async {
@@ -1385,6 +1654,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 _buildSidebarMenuItem(6, 'Tüm Talepler', Icons.history_edu_outlined),
                 _buildSidebarMenuItem(7, 'Canlı Takip Haritası', Icons.map_outlined),
                 _buildSidebarMenuItem(8, 'Değerlendirmeler', Icons.star_outline),
+                _buildSidebarMenuItem(9, 'Öneri & Geri Bildirimler', Icons.feedback_outlined, badgeCount: _allFeedbacks.where((f) => f.status == 'pending').length),
               ],
             ),
           ),
@@ -1494,6 +1764,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 6: pageTitle = isMobile ? 'Talepler' : 'Sistem Talep Kayıtları'; break;
       case 7: pageTitle = isMobile ? 'Canlı Harita' : 'Canlı Operasyon Haritası'; break;
       case 8: pageTitle = 'Değerlendirmeler'; break;
+      case 9: pageTitle = isMobile ? 'Geri Bildirimler' : 'Kullanıcı Öneri ve Geri Bildirimleri'; break;
     }
 
     return Container(
@@ -1540,6 +1811,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 6: return _buildRequestsTab();
       case 7: return _buildLiveMapTab();
       case 8: return _buildRatingsTab();
+      case 9: return _buildFeedbacksTab();
       default: return const Center(child: Text('Sekme bulunamadı.'));
     }
   }
@@ -1958,28 +2230,51 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                           Text('E-posta: ${profile['email'] ?? ''} | Telefon: ${profile['phone'] ?? ''}', style: const TextStyle(color: AppColors.textSecondary)),
                         ],
                       ),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          OutlinedButton.icon(
-                            onPressed: () => _showMissingDocumentDialog(driver['id'], profile['full_name'] ?? 'Sürücü'),
-                            icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-                            label: const Text('Eksik Evrak Bildir', style: TextStyle(color: AppColors.warning)),
-                            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.warning)),
-                          ),
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: () => _showRejectionDialog(driver['id']),
-                            icon: const Icon(Icons.close_rounded, color: AppColors.error),
-                            label: const Text('Reddet', style: TextStyle(color: AppColors.error)),
-                            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.error)),
-                          ),
-                          const SizedBox(width: 12),
                           ElevatedButton.icon(
                             onPressed: () => _verifyDriver(driver['id']),
-                            icon: const Icon(Icons.check_rounded, color: Colors.white),
-                            label: const Text('Evrakları Onayla'),
-                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, foregroundColor: Colors.white),
+                            icon: const Icon(Icons.check_circle_outline, color: Colors.white, size: 18),
+                            label: const Text('Evrakları Onayla (Kabul Et)', style: TextStyle(fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _showMissingDocumentDialog(driver['id'], profile['full_name'] ?? 'Sürücü'),
+                            icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
+                            label: const Text('Eksik Evrak İste', style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.warning),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _showRejectionDialog(driver['id']),
+                            icon: const Icon(Icons.close_rounded, color: AppColors.error, size: 18),
+                            label: const Text('Reddet', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.error),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => _showBanUserDialog(driver['id'], profile['full_name'] ?? 'Sürücü'),
+                            icon: const Icon(Icons.block, color: Color(0xFFEF4444), size: 18),
+                            label: const Text('Sürücüyü Banla', style: TextStyle(color: Color(0xFFEF4444), fontWeight: FontWeight.bold)),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Color(0xFFEF4444)),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
                           ),
                         ],
                       ),
@@ -3155,7 +3450,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                           ),
                                         const SizedBox(width: 4),
                                         OutlinedButton(
-                                          onPressed: () => _toggleUserBlock(prof['id'] ?? driverId, !isSuspended),
+                                          onPressed: isSuspended
+                                              ? () => _toggleUserBlock(prof['id'] ?? driverId, false)
+                                              : () => _showBanUserDialog(prof['id'] ?? driverId, driverName),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: isSuspended ? AppColors.accent : AppColors.error,
                                             side: BorderSide(color: (isSuspended ? AppColors.accent : AppColors.error).withValues(alpha: 0.5)),
@@ -3363,7 +3660,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                         ),
                                         const SizedBox(width: 4),
                                         OutlinedButton(
-                                          onPressed: () => _toggleUserBlock(c.id, !isSuspended),
+                                          onPressed: isSuspended
+                                              ? () => _toggleUserBlock(c.id, false)
+                                              : () => _showBanUserDialog(c.id, c.fullName),
                                           style: OutlinedButton.styleFrom(
                                             foregroundColor: isSuspended ? AppColors.accent : AppColors.error,
                                             side: BorderSide(color: (isSuspended ? AppColors.accent : AppColors.error).withValues(alpha: 0.5)),
@@ -4608,10 +4907,19 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                 onPressed: () {
                                   final prof = _selectedLiveDriver!['profiles'] as Map?;
                                   final isSusp = prof?['is_suspended'] as bool? ?? false;
-                                  _toggleUserBlock(prof?['id'] ?? _selectedLiveDriver!['id'], !isSusp);
+                                  final uid = prof?['id'] ?? _selectedLiveDriver!['id'];
+                                  final name = prof?['full_name'] ?? 'Sürücü';
+                                  if (isSusp) {
+                                    _toggleUserBlock(uid, false);
+                                  } else {
+                                    _showBanUserDialog(uid, name);
+                                  }
                                 },
                                 icon: const Icon(Icons.block, size: 14),
-                                label: const Text('Engelle', style: TextStyle(fontSize: 11)),
+                                label: Text(
+                                  ((_selectedLiveDriver!['profiles'] as Map?)?['is_suspended'] == true) ? 'Engeli Kaldır' : 'Engelle',
+                                  style: const TextStyle(fontSize: 11),
+                                ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.error,
                                   side: const BorderSide(color: AppColors.error),
@@ -4987,7 +5295,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   ],
                 ),
                 TextButton(
-                  onPressed: () => _toggleUserBlock(prof['id'], !isSuspended),
+                  onPressed: isSuspended
+                      ? () => _toggleUserBlock(prof['id'], false)
+                      : () => _showBanUserDialog(prof['id'], prof['full_name'] ?? 'Sürücü'),
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: const Size(50, 30),
@@ -5061,7 +5371,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                   ],
                 ),
                 TextButton(
-                  onPressed: () => _toggleUserBlock(c.id, !isSuspended),
+                  onPressed: isSuspended
+                      ? () => _toggleUserBlock(c.id, false)
+                      : () => _showBanUserDialog(c.id, c.fullName),
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: const Size(50, 30),
@@ -5225,6 +5537,645 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _updateFeedbackStatus(String id, String newStatus, {String? adminNotes}) async {
+    try {
+      await FeedbackRepository().updateFeedbackStatus(id, newStatus, adminNotes: adminNotes);
+      setState(() {
+        final index = _allFeedbacks.indexWhere((f) => f.id == id);
+        if (index != -1) {
+          final old = _allFeedbacks[index];
+          _allFeedbacks[index] = FeedbackModel(
+            id: old.id,
+            userId: old.userId,
+            userRole: old.userRole,
+            category: old.category,
+            title: old.title,
+            message: old.message,
+            attachmentUrl: old.attachmentUrl,
+            status: newStatus,
+            adminNotes: adminNotes ?? old.adminNotes,
+            createdAt: old.createdAt,
+            userName: old.userName,
+            userEmail: old.userEmail,
+          );
+          if (_selectedFeedback?.id == id) {
+            _selectedFeedback = _allFeedbacks[index];
+          }
+        }
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Geri bildirim durumu "$newStatus" olarak güncellendi.'),
+            backgroundColor: AppColors.accent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Durum güncellenirken hata oluştu: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showAddAdminNotesDialog(FeedbackModel fb) {
+    final controller = TextEditingController(text: fb.adminNotes ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Yönetici Notu Ekle / Güncelle', style: TextStyle(color: AppColors.textPrimary)),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Bu bildirimle ilgili dahili yönetici notu yazın...',
+            hintStyle: TextStyle(color: AppColors.textSecondary),
+            filled: true,
+            fillColor: AppColors.surface,
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _updateFeedbackStatus(fb.id, fb.status, adminNotes: controller.text.trim());
+            },
+            child: const Text('Kaydet', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbacksTab() {
+    final filtered = _allFeedbacks.where((f) {
+      if (_feedbackFilterStatus != 'all' && f.status != _feedbackFilterStatus) return false;
+      if (_feedbackFilterCategory != 'all' && f.category != _feedbackFilterCategory) return false;
+      return true;
+    }).toList();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 960;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Filter Bar
+            Card(
+              color: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: AppColors.border),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Durum:', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 13)),
+                    _buildFeedbackFilterChip('Tümü', 'all', _feedbackFilterStatus, (v) => setState(() => _feedbackFilterStatus = v)),
+                    _buildFeedbackFilterChip('Beklemede', 'pending', _feedbackFilterStatus, (v) => setState(() => _feedbackFilterStatus = v)),
+                    _buildFeedbackFilterChip('İncelendi', 'reviewed', _feedbackFilterStatus, (v) => setState(() => _feedbackFilterStatus = v)),
+                    _buildFeedbackFilterChip('Çözüldü', 'resolved', _feedbackFilterStatus, (v) => setState(() => _feedbackFilterStatus = v)),
+                    const SizedBox(width: 8),
+                    Container(height: 20, width: 1, color: AppColors.border),
+                    const SizedBox(width: 8),
+                    const Text('Kategori:', style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 13)),
+                    _buildFeedbackFilterChip('Tümü', 'all', _feedbackFilterCategory, (v) => setState(() => _feedbackFilterCategory = v)),
+                    _buildFeedbackFilterChip('Öneri', 'suggestion', _feedbackFilterCategory, (v) => setState(() => _feedbackFilterCategory = v)),
+                    _buildFeedbackFilterChip('Hata', 'bug', _feedbackFilterCategory, (v) => setState(() => _feedbackFilterCategory = v)),
+                    _buildFeedbackFilterChip('Şikayet', 'complaint', _feedbackFilterCategory, (v) => setState(() => _feedbackFilterCategory = v)),
+                    _buildFeedbackFilterChip('Memnuniyet', 'satisfaction', _feedbackFilterCategory, (v) => setState(() => _feedbackFilterCategory = v)),
+                    const SizedBox(width: 12),
+                    Text(
+                      '(${filtered.length} bildirim)',
+                      style: const TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Content
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.mark_email_read_outlined, size: 54, color: AppColors.textSecondary.withValues(alpha: 0.4)),
+                          const SizedBox(height: 12),
+                          const Text('Filtreye uygun geri bildirim bulunamadı.', style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
+                        ],
+                      ),
+                    )
+                  : isWide
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // List on the left
+                            SizedBox(
+                              width: 380,
+                              child: ListView.builder(
+                                itemCount: filtered.length,
+                                itemBuilder: (context, index) {
+                                  final fb = filtered[index];
+                                  final isSelected = _selectedFeedback?.id == fb.id;
+                                  return _buildFeedbackListTile(fb, isSelected, onTap: () {
+                                    setState(() => _selectedFeedback = fb);
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Details on the right
+                            Expanded(
+                              child: _selectedFeedback == null
+                                  ? const Center(
+                                      child: Text('Detaylarını görmek için soldan bir bildirim seçin.',
+                                          style: TextStyle(color: AppColors.textSecondary)),
+                                    )
+                                  : _buildFeedbackDetailView(_selectedFeedback!),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final fb = filtered[index];
+                            return _buildFeedbackListTile(fb, false, onTap: () {
+                              _showFeedbackDetailModal(fb);
+                            });
+                          },
+                        ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildFeedbackFilterChip(String label, String value, String currentValue, ValueChanged<String> onSelected) {
+    final isSelected = currentValue == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (_) => onSelected(value),
+      selectedColor: AppColors.accent.withValues(alpha: 0.2),
+      backgroundColor: AppColors.surface,
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.accent : AppColors.textSecondary,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        fontSize: 12,
+      ),
+      side: BorderSide(color: isSelected ? AppColors.accent : AppColors.border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+    );
+  }
+
+  Widget _buildFeedbackListTile(FeedbackModel fb, bool isSelected, {required VoidCallback onTap}) {
+    Color categoryColor;
+    IconData categoryIcon;
+    switch (fb.category) {
+      case 'bug':
+        categoryColor = Colors.redAccent;
+        categoryIcon = Icons.bug_report;
+        break;
+      case 'suggestion':
+        categoryColor = AppColors.accent;
+        categoryIcon = Icons.lightbulb_outline;
+        break;
+      case 'complaint':
+        categoryColor = Colors.orangeAccent;
+        categoryIcon = Icons.warning_amber_rounded;
+        break;
+      case 'satisfaction':
+        categoryColor = Colors.cyanAccent;
+        categoryIcon = Icons.sentiment_very_satisfied;
+        break;
+      default:
+        categoryColor = Colors.blueGrey;
+        categoryIcon = Icons.chat_bubble_outline;
+    }
+
+    Color statusColor;
+    switch (fb.status) {
+      case 'resolved':
+        statusColor = Colors.greenAccent;
+        break;
+      case 'reviewed':
+        statusColor = Colors.blueAccent;
+        break;
+      default:
+        statusColor = Colors.amberAccent;
+    }
+
+    return Card(
+      color: isSelected ? AppColors.accent.withValues(alpha: 0.08) : AppColors.cardBackground,
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: isSelected ? AppColors.accent : AppColors.border,
+          width: isSelected ? 1.5 : 1.0,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: categoryColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(categoryIcon, size: 16, color: categoryColor),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      fb.categoryLabel,
+                      style: TextStyle(color: categoryColor, fontSize: 12, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.5)),
+                    ),
+                    child: Text(
+                      fb.statusLabel,
+                      style: TextStyle(color: statusColor, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                fb.title,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.bold),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                fb.message,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        fb.userRole == 'driver' ? Icons.local_shipping_outlined : Icons.person_outline,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        fb.userName ?? (fb.userRole == 'driver' ? 'Sürücü' : 'Müşteri'),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${fb.createdAt.day}.${fb.createdAt.month}.${fb.createdAt.year} ${fb.createdAt.hour.toString().padLeft(2, '0')}:${fb.createdAt.minute.toString().padLeft(2, '0')}',
+                    style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.8), fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackDetailView(FeedbackModel fb) {
+    Color categoryColor;
+    IconData categoryIcon;
+    switch (fb.category) {
+      case 'bug':
+        categoryColor = Colors.redAccent;
+        categoryIcon = Icons.bug_report;
+        break;
+      case 'suggestion':
+        categoryColor = AppColors.accent;
+        categoryIcon = Icons.lightbulb_outline;
+        break;
+      case 'complaint':
+        categoryColor = Colors.orangeAccent;
+        categoryIcon = Icons.warning_amber_rounded;
+        break;
+      case 'satisfaction':
+        categoryColor = Colors.cyanAccent;
+        categoryIcon = Icons.sentiment_very_satisfied;
+        break;
+      default:
+        categoryColor = Colors.blueGrey;
+        categoryIcon = Icons.chat_bubble_outline;
+    }
+
+    return Card(
+      color: AppColors.cardBackground,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Header: Category and Status
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: categoryColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(categoryIcon, size: 24, color: categoryColor),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        fb.categoryLabel,
+                        style: TextStyle(color: categoryColor, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Gönderilme: ${fb.createdAt.day}.${fb.createdAt.month}.${fb.createdAt.year} ${fb.createdAt.hour.toString().padLeft(2, '0')}:${fb.createdAt.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                // Status Dropdown / Action
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: fb.status,
+                      dropdownColor: AppColors.surface,
+                      items: const [
+                        DropdownMenuItem(value: 'pending', child: Text('⏳ Beklemede', style: TextStyle(color: Colors.amberAccent, fontSize: 13))),
+                        DropdownMenuItem(value: 'reviewed', child: Text('🔍 İncelendi', style: TextStyle(color: Colors.blueAccent, fontSize: 13))),
+                        DropdownMenuItem(value: 'resolved', child: Text('✅ Çözüldü', style: TextStyle(color: Colors.greenAccent, fontSize: 13))),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) _updateFeedbackStatus(fb.id, val);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(color: AppColors.border, height: 32),
+
+            // User Info
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.cardBackground,
+                    radius: 20,
+                    child: Icon(
+                      fb.userRole == 'driver' ? Icons.local_shipping : Icons.person,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          fb.userName ?? 'İsimsiz Kullanıcı',
+                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        Text(
+                          '${fb.userRole == 'driver' ? 'Sürücü / Çekici' : 'Müşteri'} • ${fb.userEmail ?? 'E-posta belirtilmemiş'}',
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: fb.userRole == 'driver' ? Colors.blue.withValues(alpha: 0.2) : Colors.purple.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      fb.userRole == 'driver' ? 'SÜRÜCÜ' : 'MÜŞTERİ',
+                      style: TextStyle(
+                        color: fb.userRole == 'driver' ? Colors.lightBlueAccent : Colors.purpleAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Title
+            Text(
+              fb.title,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+
+            // Message Body
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: SelectableText(
+                fb.message,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, height: 1.5),
+              ),
+            ),
+
+            if (fb.attachmentUrl != null && fb.attachmentUrl!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              const Text('Ek Görsel / Belge:', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  fb.attachmentUrl!,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Text('Görsel yüklenemedi', style: TextStyle(color: Colors.redAccent)),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            // Admin Notes Section
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Yönetici Notu:', style: TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: () => _showAddAdminNotesDialog(fb),
+                  icon: const Icon(Icons.edit_note, size: 18, color: AppColors.accent),
+                  label: Text(
+                    fb.adminNotes != null ? 'Notu Düzenle' : 'Not Ekle',
+                    style: const TextStyle(color: AppColors.accent, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            if (fb.adminNotes != null && fb.adminNotes!.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  fb.adminNotes!,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                ),
+              )
+            else
+              Text(
+                'Bu bildirim için henüz yönetici notu girilmemiş.',
+                style: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.6), fontSize: 13, fontStyle: FontStyle.italic),
+              ),
+
+            const SizedBox(height: 28),
+
+            // Quick Status Buttons
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent.shade700,
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: fb.status == 'resolved' ? null : () => _updateFeedbackStatus(fb.id, 'resolved'),
+                  icon: const Icon(Icons.check_circle_outline, size: 18),
+                  label: const Text('Çözüldü Olarak İşaretle'),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.blueAccent,
+                    side: const BorderSide(color: Colors.blueAccent),
+                  ),
+                  onPressed: fb.status == 'reviewed' ? null : () => _updateFeedbackStatus(fb.id, 'reviewed'),
+                  icon: const Icon(Icons.mark_email_read_outlined, size: 18),
+                  label: const Text('İncelendi Yap'),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.amberAccent,
+                    side: const BorderSide(color: Colors.amberAccent),
+                  ),
+                  onPressed: fb.status == 'pending' ? null : () => _updateFeedbackStatus(fb.id, 'pending'),
+                  icon: const Icon(Icons.hourglass_empty_rounded, size: 18),
+                  label: const Text('Beklemeye Al'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFeedbackDetailModal(FeedbackModel fb) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.cardBackground,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => FractionallySizedBox(
+        heightFactor: 0.85,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8.0),
+          child: Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Expanded(
+                child: _buildFeedbackDetailView(fb),
+              ),
+            ],
+          ),
         ),
       ),
     );

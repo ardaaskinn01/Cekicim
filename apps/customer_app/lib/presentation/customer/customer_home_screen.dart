@@ -117,6 +117,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
   }
 
   Widget _buildCallTowCard(BuildContext context) {
+    final user = ref.watch(currentUserProvider).value;
     return GlassContainer(
       padding: const EdgeInsets.all(24),
       borderRadius: 24,
@@ -124,6 +125,44 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (user != null && user.isEffectivelySuspended) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.shade900.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red.shade800),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.block_rounded, color: Colors.redAccent, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user.suspendedUntil != null
+                              ? 'Hesabınız Geçici Olarak Askıya Alındı'
+                              : 'Hesabınız Askıya Alındı',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.redAccent),
+                        ),
+                        Text(
+                          user.suspendedUntil != null
+                              ? 'Bitiş Tarihi: ${user.suspendedUntil!.day}.${user.suspendedUntil!.month}.${user.suspendedUntil!.year} ${user.suspendedUntil!.hour.toString().padLeft(2, '0')}:${user.suspendedUntil!.minute.toString().padLeft(2, '0')}'
+                              : (user.suspensionReason != null && user.suspensionReason!.isNotEmpty
+                                  ? 'Gerekçe: ${user.suspensionReason}'
+                                  : 'Hizmet talebi oluşturmanız engellenmiştir.'),
+                          style: TextStyle(color: AppColors.getTextSecondary(context), fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             children: [
               Container(
@@ -163,7 +202,18 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
           GreenButton(
             text: 'Çekici Çağır',
             icon: Icons.local_shipping_rounded,
-            onPressed: () => context.push('/customer/request'),
+            onPressed: (user != null && user.isEffectivelySuspended)
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(user.suspendedUntil != null
+                            ? 'Hesabınız geçici olarak askıya alınmıştır. Bitiş: ${user.suspendedUntil!.day}.${user.suspendedUntil!.month}.${user.suspendedUntil!.year}'
+                            : 'Hesabınız engellendiği için yeni talep oluşturamazsınız.'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                : () => context.push('/customer/request'),
           ),
         ],
       ),

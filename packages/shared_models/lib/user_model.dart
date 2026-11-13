@@ -13,6 +13,8 @@ class UserModel {
   final int totalRatings;
 
   final bool isSuspended;
+  final DateTime? suspendedUntil;
+  final String? suspensionReason;
   final bool isProfileComplete;
 
   UserModel({
@@ -27,8 +29,17 @@ class UserModel {
     this.rating = 5.0,
     this.totalRatings = 0,
     this.isSuspended = false,
+    this.suspendedUntil,
+    this.suspensionReason,
     this.isProfileComplete = true,
   });
+
+  /// Kullanıcının ban süresinin halen geçerli olup olmadığını kontrol eder.
+  bool get isEffectivelySuspended {
+    if (!isSuspended) return false;
+    if (suspendedUntil == null) return true; // Kalıcı veya süresiz geçici ban
+    return DateTime.now().isBefore(suspendedUntil!);
+  }
 
   /// Adı tam bırakıp soyadın yalnızca baş harfini ve nokta ekler (Örn: "Arda Aşkın" -> "Arda A.").
   static String formatMaskedName(String? name) {
@@ -58,6 +69,8 @@ class UserModel {
       rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
       totalRatings: json['total_ratings'] as int? ?? 0,
       isSuspended: json['is_suspended'] as bool? ?? false,
+      suspendedUntil: json['suspended_until'] != null ? DateTime.tryParse(json['suspended_until'] as String) : null,
+      suspensionReason: json['suspension_reason'] as String?,
       isProfileComplete: (json['full_name'] as String? ?? '').isNotEmpty,
     );
   }
@@ -75,6 +88,8 @@ class UserModel {
       'rating': rating,
       'total_ratings': totalRatings,
       'is_suspended': isSuspended,
+      if (suspendedUntil != null) 'suspended_until': suspendedUntil!.toIso8601String(),
+      if (suspensionReason != null) 'suspension_reason': suspensionReason,
       'is_profile_complete': isProfileComplete,
     };
   }
@@ -91,6 +106,8 @@ class UserModel {
     double? rating,
     int? totalRatings,
     bool? isSuspended,
+    DateTime? suspendedUntil,
+    String? suspensionReason,
     bool? isProfileComplete,
   }) {
     return UserModel(
@@ -105,6 +122,8 @@ class UserModel {
       rating: rating ?? this.rating,
       totalRatings: totalRatings ?? this.totalRatings,
       isSuspended: isSuspended ?? this.isSuspended,
+      suspendedUntil: suspendedUntil ?? this.suspendedUntil,
+      suspensionReason: suspensionReason ?? this.suspensionReason,
       isProfileComplete: isProfileComplete ?? this.isProfileComplete,
     );
   }

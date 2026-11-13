@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_services/rating_repository.dart';
+import 'package:shared_services/feedback_repository.dart';
 import 'package:shared_ui/app_colors.dart';
+import 'package:shared_ui/widgets/feedback_bottom_sheet.dart';
 import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
@@ -274,6 +276,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         : (ref.watch(themeModeProvider) == ThemeMode.dark ? 'Koyu Tema' : 'Açık Tema'),
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  onTap: () => FeedbackBottomSheet.show(
+                    context,
+                    userRole: 'customer',
+                    onSubmit: ({required category, required message, required title, required userRole}) async {
+                      await FeedbackRepository().submitFeedback(
+                        title: title,
+                        message: message,
+                        category: category,
+                        userRole: userRole,
+                      );
+                    },
+                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  tileColor: AppColors.surface,
+                  leading: const Icon(Icons.feedback_outlined, color: AppColors.accent),
+                  title: const Text('Öneri & Geri Bildirim', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  subtitle: const Text('Fikirlerinizi ve hata bildirimlerinizi iletin', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 12),

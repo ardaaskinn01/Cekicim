@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_services/rating_repository.dart';
+import 'package:shared_services/feedback_repository.dart';
 import 'package:shared_services/iban_input_formatter.dart';
 import 'package:shared_ui/app_colors.dart';
 import 'package:shared_models/driver_model.dart';
@@ -11,6 +12,7 @@ import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
+import 'package:shared_ui/widgets/feedback_bottom_sheet.dart';
 
 import '../../providers/theme_provider.dart';
 
@@ -444,6 +446,48 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     },
                   ),
                   const SizedBox(height: 24),
+                  if (driver != null && driver.isEffectivelySuspended) ...[
+                    Card(
+                      color: Colors.red.shade900.withValues(alpha: 0.15),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(color: Colors.red.shade800, width: 1.5),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.block_rounded, color: Colors.redAccent, size: 24),
+                                const SizedBox(width: 10),
+                                Text(
+                                  driver.suspendedUntil != null
+                                      ? 'Hesabınız Geçici Olarak Askıya Alındı'
+                                      : 'Hesabınız Askıya Alındı (Ban)',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.redAccent),
+                                ),
+                              ],
+                            ),
+                            const Divider(color: AppColors.border, height: 24),
+                            Text(
+                              driver.suspendedUntil != null
+                                  ? 'Engel Bitiş Tarihi: ${driver.suspendedUntil!.day}.${driver.suspendedUntil!.month}.${driver.suspendedUntil!.year} ${driver.suspendedUntil!.hour.toString().padLeft(2, '0')}:${driver.suspendedUntil!.minute.toString().padLeft(2, '0')}'
+                                  : 'Durum: Kalıcı / Süresiz Engel',
+                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            if (driver.suspensionReason != null && driver.suspensionReason!.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text('Gerekçe: ${driver.suspensionReason}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   // Premium Verification Documents Status Panel
                   if (driver != null) ...[
                     Card(
@@ -517,6 +561,28 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                                             driver.rejectionReason!,
                                             style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
                                           ),
+                                          const SizedBox(height: 10),
+                                          InkWell(
+                                            onTap: () => context.go('/driver/onboarding'),
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.error,
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.refresh_rounded, color: Colors.white, size: 14),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'Evrakları Düzenle & Yeniden Gönder',
+                                                    style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -548,6 +614,27 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                           : (ref.watch(themeModeProvider) == ThemeMode.dark ? 'Koyu Tema' : 'Açık Tema'),
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                     ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    onTap: () => FeedbackBottomSheet.show(
+                      context,
+                      userRole: 'driver',
+                      onSubmit: ({required category, required message, required title, required userRole}) async {
+                        await FeedbackRepository().submitFeedback(
+                          title: title,
+                          message: message,
+                          category: category,
+                          userRole: userRole,
+                        );
+                      },
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: AppColors.surface,
+                    leading: const Icon(Icons.feedback_outlined, color: AppColors.accent),
+                    title: const Text('Öneri & Geri Bildirim', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    subtitle: const Text('Fikirlerinizi ve hata bildirimlerinizi iletin', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 16),

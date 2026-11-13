@@ -241,7 +241,50 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with Widget
                 ),
               ),
             ),
-          if (driver != null && !driver.isVerified)
+          if (driver != null && driver.isEffectivelySuspended)
+            Positioned(
+              top: 16,
+              left: 24,
+              right: 24,
+              child: Card(
+                color: Colors.red.shade900.withValues(alpha: 0.95),
+                elevation: 6,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.block_rounded, color: Colors.white, size: 26),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              driver.suspendedUntil != null
+                                  ? 'Hesabınız Geçici Olarak Askıya Alındı'
+                                  : 'Hesabınız Askıya Alındı',
+                              style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              driver.suspendedUntil != null
+                                  ? 'Engel Bitiş Tarihi: ${driver.suspendedUntil!.day}.${driver.suspendedUntil!.month}.${driver.suspendedUntil!.year} ${driver.suspendedUntil!.hour.toString().padLeft(2, '0')}:${driver.suspendedUntil!.minute.toString().padLeft(2, '0')}'
+                                  : (driver.suspensionReason != null && driver.suspensionReason!.isNotEmpty
+                                      ? 'Gerekçe: ${driver.suspensionReason}'
+                                      : 'Hesabınız yönetici tarafından engellenmiştir.'),
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else if (driver != null && !driver.isVerified)
             Positioned(
               top: 16,
               left: 24,
@@ -362,7 +405,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with Widget
                     Switch(
                       value: isOnline,
                       activeColor: AppColors.accent,
-                      onChanged: (driver == null || !driver.isVerified)
+                      onChanged: (driver == null || !driver.isVerified || driver.isEffectivelySuspended)
                           ? null
                           : (val) async {
                               /*
