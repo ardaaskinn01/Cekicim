@@ -21,6 +21,9 @@ import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
+import 'package:shared_models/city_pricing_model.dart';
+import 'package:shared_services/city_pricing_repository.dart';
+import 'package:shared_ui/price_calculator.dart';
 
 class RequestServiceScreen extends ConsumerStatefulWidget {
   const RequestServiceScreen({super.key});
@@ -38,6 +41,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   String? _selectedVehicleType;
   final _plateController = TextEditingController();
   XFile? _vehiclePhoto;
+
+  // Incident Type & Pricing
+  String _incidentType = 'breakdown'; // 'breakdown' | 'accident'
+  final _incidentReasonController = TextEditingController();
+  final _cityPricingRepo = CityPricingRepository();
+  List<CityPricingModel> _cityPricings = [];
+  CityPricingModel? _activeCityPricing;
   
   // For pickup (Step 0)
   final _pickupSearchController = TextEditingController();
@@ -73,6 +83,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   @override
   void initState() {
     super.initState();
+    _loadCityPricings();
     final pos = ref.read(locationProvider).value;
     if (pos != null) {
       _selectedLatLng = LatLng(pos.latitude, pos.longitude);
@@ -92,6 +103,26 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
           setState(() => _selectedVehicleType = vehicleType);
         }
       }
+    });
+  }
+
+  Future<void> _loadCityPricings() async {
+    try {
+      final list = await _cityPricingRepo.getCityPricings();
+      if (mounted) {
+        setState(() {
+          _cityPricings = list;
+          _updateActiveCityPricing();
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _updateActiveCityPricing() {
+    if (_cityPricings.isEmpty) return;
+    final matched = _cityPricingRepo.matchCity(_pickupAddress, _cityPricings);
+    setState(() {
+      _activeCityPricing = matched;
     });
   }
 
@@ -123,17 +154,12 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
   }
 
   double _calculatePrice(double dist) {
-    double price = 2000.0;
-    if (dist > 1.0) {
-      if (dist <= 15.0) {
-        price += (dist - 1.0) * 200.0;
-      } else {
-        price += (14.0 * 200.0) + (dist - 15.0) * 150.0;
-      }
-    }
-    // Round base distance price to nearest 100 TL step
-    final basePrice = (price / 100).round() * 100.0;
-    return basePrice + _tollFee;
+    return PriceCalculator.calculatePrice(
+      dist,
+      cityPricing: _activeCityPricing,
+      isAccident: _incidentType == 'accident',
+      tollFee: _tollFee,
+    );
   }
 
   @override
@@ -141,6 +167,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
     _pickupDebounceTimer?.cancel();
     _dropoffDebounceTimer?.cancel();
     _plateController.dispose();
+    _incidentReasonController.dispose();
     _pickupSearchController.dispose();
     _dropoffSearchController.dispose();
     super.dispose();
@@ -397,6 +424,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
       _isSearchingPickup = false;
       _pickupSearchController.text = displayName;
     });
+    _updateActiveCityPricing();
   }
 
   Future<void> _selectDropoffPlace(Map<String, dynamic> place) async {
@@ -641,6 +669,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         _isPickupSelected = true;
         _pickupSearchController.text = _pickupAddress!;
       });
+      _updateActiveCityPricing();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -780,7 +809,11 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
         carModel: '',
         carColor: '',
         carPlate: _plateController.text.trim(),
-        problemType: 'Diğer',
+        problemType: _incidentType == 'accident' ? 'Kaza' : 'Arıza',
+        incidentType: _incidentType,
+        incidentReason: _incidentReasonController.text.trim().isNotEmpty
+            ? _incidentReasonController.text.trim()
+            : null,
         vehicleType: _selectedVehicleType,
         vehiclePhotoUrl: photoUrl,
         selectedDriverIds: _selectedDriverIds,
@@ -1085,6 +1118,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                         _pickupAddress = address;
                         _pickupSearchController.text = address;
                       });
+                      _updateActiveCityPricing();
                     }
                   },
                 ),
@@ -1173,6 +1207,121 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
               controller: _plateController,
               label: 'Plaka *',
               hint: 'Örn: 06 ABC 123',
+            ),
+            const SizedBox(height: 20),
+            const Text('Talep Türü / Neden Çekici İstiyorsunuz? *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _incidentType = 'breakdown'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: _incidentType == 'breakdown'
+                            ? AppColors.primary.withValues(alpha: 0.15)
+                            : AppColors.cardBackground,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _incidentType == 'breakdown' ? AppColors.primary : AppColors.border,
+                          width: _incidentType == 'breakdown' ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.build_outlined,
+                            color: _incidentType == 'breakdown' ? AppColors.primary : AppColors.textSecondary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Arıza',
+                            style: TextStyle(
+                              color: _incidentType == 'breakdown' ? AppColors.textPrimary : AppColors.textSecondary,
+                              fontWeight: _incidentType == 'breakdown' ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _incidentType = 'accident'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: _incidentType == 'accident'
+                            ? Colors.red.withValues(alpha: 0.15)
+                            : AppColors.cardBackground,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _incidentType == 'accident' ? Colors.red : AppColors.border,
+                          width: _incidentType == 'accident' ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.car_crash_outlined,
+                            color: _incidentType == 'accident' ? Colors.red : AppColors.textSecondary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Kaza',
+                            style: TextStyle(
+                              color: _incidentType == 'accident' ? Colors.red : AppColors.textSecondary,
+                              fontWeight: _incidentType == 'accident' ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_incidentType == 'accident') ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.red, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Kaza durumlarında kurtarma ve çekici operasyonu için kaza tarifesi (${_activeCityPricing?.accidentMultiplier ?? 1.5}x çarpan) uygulanır.',
+                        style: const TextStyle(fontSize: 12, color: Colors.red, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            AppTextField(
+              controller: _incidentReasonController,
+              label: _incidentType == 'accident' ? 'Kaza Durumu / Açıklama' : 'Arıza Sebebi / Açıklama',
+              hint: _incidentType == 'accident' ? 'Örn: Bariyer çarpması, teker kilitli vs.' : 'Örn: Akü bitti, hararet yaptı vs.',
             ),
             const SizedBox(height: 20),
             const Text('Araç Fotoğrafı *', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
@@ -1422,6 +1571,45 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                         Text('${dist.toStringAsFixed(1)} km', style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Talep Türü:', style: TextStyle(color: AppColors.textSecondary)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _incidentType == 'accident'
+                                ? Colors.red.withValues(alpha: 0.15)
+                                : AppColors.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            _incidentType == 'accident'
+                                ? '💥 Kaza (${_activeCityPricing?.accidentMultiplier ?? 1.5}x)'
+                                : '🔧 Arıza',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: _incidentType == 'accident' ? Colors.red : AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_activeCityPricing != null) ...[
+                      const Divider(height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Uygulanan Tarife:', style: TextStyle(color: AppColors.textSecondary)),
+                          Text(
+                            '${_activeCityPricing!.cityName} (Taban: ₺${_activeCityPricing!.basePrice.round()})',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (_hasTolls && _tollFee > 0) ...[
                       const Divider(height: 24),
                       Row(
@@ -1437,7 +1625,7 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(_hasTolls && _tollFee > 0 ? 'Toplam Fiyat (HGS Dahil):' : 'Fiyat:', style: const TextStyle(color: AppColors.textSecondary)),
-                        Text('₺${price.round()}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 16)),
+                        Text('₺${price.round()}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 18)),
                       ],
                     ),
                     const Divider(height: 24),

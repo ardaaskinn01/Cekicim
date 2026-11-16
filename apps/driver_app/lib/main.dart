@@ -50,10 +50,39 @@ void main() async {
 
   try {
     await NotificationService().initialize();
+    // Check if launched by a local notification click
+    final launchDetails = await NotificationService().getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp ?? false) {
+      final payload = launchDetails?.notificationResponse?.payload;
+      if (payload != null && payload.isNotEmpty) {
+        final parts = payload.split('|');
+        final reqId = parts[0].trim();
+        final type = parts.length > 1 ? parts[1].trim() : null;
+        if (reqId.isNotEmpty) {
+          debugPrint('[main] App launched via local notification tap: $reqId ($type)');
+          NotificationService.dispatchNotificationTap(reqId, type);
+        }
+      }
+    }
     // Uygulama açıldığında 3 gün sonrasına hatırlatıcı zamanla
     await NotificationService().scheduleInactivityReminder(days: 3);
   } catch (e) {
     debugPrint("Failed to initialize local notifications: $e");
+  }
+
+  // Check if launched by an initial FCM notification click
+  try {
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      final requestId = (initialMessage.data['request_id'] ?? initialMessage.data['requestId']) as String?;
+      final type = (initialMessage.data['type'] ?? initialMessage.data['notification_type']) as String?;
+      if (requestId != null && requestId.trim().isNotEmpty) {
+        debugPrint('[main] App launched via FCM initial message: $requestId ($type)');
+        NotificationService.dispatchNotificationTap(requestId.trim(), type);
+      }
+    }
+  } catch (e) {
+    debugPrint("Failed to check initial FCM message: $e");
   }
 
   runApp(const ProviderScope(child: DriverApp()));

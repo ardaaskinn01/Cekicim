@@ -111,9 +111,9 @@ class RequestRepository {
   }
 
   Stream<ServiceRequestModel> watchRequestStatus(String requestId) {
-    // Use periodic HTTP polling instead of .stream() to avoid RLS issues
+    // Use immediate HTTP fetch + periodic HTTP polling instead of .stream() to avoid RLS issues
     // where selected_driver_ids-based access can return empty before subscription settles.
-    final controller = StreamController<ServiceRequestModel>();
+    final controller = StreamController<ServiceRequestModel>.broadcast();
 
     Future<void> fetchOnce() async {
       try {
@@ -128,13 +128,13 @@ class RequestRepository {
       } catch (_) {}
     }
 
-    Timer? timer;
-    fetchOnce().then((_) {
-      timer = Timer.periodic(const Duration(seconds: 3), (_) => fetchOnce());
-    });
+    // Execute immediate fetch instantly
+    fetchOnce();
+
+    final timer = Timer.periodic(const Duration(seconds: 3), (_) => fetchOnce());
 
     controller.onCancel = () {
-      timer?.cancel();
+      timer.cancel();
       controller.close();
     };
 
@@ -142,11 +142,45 @@ class RequestRepository {
   }
 
   Stream<List<Map<String, dynamic>>> watchPendingOffersForDriver(String driverId) {
-    return _client
+    final controller = StreamController<List<Map<String, dynamic>>>.broadcast();
+
+    // 1. Immediate HTTP fetch for sub-second (<200ms) availability on app launch or resume
+    _client
+        .from('pending_offers')
+        .select()
+        .eq('driver_id', driverId)
+        .eq('status', 'pending')
+        .then((data) {
+      if (!controller.isClosed) {
+        controller.add(List<Map<String, dynamic>>.from(data));
+      }
+    }).catchError((_) {});
+
+    // 2. Realtime stream for ongoing updates
+    final subscription = _client
         .from('pending_offers')
         .stream(primaryKey: ['id'])
         .eq('driver_id', driverId)
-        .map((list) => list.where((item) => item['status'] == 'pending').toList());
+        .map((list) => list.where((item) => item['status'] == 'pending').toList())
+        .listen(
+          (data) {
+            if (!controller.isClosed) {
+              controller.add(data);
+            }
+          },
+          onError: (e) {
+            if (!controller.isClosed) {
+              controller.addError(e);
+            }
+          },
+        );
+
+    controller.onCancel = () {
+      subscription.cancel();
+      controller.close();
+    };
+
+    return controller.stream;
   }
 
   Future<void> _cleanupStaleDrivers() async {

@@ -1,3 +1,4 @@
+import 'package:shared_services/notification_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -31,12 +32,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   }
 
   Future<void> _navigateToNextScreen() async {
-    await Future.delayed(const Duration(seconds: 2));
+    final hasPendingNotification = NotificationService.hasPendingNotification;
+
+    // Fast-path: If launched via notification, do NOT wait 2 seconds; proceed immediately!
+    if (!hasPendingNotification) {
+      await Future.delayed(const Duration(seconds: 2));
+    }
     if (!mounted) return;
 
     try {
       final user = await ref.read(currentUserProvider.future);
       if (!mounted) return;
+
+      // If launched via notification tap, onNotificationTapped handler routes directly to offer/call/chat screen
+      if (NotificationService.hasPendingNotification) {
+        debugPrint('[SplashScreen] Notification pending, delegating navigation to onNotificationTapped');
+        return;
+      }
 
       if (user == null) {
         final hasSession = SupabaseService.instance.client.auth.currentSession != null;
@@ -59,6 +71,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     } catch (e) {
       debugPrint("Splash screen auth error: $e");
       if (mounted) {
+        if (NotificationService.hasPendingNotification) return;
         final hasSession = SupabaseService.instance.client.auth.currentSession != null;
         if (hasSession) {
           context.go('/driver');

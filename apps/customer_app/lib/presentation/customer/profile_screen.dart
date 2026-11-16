@@ -9,6 +9,9 @@ import '../../providers/auth_provider.dart';
 import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
+import 'package:shared_ui/widgets/notification_bell_button.dart';
+import 'package:shared_ui/widgets/notifications_sheet.dart';
+import '../../providers/notifications_provider.dart';
 
 import '../../providers/theme_provider.dart';
 
@@ -190,15 +193,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  void _openNotifications(BuildContext context) {
+    final notificationsAsync = ref.read(notificationsStreamProvider);
+    final repo = ref.read(notificationRepositoryProvider);
+    final user = ref.read(currentUserProvider).value;
+
+    NotificationsSheet.show(
+      context,
+      notifications: notificationsAsync.value ?? [],
+      onMarkAsRead: (id) => repo.markAsRead(id),
+      onMarkAllAsRead: () {
+        if (user != null) {
+          repo.markAllAsRead(user.id);
+        }
+      },
+      onDelete: (id) => repo.deleteNotification(id),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return LoadingOverlay(
       isLoading: _isLoading,
       message: 'Güncelleniyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Profilim')),
+        appBar: AppBar(
+          title: const Text('Profilim'),
+          actions: [
+            NotificationBellButton(
+              unreadCount: unreadCount,
+              onTap: () => _openNotifications(context),
+            ),
+          ],
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
@@ -263,6 +293,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: 32),
                 const Divider(color: AppColors.divider),
                 const SizedBox(height: 16),
+                ListTile(
+                  onTap: () => _openNotifications(context),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  tileColor: AppColors.surface,
+                  leading: const Icon(Icons.notifications_outlined, color: AppColors.accent),
+                  title: const Text('Bildirimler', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                  subtitle: const Text('Tüm sistem ve durum bildirimleriniz', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (unreadCount > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$unreadCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 12),
                 ListTile(
                   onTap: () => _showThemeDialog(context, ref),

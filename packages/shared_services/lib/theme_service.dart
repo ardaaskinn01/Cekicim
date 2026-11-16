@@ -34,7 +34,6 @@ class ThemeService {
           modeStr = 'dark';
           break;
         case ThemeMode.system:
-        default:
           modeStr = 'system';
           break;
       }

@@ -797,7 +797,44 @@ class _NavigationScreenState extends ConsumerState<NavigationScreen> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: req.isAccident
+                              ? Colors.red.withValues(alpha: 0.15)
+                              : AppColors.primary.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: req.isAccident ? Colors.red : AppColors.primary,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              req.isAccident ? Icons.car_crash : Icons.build,
+                              size: 16,
+                              color: req.isAccident ? Colors.red : AppColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                req.isAccident
+                                    ? '💥 KAZA TALEBİ${req.incidentReason != null ? ': ${req.incidentReason}' : ''}'
+                                    : '🔧 ARIZA TALEBİ${req.incidentReason != null ? ': ${req.incidentReason}' : ''}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: req.isAccident ? Colors.red : AppColors.primary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       // Yol Tarifi Al (Harita Entegrasyonu) Butonu
                       Row(
                         children: [

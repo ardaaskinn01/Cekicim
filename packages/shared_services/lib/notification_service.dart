@@ -10,7 +10,44 @@ import 'auth_repository.dart';
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
-  static Function(String requestId, String? type)? onNotificationTapped;
+  
+  static Function(String requestId, String? type)? _onNotificationTapped;
+  static Map<String, String?>? _pendingNotification;
+
+  static Function(String requestId, String? type)? get onNotificationTapped => _onNotificationTapped;
+
+  static set onNotificationTapped(Function(String requestId, String? type)? handler) {
+    _onNotificationTapped = handler;
+    if (handler != null && _pendingNotification != null) {
+      final reqId = _pendingNotification!['requestId'];
+      final type = _pendingNotification!['type'];
+      _pendingNotification = null;
+      if (reqId != null && reqId.isNotEmpty) {
+        debugPrint('[NotificationService] Executing cached pending notification tap: $reqId ($type)');
+        handler(reqId, type);
+      }
+    }
+  }
+
+  static bool get hasPendingNotification => _pendingNotification != null;
+  static Map<String, String?>? get pendingNotification => _pendingNotification;
+  static void clearPendingNotification() => _pendingNotification = null;
+
+  static void dispatchNotificationTap(String requestId, String? type) {
+    final cleanId = requestId.trim();
+    if (cleanId.isEmpty) return;
+    if (_onNotificationTapped != null) {
+      debugPrint('[NotificationService] Dispatching notification tap immediately: $cleanId ($type)');
+      _onNotificationTapped!(cleanId, type);
+    } else {
+      debugPrint('[NotificationService] Storing pending notification tap: $cleanId ($type)');
+      _pendingNotification = {'requestId': cleanId, 'type': type};
+    }
+  }
+
+  Future<NotificationAppLaunchDetails?> getNotificationAppLaunchDetails() {
+    return _flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+  }
 
   NotificationService._internal();
 
@@ -75,12 +112,12 @@ class NotificationService {
       initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         final payload = response.payload;
-        if (payload != null && onNotificationTapped != null) {
+        if (payload != null) {
           final parts = payload.split('|');
           final reqId = parts[0].trim();
           final type = parts.length > 1 ? parts[1].trim() : null;
           if (reqId.isNotEmpty) {
-            onNotificationTapped!(reqId, type);
+            NotificationService.dispatchNotificationTap(reqId, type);
           }
         }
       },
@@ -206,8 +243,8 @@ class NotificationService {
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
         final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-        if (requestId != null && requestId.trim().isNotEmpty && onNotificationTapped != null) {
-          onNotificationTapped!(requestId.trim(), type);
+        if (requestId != null && requestId.trim().isNotEmpty) {
+          NotificationService.dispatchNotificationTap(requestId.trim(), type);
         }
       });
 
@@ -216,8 +253,8 @@ class NotificationService {
         if (message != null) {
           final requestId = (message.data['request_id'] ?? message.data['requestId']) as String?;
           final type = (message.data['type'] ?? message.data['notification_type']) as String?;
-          if (requestId != null && requestId.trim().isNotEmpty && onNotificationTapped != null) {
-            onNotificationTapped!(requestId.trim(), type);
+          if (requestId != null && requestId.trim().isNotEmpty) {
+            NotificationService.dispatchNotificationTap(requestId.trim(), type);
           }
         }
       });

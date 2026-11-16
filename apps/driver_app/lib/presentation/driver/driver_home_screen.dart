@@ -15,7 +15,10 @@ import 'package:shared_models/service_request_model.dart';
 import 'package:shared_models/request_status.dart';
 import 'package:shared_services/notification_service.dart';
 import 'package:shared_services/alarm_audio_service.dart';
+import 'package:shared_ui/widgets/notification_bell_button.dart';
+import 'package:shared_ui/widgets/notifications_sheet.dart';
 import '../../providers/request_provider.dart';
+import '../../providers/notifications_provider.dart';
 
 class DriverHomeScreen extends ConsumerStatefulWidget {
   const DriverHomeScreen({super.key});
@@ -104,16 +107,46 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with Widget
 
   void _startVerificationPolling() {
     _verificationPollTimer?.cancel();
-    _verificationPollTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
+    _verificationPollTimer = Timer.periodic(const Duration(seconds: 8), (timer) async {
       final user = ref.read(currentUserProvider).value;
-      if (user is DriverModel && !user.isVerified) {
-        // Invalidate current user provider to force reload from Supabase
+      if (user is DriverModel) {
+        // Refresh current user to detect any status revocation, ban, or approval from admin
         ref.invalidate(currentUserProvider);
-        ref.read(authNotifierProvider.notifier).loadCurrentUser();
-      } else if (user is DriverModel && user.isVerified) {
-        _verificationPollTimer?.cancel();
+        await ref.read(authNotifierProvider.notifier).loadCurrentUser();
+        final updatedUser = ref.read(currentUserProvider).value;
+        if (updatedUser is DriverModel) {
+          // If revoked, unverified or rejection reason set
+          if (!updatedUser.isVerified ||
+              (updatedUser.rejectionReason != null && updatedUser.rejectionReason!.isNotEmpty) ||
+              !updatedUser.isOnboardingCompleted) {
+            // Force offline immediately if driver was online
+            if (ref.read(driverStatusProvider)) {
+              await ref.read(driverStatusProvider.notifier).toggleOnlineStatus();
+            }
+          }
+        }
       }
     });
+  }
+
+  void _openNotifications(BuildContext context) {
+    final notifications = ref.read(notificationsStreamProvider).value ?? [];
+    final repo = ref.read(notificationRepositoryProvider);
+
+    NotificationsSheet.show(
+      context,
+      notifications: notifications,
+      onMarkAsRead: (id) => repo.markAsRead(id),
+      onMarkAllAsRead: () {
+        final user = ref.read(currentUserProvider).value;
+        if (user != null) repo.markAllAsRead(user.id);
+      },
+      onDelete: (id) => repo.deleteNotification(id),
+      onActionTap: (n) {
+        Navigator.pop(context);
+        context.push('/driver/onboarding');
+      },
+    );
   }
 
   @override
@@ -147,7 +180,7 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with Widget
 
     // Watch pending offers — guard against duplicate pushes or ringing when on duty
     ref.listen<AsyncValue<List<Map<String, dynamic>>>>(pendingOffersProvider, (prev, next) {
-      if (isOnDuty || !isOnline) return;
+      if (isOnDuty) return;
       final list = next.value;
       if (list != null && list.isNotEmpty) {
         final offer = list.first;
@@ -179,6 +212,10 @@ class _DriverHomeScreenState extends ConsumerState<DriverHomeScreen> with Widget
       appBar: AppBar(
         title: Text(isOnline ? 'Çevrimiçi (Saha)' : 'Çevrimdışı'),
         actions: [
+          NotificationBellButton(
+            unreadCount: ref.watch(unreadNotificationCountProvider),
+            onTap: () => _openNotifications(context),
+          ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () => context.push('/driver/profile'),

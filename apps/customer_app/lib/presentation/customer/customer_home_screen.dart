@@ -10,6 +10,9 @@ import '../../providers/request_provider.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/glass_container.dart';
+import 'package:shared_ui/widgets/notification_bell_button.dart';
+import 'package:shared_ui/widgets/notifications_sheet.dart';
+import '../../providers/notifications_provider.dart';
 
 
 
@@ -21,6 +24,24 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
+  void _openNotifications(BuildContext context) {
+    final notifications = ref.read(notificationsStreamProvider).value ?? [];
+    final repo = ref.read(notificationRepositoryProvider);
+
+    NotificationsSheet.show(
+      context,
+      notifications: notifications,
+      onMarkAsRead: (id) => repo.markAsRead(id),
+      onMarkAllAsRead: () {
+        final user = ref.read(currentUserProvider).value;
+        if (user != null) repo.markAllAsRead(user.id);
+      },
+      onDelete: (id) => repo.deleteNotification(id),
+      onActionTap: (_) {
+        Navigator.pop(context);
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +104,15 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  GlassContainer(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    borderRadius: 30,
+                    opacity: 0.88,
+                    child: NotificationBellButton(
+                      unreadCount: ref.watch(unreadNotificationCountProvider),
+                      onTap: () => _openNotifications(context),
                     ),
                   ),
                 ],

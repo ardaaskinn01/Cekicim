@@ -12,8 +12,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_services/routing_service.dart';
 import 'package:shared_services/alarm_audio_service.dart';
-import 'package:shared_models/driver_model.dart';
+import 'package:shared_models/service_request_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/driver_provider.dart';
 import '../../providers/request_provider.dart';
 
 class IncomingRequestScreen extends ConsumerStatefulWidget {
@@ -30,6 +31,7 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   bool _hasLoadedRequest = false; // Guard: don't redirect until first real data arrives
   bool _navigationPending = false; // Guard: prevent duplicate go('/driver')
   bool _loadingTimedOut = false;
+  ServiceRequestModel? _preloadedRequest;
   Timer? _timer;
   Timer? _loadingTimeoutTimer;
   int _timeLeft = 15; // 15 seconds to accept
@@ -44,10 +46,8 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final user = ref.read(currentUserProvider).value;
-      final driver = user is DriverModel ? user : null;
       final activeReq = ref.read(activeRequestProvider).value;
-      if (activeReq != null || driver?.isAvailable == false) {
+      if (activeReq != null) {
         AlarmAudioService().stopAlarm();
         if (mounted) {
           context.pop();
@@ -56,6 +56,17 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
       }
       AlarmAudioService().startAlarm();
     });
+
+    // Fast-path: Instantly fetch request directly via HTTP (<200ms)
+    // so we don't have to wait for stream controller initial cycle!
+    ref.read(requestRepositoryProvider).getRequestById(widget.requestId).then((req) {
+      if (mounted) {
+        setState(() {
+          _preloadedRequest = req;
+          _hasLoadedRequest = true;
+        });
+      }
+    }).catchError((_) {});
 
     _startTimer();
     // If stream doesn't resolve within 5 seconds, show retry UI
@@ -146,6 +157,14 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
 
       await ref.read(requestNotifierProvider.notifier).acceptRequest(widget.requestId, user.id);
       
+      // If driver was offline (anahtar kapalı), automatically set them online as they take this active job
+      try {
+        await ref.read(requestRepositoryProvider).updateDriverOnlineStatus(user.id, true);
+        if (ref.read(driverStatusProvider) == false) {
+          ref.read(driverStatusProvider.notifier).toggleOnlineStatus();
+        }
+      } catch (_) {}
+
       if (!mounted) return;
       context.go('/driver/navigate/${widget.requestId}');
     } catch (e) {
@@ -240,75 +259,92 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
   @override
   Widget build(BuildContext context) {
     final requestAsync = ref.watch(requestStatusProvider(widget.requestId));
+    final activeRequest = requestAsync.value ?? _preloadedRequest;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: requestAsync.when(
-          loading: () {
-            if (_loadingTimedOut) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.cloud_off_rounded, color: AppColors.textSecondary, size: 48),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Talep yüklenemedi.',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Bağlantı sorunu yaşanıyor olabilir.',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _loadingTimedOut = false;
-                          _loadingTimeoutTimer?.cancel();
-                          _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
-                            if (mounted && !_hasLoadedRequest) setState(() => _loadingTimedOut = true);
-                          });
-                        });
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Tekrar Dene'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                    ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: () {
-                        _timer?.cancel();
-                        if (mounted) context.go('/driver');
-                      },
-                      child: const Text('Ana Sayfaya Dön', style: TextStyle(color: AppColors.textSecondary)),
-                    ),
-                  ],
-                ),
-              );
-            }
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-          },
-          error: (err, st) {
-            AlarmAudioService().stopAlarm();
-            _timer?.cancel();
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && !_navigationPending) {
-                _navigationPending = true;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Talep bulunamadı veya süresi doldu.'),
-                    backgroundColor: AppColors.error,
-                  ),
-                );
-                context.go('/driver');
-              }
-            });
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-          },
-          data: (request) {
+        child: activeRequest != null
+            ? _buildRequestContent(activeRequest)
+            : requestAsync.when(
+                loading: () {
+                  if (_loadingTimedOut) {
+                    return Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_rounded, color: AppColors.textSecondary, size: 48),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Talep yüklenemedi.',
+                            style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Bağlantı sorunu yaşanıyor olabilir.',
+                            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _loadingTimedOut = false;
+                                _loadingTimeoutTimer?.cancel();
+                                _loadingTimeoutTimer = Timer(const Duration(seconds: 5), () {
+                                  if (mounted && !_hasLoadedRequest) setState(() => _loadingTimedOut = true);
+                                });
+                              });
+                              ref.read(requestRepositoryProvider).getRequestById(widget.requestId).then((req) {
+                                if (mounted) {
+                                  setState(() {
+                                    _preloadedRequest = req;
+                                    _hasLoadedRequest = true;
+                                  });
+                                }
+                              }).catchError((_) {});
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Tekrar Dene'),
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              _timer?.cancel();
+                              if (mounted) context.go('/driver');
+                            },
+                            child: const Text('Ana Sayfaya Dön', style: TextStyle(color: AppColors.textSecondary)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                },
+                error: (err, st) {
+                  AlarmAudioService().stopAlarm();
+                  _timer?.cancel();
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted && !_navigationPending) {
+                      _navigationPending = true;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Talep bulunamadı veya süresi doldu.'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                      context.go('/driver');
+                    }
+                  });
+                  return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                },
+                data: (request) => _buildRequestContent(request),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildRequestContent(ServiceRequestModel request) {
             final user = ref.watch(currentUserProvider).value;
 
             // Fetch route points & ETA to customer once when request data is available
@@ -502,6 +538,53 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                         ),
                         const Divider(height: 24),
 
+                        // Incident Type Badge (Arıza vs Kaza)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: request.isAccident
+                                ? Colors.red.withValues(alpha: 0.15)
+                                : AppColors.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: request.isAccident ? Colors.red : AppColors.primary,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                request.isAccident ? Icons.car_crash : Icons.build,
+                                color: request.isAccident ? Colors.red : AppColors.primary,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      request.isAccident ? '💥 KAZA TALEBİ' : '🔧 ARIZA TALEBİ',
+                                      style: TextStyle(
+                                        color: request.isAccident ? Colors.red : AppColors.primary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (request.incidentReason != null && request.incidentReason!.isNotEmpty)
+                                      Text(
+                                        request.incidentReason!,
+                                        style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
                         // Route detail rows matching reference design
                         Row(
                           children: [
@@ -669,9 +752,5 @@ class _IncomingRequestScreenState extends ConsumerState<IncomingRequestScreen> {
                 ),
               ],
             );
-          },
-        ),
-      ),
-    );
   }
 }

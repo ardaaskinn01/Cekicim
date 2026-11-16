@@ -38,6 +38,13 @@ class ServiceRequestModel {
   final double? customerRatingFromDriver;
   final double? driverRatingFromCustomer;
   final double tollFee;
+  final String? incidentType;
+  final String? incidentReason;
+
+  bool get isAccident =>
+      incidentType == 'accident' ||
+      problemType.toLowerCase().contains('kaza') ||
+      (incidentReason != null && incidentReason!.toLowerCase().contains('kaza'));
 
   ServiceRequestModel({
     required this.id,
@@ -76,6 +83,8 @@ class ServiceRequestModel {
     this.customerRatingFromDriver,
     this.driverRatingFromCustomer,
     this.tollFee = 0.0,
+    this.incidentType,
+    this.incidentReason,
   });
 
   factory ServiceRequestModel.fromJson(Map<String, dynamic> json) {
@@ -127,6 +136,8 @@ class ServiceRequestModel {
       customerRatingFromDriver: _parseCustomerRating(json['ratings'], json['customer_id'] as String),
       driverRatingFromCustomer: _parseDriverRating(json['ratings'], json['customer_id'] as String),
       tollFee: (json['toll_fee'] as num?)?.toDouble() ?? 0.0,
+      incidentType: json['incident_type'] as String?,
+      incidentReason: json['incident_reason'] as String?,
     );
   }
 
@@ -183,6 +194,8 @@ class ServiceRequestModel {
       'active_call_channel': activeCallChannel,
       'active_call_caller_id': activeCallCallerId,
       'toll_fee': tollFee,
+      'incident_type': incidentType,
+      'incident_reason': incidentReason,
     };
     if (id.isNotEmpty) {
       data['id'] = id;
@@ -227,6 +240,8 @@ class ServiceRequestModel {
     double? customerRatingFromDriver,
     double? driverRatingFromCustomer,
     double? tollFee,
+    String? incidentType,
+    String? incidentReason,
   }) {
     return ServiceRequestModel(
       id: id ?? this.id,
@@ -265,6 +280,8 @@ class ServiceRequestModel {
       customerRatingFromDriver: customerRatingFromDriver ?? this.customerRatingFromDriver,
       driverRatingFromCustomer: driverRatingFromCustomer ?? this.driverRatingFromCustomer,
       tollFee: tollFee ?? this.tollFee,
+      incidentType: incidentType ?? this.incidentType,
+      incidentReason: incidentReason ?? this.incidentReason,
     );
   }
 }

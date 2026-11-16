@@ -13,6 +13,9 @@ import 'package:shared_ui/widgets/app_text_field.dart';
 import 'package:shared_ui/widgets/green_button.dart';
 import 'package:shared_ui/widgets/loading_overlay.dart';
 import 'package:shared_ui/widgets/feedback_bottom_sheet.dart';
+import 'package:shared_ui/widgets/notification_bell_button.dart';
+import 'package:shared_ui/widgets/notifications_sheet.dart';
+import '../../providers/notifications_provider.dart';
 
 import '../../providers/theme_provider.dart';
 
@@ -236,16 +239,45 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
     }
   }
 
+  void _openNotifications(BuildContext context) {
+    final notifications = ref.read(notificationsStreamProvider).value ?? [];
+    final repo = ref.read(notificationRepositoryProvider);
+
+    NotificationsSheet.show(
+      context,
+      notifications: notifications,
+      onMarkAsRead: (id) => repo.markAsRead(id),
+      onMarkAllAsRead: () {
+        final user = ref.read(currentUserProvider).value;
+        if (user != null) repo.markAllAsRead(user.id);
+      },
+      onDelete: (id) => repo.deleteNotification(id),
+      onActionTap: (n) {
+        Navigator.pop(context);
+        context.push('/driver/onboarding');
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
     final driver = user is DriverModel ? user : null;
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
 
     return LoadingOverlay(
       isLoading: _isLoading,
       message: 'Profil güncelleniyor...',
       child: Scaffold(
-        appBar: AppBar(title: const Text('Profil')),
+        appBar: AppBar(
+          title: const Text('Profil'),
+          actions: [
+            NotificationBellButton(
+              unreadCount: unreadCount,
+              onTap: () => _openNotifications(context),
+            ),
+          ],
+        ),
         body: SafeArea(
           child: RefreshIndicator(
             onRefresh: () async {
@@ -600,6 +632,37 @@ class _DriverProfileScreenState extends ConsumerState<DriverProfileScreen> {
                     text: 'Değişiklikleri Kaydet',
                     onPressed: _handleUpdate,
                     isLoading: _isLoading,
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    onTap: () => _openNotifications(context),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    tileColor: AppColors.surface,
+                    leading: const Icon(Icons.notifications_outlined, color: AppColors.accent),
+                    title: const Text('Bildirimler', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                    subtitle: Text(
+                      unreadCount > 0 ? '$unreadCount okunmamış bildiriminiz var' : 'Sistem ve evrak bildirimleriniz',
+                      style: TextStyle(color: unreadCount > 0 ? const Color(0xFFEF4444) : AppColors.textSecondary, fontSize: 12),
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (unreadCount > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$unreadCount',
+                              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   ListTile(

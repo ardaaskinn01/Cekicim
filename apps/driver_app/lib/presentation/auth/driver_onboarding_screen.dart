@@ -12,7 +12,10 @@ import 'package:shared_models/driver_model.dart';
 import 'package:shared_services/iban_input_formatter.dart';
 import 'package:shared_services/app_error_handler.dart';
 import 'package:shared_ui/widgets/legal_documents_dialog.dart';
+import 'package:shared_ui/widgets/notification_bell_button.dart';
+import 'package:shared_ui/widgets/notifications_sheet.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/notifications_provider.dart';
 
 class DriverOnboardingScreen extends ConsumerStatefulWidget {
   const DriverOnboardingScreen({super.key});
@@ -751,6 +754,29 @@ class _DriverOnboardingScreenState extends ConsumerState<DriverOnboardingScreen>
         appBar: AppBar(
           title: const Text('Sürücü Başvurusu'),
           centerTitle: true,
+          actions: [
+            NotificationBellButton(
+              unreadCount: ref.watch(unreadNotificationCountProvider),
+              onTap: () {
+                final notifications = ref.read(notificationsStreamProvider).value ?? [];
+                final repo = ref.read(notificationRepositoryProvider);
+
+                NotificationsSheet.show(
+                  context,
+                  notifications: notifications,
+                  onMarkAsRead: (id) => repo.markAsRead(id),
+                  onMarkAllAsRead: () {
+                    final user = ref.read(currentUserProvider).value;
+                    if (user != null) repo.markAllAsRead(user.id);
+                  },
+                  onDelete: (id) => repo.deleteNotification(id),
+                  onActionTap: (_) {
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
+          ],
         ),
         body: Column(
           children: [

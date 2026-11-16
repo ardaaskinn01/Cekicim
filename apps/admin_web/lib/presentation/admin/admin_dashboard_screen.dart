@@ -17,6 +17,8 @@ import 'package:shared_ui/widgets/map_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_models/feedback_model.dart';
 import 'package:shared_services/feedback_repository.dart';
+import 'package:shared_models/city_pricing_model.dart';
+import 'package:shared_services/city_pricing_repository.dart';
 import '../../core/utils/export_service.dart';
 import '../../providers/auth_provider.dart';
 
@@ -42,6 +44,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   FeedbackModel? _selectedFeedback;
   String _feedbackFilterStatus = 'all';
   String _feedbackFilterCategory = 'all';
+
+  // City Pricings
+  List<CityPricingModel> _cityPricings = [];
+  final CityPricingRepository _cityPricingRepo = CityPricingRepository();
 
   // Overview stats
   double _totalEarnings = 0.0;
@@ -233,6 +239,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         debugPrint('[AdminPanel] feedbacks load error: $e');
       }
 
+      // 8. Fetch city pricing tariffs
+      try {
+        _cityPricings = await _cityPricingRepo.getCityPricings();
+      } catch (e) {
+        debugPrint('[AdminPanel] city pricing tariffs load error: $e');
+      }
+
       // Recalculate statistics (exclude test requests from financial totals)
       final validCompletedRequests = _allRequests
           .where((r) => r.status.dbValue == 'completed' && !_testRequestIds.contains(r.id))
@@ -342,28 +355,51 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     }
   }
 
-  Future<void> _rejectDriver(String driverId, String reason) async {
+  Future<void> _rejectDriver(String driverId, String reason, {bool isRevokingApproval = false}) async {
     setState(() => _isLoading = true);
     try {
       final client = SupabaseService.instance.client;
-      // Use SECURITY DEFINER RPC with notification, fallback to standard RPC + direct notification
+
+      // 1. Direct and robust DB update to ensure is_verified=false, is_available=false, is_onboarding_completed=false
+      try {
+        await client.from('drivers').update({
+          'is_verified': false,
+          'is_available': false,
+          'rejection_reason': reason,
+          'is_onboarding_completed': false,
+        }).eq('id', driverId);
+      } catch (err) {
+        debugPrint('[AdminPanel] Direct drivers update notice: $err');
+      }
+
+      // 2. Use SECURITY DEFINER RPC with notification, fallback to standard RPC
       try {
         await client.rpc('admin_reject_driver_with_notification', params: {'driver_id': driverId, 'reason': reason});
       } catch (_) {
-        await client.rpc('admin_reject_driver', params: {'driver_id': driverId, 'reason': reason});
-        await _sendNotificationToUser(
-          driverId,
-          'Evrak / Başvuru Bildirimi',
-          'Başvurunuzla ilgili bilgilendirme: $reason',
-        );
+        try {
+          await client.rpc('admin_reject_driver', params: {'driver_id': driverId, 'reason': reason});
+        } catch (_) {}
       }
 
+      // 3. Always insert in-app notification to the driver
+      await _sendNotificationToUser(
+        driverId,
+        isRevokingApproval ? '⚠️ Sürücü Onayınız Askıya Alındı / Evrak Talebi' : '⚠️ Evrak / Başvuru Bildirimi',
+        'Yönetici tarafından belgelerinizin güncellenmesi talep edildi: $reason. Lütfen sürücü başvuru ekranından belgelerinizi güncelleyerek tekrar onaya iletiniz.',
+      );
+
       _selectedDriverApproval = null;
+      _selectedArchiveDriver = null;
       await _loadDashboardData();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Başvuru durumu güncellendi ve sürücüye bildirim iletildi.'), backgroundColor: AppColors.success),
+          SnackBar(
+            content: Text(isRevokingApproval
+                ? 'Sürücünün onayı iptal edildi, çevrimdışı yapıldı ve evrak yenileme talebi iletildi.'
+                : 'Başvuru durumu güncellendi ve sürücüye bildirim iletildi.'),
+            backgroundColor: AppColors.success,
+          ),
         );
       }
     } catch (e) {
@@ -890,8 +926,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
   }
 
-  void _showMissingDocumentDialog(String driverId, String driverName) {
-    String selectedReason = 'Ehliyet ve/veya araç ruhsatı belgeniz okunaksız veya net değil. Lütfen belgelerinizi tekrar yükleyiniz.';
+  void _showMissingDocumentDialog(String driverId, String driverName, {bool isCurrentlyVerified = false}) {
+    String selectedReason = isCurrentlyVerified
+        ? 'Hesabınızdaki evrak bilgilerinde eksiklik tespit edilmiş ve onayınız geçici olarak kaldırılmıştır. Lütfen tüm evraklarınızı eksiksiz olarak tekrar yükleyiniz.'
+        : 'Ehliyet ve/veya araç ruhsatı belgeniz okunaksız veya net değil. Lütfen belgelerinizi tekrar yükleyiniz.';
     final customController = TextEditingController(text: selectedReason);
 
     showDialog(
@@ -900,30 +938,58 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.cardBackground,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.border)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-              SizedBox(width: 10),
-              Text('Eksik Evrak Bildirimi & Talep', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+              Icon(isCurrentlyVerified ? Icons.assignment_late_rounded : Icons.warning_amber_rounded, color: AppColors.warning),
+              const SizedBox(width: 10),
+              Text(
+                isCurrentlyVerified ? 'Onayı Kaldır & Tekrar Evrak İste' : 'Eksik Evrak Bildirimi & Talep',
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           content: SizedBox(
-            width: 520,
+            width: 540,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Sürücü: $driverName', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 13)),
                 const SizedBox(height: 8),
-                const Text(
-                  'Bu işlem sürücüyü anında bilgilendirir ve sürücü uygulamasında belgelerini yeniden yükleyip gönderebilmesi için başvuru ekranını açar.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 16),
+                if (isCurrentlyVerified) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.gavel_rounded, color: AppColors.error, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Bu sürücü şu anda onaylı! Bu işlemi uyguladığınızda sürücünün onayı iptal edilir, anında çevrimdışı yapılır ve yeni evrakları yükleyip admin tarafından onaylanana kadar aktifliği açamaz.',
+                            style: TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600, height: 1.4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ] else ...[
+                  const Text(
+                    'Bu işlem sürücüyü bilgilendirir ve sürücü uygulamasında belgelerini yeniden yükleyip gönderebilmesi için başvuru ekranını açar.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 const Text('Hızlı Şablon Seçin:', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 12)),
                 const SizedBox(height: 8),
                 RadioListTile<String>(
-                  title: const Text('Ehliyet / Ruhsat Okunaksız', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                  title: const Text('Ehliyet / Ruhsat Eksik veya Okunaksız', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
                   subtitle: const Text('Fotoğraf bulanık veya eksik.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                   value: 'Ehliyet ve/veya araç ruhsatı belgeniz okunaksız veya net değil. Lütfen belgelerinizi tekrar yükleyiniz.',
                   groupValue: selectedReason,
@@ -964,6 +1030,20 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     });
                   },
                 ),
+                RadioListTile<String>(
+                  title: const Text('Yanlışlıkla Onaylandı / Tüm Evrakları Güncelle', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                  subtitle: const Text('Evraklarda eksiklik var, onay geri alınıp yeniden inceleme yapılacak.', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                  value: 'Hesabınızdaki evrak bilgilerinde eksiklik tespit edilmiş ve onayınız geçici olarak kaldırılmıştır. Lütfen tüm evraklarınızı eksiksiz olarak tekrar yükleyiniz.',
+                  groupValue: selectedReason,
+                  activeColor: AppColors.accent,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (val) {
+                    setDialogState(() {
+                      selectedReason = val!;
+                      customController.text = val;
+                    });
+                  },
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: customController,
@@ -989,12 +1069,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 final reason = customController.text.trim();
                 if (reason.isNotEmpty) {
                   Navigator.pop(context);
-                  _rejectDriver(driverId, reason);
+                  _rejectDriver(driverId, reason, isRevokingApproval: isCurrentlyVerified);
                 }
               },
-              icon: const Icon(Icons.send, size: 16),
-              label: const Text('Bildirimi Gönder'),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.warning),
+              icon: Icon(isCurrentlyVerified ? Icons.undo_rounded : Icons.send, size: 16),
+              label: Text(isCurrentlyVerified ? 'Onayı Kaldır & Evrak İste' : 'Bildirimi Gönder'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isCurrentlyVerified ? AppColors.error : AppColors.warning,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),
@@ -1655,6 +1738,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                 _buildSidebarMenuItem(7, 'Canlı Takip Haritası', Icons.map_outlined),
                 _buildSidebarMenuItem(8, 'Değerlendirmeler', Icons.star_outline),
                 _buildSidebarMenuItem(9, 'Öneri & Geri Bildirimler', Icons.feedback_outlined, badgeCount: _allFeedbacks.where((f) => f.status == 'pending').length),
+                _buildSidebarMenuItem(10, 'İl Fiyat Tarifeleri', Icons.price_change_outlined),
               ],
             ),
           ),
@@ -1765,6 +1849,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 7: pageTitle = isMobile ? 'Canlı Harita' : 'Canlı Operasyon Haritası'; break;
       case 8: pageTitle = 'Değerlendirmeler'; break;
       case 9: pageTitle = isMobile ? 'Geri Bildirimler' : 'Kullanıcı Öneri ve Geri Bildirimleri'; break;
+      case 10: pageTitle = isMobile ? 'İl Fiyat Tarifeleri' : 'Dinamik İl Fiyat Tarifeleri ve Kaza Çarpanı'; break;
     }
 
     return Container(
@@ -1812,6 +1897,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       case 7: return _buildLiveMapTab();
       case 8: return _buildRatingsTab();
       case 9: return _buildFeedbacksTab();
+      case 10: return _buildCityPricingsTab();
       default: return const Center(child: Text('Sekme bulunamadı.'));
     }
   }
@@ -2693,6 +2779,24 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: () => _showMissingDocumentDialog(
+                              driver['id'],
+                              profile['full_name'] ?? 'Sürücü',
+                              isCurrentlyVerified: true,
+                            ),
+                            icon: const Icon(Icons.assignment_late_outlined, color: AppColors.warning, size: 16),
+                            label: Text(
+                              isMobile ? 'Evrak İste' : 'Tekrar Evrak İste (Onayı Kaldır)',
+                              style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.warning, width: 1.2),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            ),
+                          ),
                         ],
                       ),
                       const Divider(color: AppColors.border, height: 36),
@@ -3442,12 +3546,15 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                                           tooltip: 'Bildirim Gönder',
                                           onPressed: () => _showSendNotificationDialog(prof['id'] ?? driverId, driverName),
                                         ),
-                                        if (!isVerified)
-                                          IconButton(
-                                            icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
-                                            tooltip: 'Eksik Evrak Bildirimi Gönder',
-                                            onPressed: () => _showMissingDocumentDialog(driverId, driverName),
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.warning_amber_rounded,
+                                            color: isVerified ? const Color(0xFFF59E0B) : AppColors.warning,
+                                            size: 18,
                                           ),
+                                          tooltip: isVerified ? 'Onayı Kaldır & Tekrar Evrak İste' : 'Eksik Evrak Bildirimi Gönder',
+                                          onPressed: () => _showMissingDocumentDialog(driverId, driverName, isCurrentlyVerified: isVerified),
+                                        ),
                                         const SizedBox(width: 4),
                                         OutlinedButton(
                                           onPressed: isSuspended
@@ -5294,22 +5401,43 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
                     ),
                   ],
                 ),
-                TextButton(
-                  onPressed: isSuspended
-                      ? () => _toggleUserBlock(prof['id'], false)
-                      : () => _showBanUserDialog(prof['id'], prof['full_name'] ?? 'Sürücü'),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(50, 30),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    isSuspended ? 'Engeli Kaldır' : 'Engelle',
-                    style: TextStyle(
-                      color: isSuspended ? AppColors.accent : AppColors.error,
-                      fontWeight: FontWeight.bold,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.warning_amber_rounded,
+                        color: isVerified ? const Color(0xFFF59E0B) : AppColors.warning,
+                        size: 18,
+                      ),
+                      tooltip: isVerified ? 'Onayı Kaldır & Tekrar Evrak İste' : 'Eksik Evrak Bildirimi Gönder',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: () => _showMissingDocumentDialog(
+                        d['id'],
+                        prof['full_name'] ?? 'Sürücü',
+                        isCurrentlyVerified: isVerified,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 4),
+                    TextButton(
+                      onPressed: isSuspended
+                          ? () => _toggleUserBlock(prof['id'], false)
+                          : () => _showBanUserDialog(prof['id'], prof['full_name'] ?? 'Sürücü'),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(50, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        isSuspended ? 'Engeli Kaldır' : 'Engelle',
+                        style: TextStyle(
+                          color: isSuspended ? AppColors.accent : AppColors.error,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -6178,6 +6306,776 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  // TAB 10: DYNAMIC CITY PRICING & ACCIDENT MULTIPLIER
+  double _simDistance = 10.0;
+  bool _simIsAccident = false;
+  String _simCityId = 'istanbul';
+
+  Widget _buildCityPricingsTab() {
+    final isMobile = MediaQuery.of(context).size.width < 900;
+    final pricings = _cityPricings.isNotEmpty ? _cityPricings : CityPricingRepository.defaultPricings;
+
+    final simPricing = pricings.firstWhere(
+      (p) => p.id == _simCityId,
+      orElse: () => pricings.first,
+    );
+    final simResult = simPricing.calculatePrice(
+      distanceKm: _simDistance,
+      isAccident: _simIsAccident,
+    );
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16.0 : 32.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Banner / Explanatory header
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withValues(alpha: 0.25),
+                  AppColors.cardBackground,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.calculate_outlined, color: AppColors.accent, size: 28),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Dinamik İl Tabanlı Fiyatlandırma ve Kaza Çarpanı',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '10 Büyükşehir ve Diğer İller için taban ücret, kademeli km fiyatı (0-15 km ve 15+ km) ile kaza durumunda uygulanacak çarpan oranlarını yönetin.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(color: AppColors.border),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 24,
+                  runSpacing: 8,
+                  children: [
+                    _buildFormulaBadge('📌 Formül:', 'Taban + (Km - 1) × Kademe'),
+                    _buildFormulaBadge('🏷️ 0-15 Km:', 'Kısa mesafe km birim fiyatı'),
+                    _buildFormulaBadge('🛣️ 15+ Km:', 'Uzun mesafe km birim fiyatı'),
+                    _buildFormulaBadge('💥 Kaza Çarpanı:', 'Kaza taleplerinde katsayı çarpımı (Örn: 1.5x)'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Price Calculation Simulator
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.speed, color: AppColors.accent, size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Canlı Fiyat Simülatörü',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _simIsAccident
+                            ? AppColors.error.withValues(alpha: 0.15)
+                            : AppColors.accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        _simIsAccident ? '💥 Kaza Talebi Aktif' : '🔧 Arıza Talebi Aktif',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _simIsAccident ? AppColors.error : AppColors.accent,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (isMobile) ...[
+                  _buildSimCityDropdown(pricings),
+                  const SizedBox(height: 12),
+                  _buildSimDistanceSlider(),
+                  const SizedBox(height: 12),
+                  _buildSimAccidentToggle(),
+                  const SizedBox(height: 16),
+                  _buildSimResultCard(simResult, simPricing),
+                ] else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(flex: 2, child: _buildSimCityDropdown(pricings)),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 3, child: _buildSimDistanceSlider()),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 2, child: _buildSimAccidentToggle()),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 3, child: _buildSimResultCard(simResult, simPricing)),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Header for tariffs
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Kayıtlı Şehir Tarifeleri (${pricings.length} Bölge)',
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.refresh, size: 16, color: AppColors.accent),
+                label: const Text('Tarifeleri Yenile', style: TextStyle(color: AppColors.accent)),
+                onPressed: () async {
+                  final list = await _cityPricingRepo.getCityPricings();
+                  if (mounted) setState(() => _cityPricings = list);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Cards Grid
+          LayoutBuilder(
+            builder: (context, constraints) {
+              int crossAxisCount = 3;
+              if (constraints.maxWidth < 650) {
+                crossAxisCount = 1;
+              } else if (constraints.maxWidth < 1100) {
+                crossAxisCount = 2;
+              }
+
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  mainAxisExtent: 260,
+                ),
+                itemCount: pricings.length,
+                itemBuilder: (context, index) {
+                  final pricing = pricings[index];
+                  return _buildCityTariffCard(pricing);
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFormulaBadge(String label, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '$label ',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.accent),
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimCityDropdown(List<CityPricingModel> pricings) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Şehir Seçimi', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _simCityId,
+              isExpanded: true,
+              dropdownColor: AppColors.cardBackground,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              items: pricings.map((p) {
+                return DropdownMenuItem<String>(
+                  value: p.id,
+                  child: Text(p.cityName),
+                );
+              }).toList(),
+              onChanged: (val) {
+                if (val != null) setState(() => _simCityId = val);
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimDistanceSlider() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Mesafe:', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            Text(
+              '${_simDistance.toStringAsFixed(1)} km',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
+            ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: AppColors.accent,
+            thumbColor: AppColors.accent,
+            inactiveTrackColor: AppColors.surface,
+          ),
+          child: Slider(
+            value: _simDistance,
+            min: 1.0,
+            max: 100.0,
+            divisions: 99,
+            onChanged: (val) => setState(() => _simDistance = val),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimAccidentToggle() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Talep Türü', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _simIsAccident = false),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: !_simIsAccident ? AppColors.accent.withValues(alpha: 0.2) : AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: !_simIsAccident ? AppColors.accent : AppColors.border,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '🔧 Arıza',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: !_simIsAccident ? AppColors.accent : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InkWell(
+                onTap: () => setState(() => _simIsAccident = true),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _simIsAccident ? AppColors.error.withValues(alpha: 0.2) : AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _simIsAccident ? AppColors.error : AppColors.border,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      '💥 Kaza',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _simIsAccident ? AppColors.error : AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimResultCard(double simResult, CityPricingModel simPricing) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Tahmini Müşteri Fiyatı', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
+          Text(
+            '${simResult.toStringAsFixed(0)} ₺',
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: AppColors.accent,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            _simIsAccident
+                ? '${simPricing.cityName} (${simPricing.accidentMultiplier}x Kaza Çarpanı Uygulandı)'
+                : '${simPricing.cityName} (Standart Arıza)',
+            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCityTariffCard(CityPricingModel pricing) {
+    final isDiger = pricing.cityName == 'Diğer İller';
+    final preview10km = pricing.calculatePrice(distanceKm: 10, isAccident: false);
+    final preview10kmKaza = pricing.calculatePrice(distanceKm: 10, isAccident: true);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDiger ? AppColors.accent.withValues(alpha: 0.5) : AppColors.border,
+          width: isDiger ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isDiger ? Icons.public : Icons.location_city,
+                    color: isDiger ? AppColors.accent : AppColors.primary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    pricing.cityName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isDiger
+                      ? AppColors.accent.withValues(alpha: 0.15)
+                      : AppColors.surface,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isDiger ? 'Varsayılan' : 'Özel Tarife',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDiger ? AppColors.accent : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: AppColors.border, height: 1),
+          const SizedBox(height: 12),
+
+          // Price metrics grid
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricItem('Taban Fiyat', '${pricing.basePrice.toStringAsFixed(0)} ₺'),
+              ),
+              Expanded(
+                child: _buildMetricItem('Kaza Çarpanı', '${pricing.accidentMultiplier}x'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _buildMetricItem('0 - 15 km', '${pricing.kmPriceTier1.toStringAsFixed(0)} ₺/km'),
+              ),
+              Expanded(
+                child: _buildMetricItem('15+ km', '${pricing.kmPriceTier2.toStringAsFixed(0)} ₺/km'),
+              ),
+            ],
+          ),
+          const Spacer(),
+
+          // Preview & Edit action
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('10 km Örnek Fiyat:', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                  Text(
+                    'Arıza: ${preview10km.toStringAsFixed(0)} ₺ | Kaza: ${preview10kmKaza.toStringAsFixed(0)} ₺',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.edit, size: 14),
+                label: const Text('Düzenle', style: TextStyle(fontSize: 12)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: () => _showEditPricingDialog(pricing),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetricItem(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+        ),
+      ],
+    );
+  }
+
+  void _showEditPricingDialog(CityPricingModel pricing) {
+    final baseCtrl = TextEditingController(text: pricing.basePrice.toStringAsFixed(0));
+    final tier1Ctrl = TextEditingController(text: pricing.kmPriceTier1.toStringAsFixed(0));
+    final tier2Ctrl = TextEditingController(text: pricing.kmPriceTier2.toStringAsFixed(0));
+    final multCtrl = TextEditingController(text: pricing.accidentMultiplier.toString());
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final double currentBase = double.tryParse(baseCtrl.text) ?? pricing.basePrice;
+            final double currentTier1 = double.tryParse(tier1Ctrl.text) ?? pricing.kmPriceTier1;
+            final double currentTier2 = double.tryParse(tier2Ctrl.text) ?? pricing.kmPriceTier2;
+            final double currentMult = double.tryParse(multCtrl.text) ?? pricing.accidentMultiplier;
+
+            final tempModel = pricing.copyWith(
+              basePrice: currentBase,
+              kmPriceTier1: currentTier1,
+              kmPriceTier2: currentTier2,
+              accidentMultiplier: currentMult,
+            );
+
+            final preview5kmAriza = tempModel.calculatePrice(distanceKm: 5, isAccident: false);
+            final preview5kmKaza = tempModel.calculatePrice(distanceKm: 5, isAccident: true);
+            final preview20kmAriza = tempModel.calculatePrice(distanceKm: 20, isAccident: false);
+            final preview20kmKaza = tempModel.calculatePrice(distanceKm: 20, isAccident: true);
+
+            return AlertDialog(
+              backgroundColor: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  const Icon(Icons.price_change_outlined, color: AppColors.accent),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${pricing.cityName} Tarifesini Düzenle',
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 480,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Bu şehre gelen veya bu şehirden başlayan çekici çağrılarında geçerli olacak taban fiyat, km birim ücretleri ve kaza çarpanı oranını belirleyin.',
+                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Taban Fiyat
+                      TextField(
+                        controller: baseCtrl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: 'Başlangıç / Taban Ücret (₺)',
+                          labelStyle: TextStyle(color: AppColors.textSecondary),
+                          suffixText: 'TL',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 0-15 km
+                      TextField(
+                        controller: tier1Ctrl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: '0 - 15 Km Arası Km Başı Ücret (₺/km)',
+                          labelStyle: TextStyle(color: AppColors.textSecondary),
+                          suffixText: 'TL / km',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // 15+ km
+                      TextField(
+                        controller: tier2Ctrl,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: '15+ Km Üzeri Km Başı Ücret (₺/km)',
+                          labelStyle: TextStyle(color: AppColors.textSecondary),
+                          suffixText: 'TL / km',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Kaza Çarpanı
+                      TextField(
+                        controller: multCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: const InputDecoration(
+                          labelText: 'Kaza Çarpanı (Örn: 1.5)',
+                          labelStyle: TextStyle(color: AppColors.textSecondary),
+                          helperText: 'Kaza durumunda toplam tutar bu katsayı ile çarpılır (örn 1.5 = %50 artış)',
+                          helperStyle: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                          suffixText: 'x',
+                          border: OutlineInputBorder(),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                        ),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Live calculation preview box inside modal
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Canlı Önizleme Hesabı:',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.accent),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('5 km Arıza:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                Text('${preview5kmAriza.toStringAsFixed(0)} ₺', style: const TextStyle(fontSize: 11, color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                                const Text('5 km Kaza:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                Text('${preview5kmKaza.toStringAsFixed(0)} ₺', style: const TextStyle(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text('20 km Arıza:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                Text('${preview20kmAriza.toStringAsFixed(0)} ₺', style: const TextStyle(fontSize: 11, color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
+                                const Text('20 km Kaza:', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                Text('${preview20kmKaza.toStringAsFixed(0)} ₺', style: const TextStyle(fontSize: 11, color: AppColors.error, fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(ctx),
+                  child: const Text('İptal', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.black,
+                  ),
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          setDialogState(() => isSaving = true);
+                          try {
+                            final updated = pricing.copyWith(
+                              basePrice: double.tryParse(baseCtrl.text) ?? pricing.basePrice,
+                              kmPriceTier1: double.tryParse(tier1Ctrl.text) ?? pricing.kmPriceTier1,
+                              kmPriceTier2: double.tryParse(tier2Ctrl.text) ?? pricing.kmPriceTier2,
+                              accidentMultiplier: double.tryParse(multCtrl.text) ?? pricing.accidentMultiplier,
+                            );
+
+                            await _cityPricingRepo.updateCityPricing(updated);
+                            final refreshed = await _cityPricingRepo.getCityPricings();
+
+                            if (mounted) {
+                              setState(() {
+                                _cityPricings = refreshed;
+                              });
+                            }
+
+                            if (ctx.mounted) {
+                              Navigator.pop(ctx);
+                            }
+
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('${pricing.cityName} fiyat tarifesi başarıyla güncellendi.'),
+                                backgroundColor: AppColors.accent,
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() => isSaving = false);
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Hata oluştu: $e'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        },
+                  child: isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Kaydet ve Uygula', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
